@@ -6,5 +6,5 @@ import com.duong.travelweb.model.CountryDTO;
 import java.util.List;
 
 public interface CountryService {
-    List<CountryDTO> findAll(String countryName);
+    List<CountryDTO> findCountry(String countryName);
 }

@@ -5,6 +5,6 @@ import com.duong.travelweb.repository.entity.CountryEntity;
 import java.util.List;
 
 public interface CountryRepository {
-    List<CountryEntity> findAll(String countryName);
+    List<CountryEntity> findCountry(String countryName);
 
 }

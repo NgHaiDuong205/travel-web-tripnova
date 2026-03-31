@@ -9,11 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 @Repository
 public class CountryRepositoryImpl implements CountryRepository {
-    static final String DB_URL = "jdbc:sqlserver://localhost:1433;databaseName=springboot_test;encrypt=true;trustServerCertificate=true";
+    static final String DB_URL = "jdbc:sqlserver://localhost:1433;databaseName=travel_web;encrypt=true;trustServerCertificate=true";
     static final String USER = "NguyenHaiDuong";
     static final String PASS = "Duong06112005!";
     @Override
-    public List<CountryEntity> findAll(String countryName) {
+    public List<CountryEntity> findCountry(String countryName) {
         String sql = "SELECT * FROM countries WHERE country_name like '%" + countryName + "%'";
         List<CountryEntity> results = new ArrayList<>();
         try(Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
@@ -21,14 +21,10 @@ public class CountryRepositoryImpl implements CountryRepository {
             ResultSet rs = stmt.executeQuery(sql);) {
             while (rs.next()) {
                 CountryEntity country = new CountryEntity();
-                country.setCountry_name(rs.getString("country_name"));
-                country.setCode(rs.getString("code"));
-                country.setPopulation(rs.getInt("population"));
-                country.setCountry_id(rs.getString("country_id"));
+                country.setId(rs.getString("id"));
+                country.setCountryName(rs.getString("country_name"));
                 country.setFlag(rs.getString("flag"));
-                country.setCapital(rs.getString("capital"));
-                country.setRegion(rs.getString("region"));
-                country.setCurrencies(rs.getString("currencies"));
+                country.setContinent(rs.getString("continent"));
                 results.add(country);
             }
         } catch(SQLException e){

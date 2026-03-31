@@ -15,7 +15,7 @@ public class CountryAPI {
     private CountryService countriesService;
     @GetMapping("/api/countries/")
     public List<CountryDTO> getCountry(@RequestParam(name="name") String countryName){
-        List<CountryDTO> results = countriesService.findAll(countryName);
+        List<CountryDTO> results = countriesService.findCountry(countryName);
         return results;
     }
 //    @PostMapping("/api/countries/")

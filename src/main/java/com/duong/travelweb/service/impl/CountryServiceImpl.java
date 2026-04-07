@@ -1,5 +1,6 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.converter.CountryDTOConverter;
 import com.duong.travelweb.model.CountryDTO;
 import com.duong.travelweb.repository.ContinentRepository;
 import com.duong.travelweb.repository.CountryRepository;
@@ -16,20 +17,15 @@ import java.util.Map;
 @Service
 public class CountryServiceImpl implements CountryService {
     @Autowired
-    private CountryRepository countryRepository;
+    private CountryDTOConverter countryDTOConverter;
     @Autowired
-    private ContinentRepository continentRepository;
+    private CountryRepository countryRepository;
     @Override
     public List<CountryDTO> findCountry(Map<String,Object> params,List<String> typeCode) {
         List<CountryEntity> countryEntities = countryRepository.findCountry(params,typeCode);
         List<CountryDTO> result = new ArrayList<CountryDTO>();
         for(CountryEntity item : countryEntities){
-            CountryDTO country = new CountryDTO();
-            country.setId(item.getId());
-            country.setCountryName(item.getCountryName());
-            country.setFlag(item.getFlag());
-            ContinentEntity continentEntity = continentRepository.findNameById(item.getContinentId().longValue());
-            country.setContinent(continentEntity.getName());
+            CountryDTO country = countryDTOConverter.toCountryDTO(item);
             result.add(country);
         }
         return result;

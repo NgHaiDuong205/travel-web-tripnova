@@ -1,5 +1,6 @@
 package com.duong.travelweb.repository.impl;
 
+import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
 import com.duong.travelweb.StringUtil.NumberUtil;
 import com.duong.travelweb.StringUtil.StringUtil;
 import com.duong.travelweb.repository.CountryRepository;
@@ -13,10 +14,6 @@ import java.util.Map;
 
 @Repository
 public class CountryRepositoryImpl implements CountryRepository {
-    static final String DB_URL = "jdbc:sqlserver://localhost:1433;databaseName=tripnova;encrypt=true;trustServerCertificate=true";
-    static final String USER = "sa";
-    static final String PASS = "Duong06112005!";
-
     public static void joinTable(Map<String,Object> params,List<String> typeCode,StringBuilder sql){
         String continentId = (String)params.get("continent_id");
         if(StringUtil.checkString(continentId)){
@@ -60,7 +57,7 @@ public class CountryRepositoryImpl implements CountryRepository {
         querySpecial(params, typeCode, where);
         sql.append(where);
         List<CountryEntity> results = new ArrayList<>();
-        try(Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
+        try(Connection conn = ConnectionJDBCUtil.getConnection();
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql.toString());) {
             while (rs.next()) {
@@ -84,7 +81,7 @@ public class CountryRepositoryImpl implements CountryRepository {
         StringBuilder where = new StringBuilder(" WHERE id = '" + id + "';");
         sql.append(where);
         CountryEntity countryEntity= new CountryEntity();
-        try(Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
+        try(Connection conn = ConnectionJDBCUtil.getConnection();
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql.toString());){
             while (rs.next()){

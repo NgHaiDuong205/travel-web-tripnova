@@ -1,5 +1,6 @@
 package com.duong.travelweb.repository.impl;
 
+import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
 import com.duong.travelweb.StringUtil.NumberUtil;
 import com.duong.travelweb.StringUtil.StringUtil;
 import com.duong.travelweb.repository.HotelRepository;
@@ -12,10 +13,6 @@ import java.util.List;
 import java.util.Map;
 @Repository
 public class HotelRepositoryImpl implements HotelRepository {
-    static final String DB_URL = "jdbc:sqlserver://localhost:1433;databaseName=tripnova;encrypt=true;trustServerCertificate=true";
-    static final String USER = "sa";
-    static final String PASS = "Duong06112005!";
-
     public static void joinTable(Map<String,Object> params , List<String> typeCode , StringBuilder sql){
         String cityId = (String) params.get("city_id");
         String countryId = (String) params.get("country_id");
@@ -75,7 +72,7 @@ public class HotelRepositoryImpl implements HotelRepository {
         querySpecial(params,typeCode,where);
         sql.append(where);
         List<HotelEntity> hotelEntities = new ArrayList<HotelEntity>();
-        try(Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
+        try(Connection conn = ConnectionJDBCUtil.getConnection();
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql.toString());){
             while (rs.next()){

@@ -4,7 +4,7 @@ public class HotelDTO {
     private Integer id;
     private String name;
     private String address;
-    private String rating;
+    private Double rating;
     private String amenities;
     private String description;
 
@@ -32,11 +32,11 @@ public class HotelDTO {
         this.address = address;
     }
 
-    public String getRating() {
+    public Double getRating() {
         return rating;
     }
 
-    public void setRating(String rating) {
+    public void setRating(Double rating) {
         this.rating = rating;
     }
 

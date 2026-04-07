@@ -52,6 +52,9 @@ public class HotelServiceImpl implements HotelService {
             
             hotel.setAddress(item.getAddress() + " - " + cityName + " - " + countryName);
             hotel.setName(item.getName());
+            hotel.setDescription(item.getDescription());
+            hotel.setAmenities(item.getAmenities());
+            hotel.setRating(item.getRating());
             hotelDTOS.add(hotel);
         }
         return hotelDTOS;

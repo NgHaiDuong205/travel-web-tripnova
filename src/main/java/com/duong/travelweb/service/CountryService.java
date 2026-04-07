@@ -4,7 +4,8 @@ import com.duong.travelweb.model.CountryDTO;
 
 
 import java.util.List;
+import java.util.Map;
 
 public interface CountryService {
-    List<CountryDTO> findCountry(String countryName);
+    List<CountryDTO> findCountry(Map<String,Object> params, List<String> typeCode);
 }

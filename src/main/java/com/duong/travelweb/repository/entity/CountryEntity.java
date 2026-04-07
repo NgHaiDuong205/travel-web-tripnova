@@ -4,7 +4,7 @@ public class CountryEntity {
     private String id;
     private String countryName;
     private String flag;
-    private String continent;
+    private Integer continentId;
 
     public String getId() {
         return id;
@@ -30,11 +30,11 @@ public class CountryEntity {
         this.flag = flag;
     }
 
-    public String getContinent() {
-        return continent;
+    public Integer getContinentId() {
+        return continentId;
     }
 
-    public void setContinent(String continent) {
-        this.continent = continent;
+    public void setContinentId(Integer continentId) {
+        this.continentId = continentId;
     }
 }

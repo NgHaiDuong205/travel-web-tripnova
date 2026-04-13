@@ -1,4 +1,4 @@
-package com.duong.travelweb.StringUtil;
+package com.duong.travelweb.utils;
 
 public class StringUtil {
     public static boolean checkString(String data){

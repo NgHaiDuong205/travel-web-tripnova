@@ -1,6 +1,6 @@
 package com.duong.travelweb.repository.impl;
 
-import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
+import com.duong.travelweb.utils.ConnectionJDBCUtil;
 import com.duong.travelweb.repository.ContinentRepository;
 import com.duong.travelweb.repository.entity.ContinentEntity;
 import org.springframework.stereotype.Repository;

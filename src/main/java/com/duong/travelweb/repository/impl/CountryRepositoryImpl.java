@@ -1,12 +1,14 @@
 package com.duong.travelweb.repository.impl;
 
-import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
-import com.duong.travelweb.StringUtil.NumberUtil;
-import com.duong.travelweb.StringUtil.StringUtil;
+import com.duong.travelweb.builder.CountrySearchBuilder;
+import com.duong.travelweb.utils.ConnectionJDBCUtil;
+import com.duong.travelweb.utils.NumberUtil;
+import com.duong.travelweb.utils.StringUtil;
 import com.duong.travelweb.repository.CountryRepository;
 import com.duong.travelweb.repository.entity.CountryEntity;
 import org.springframework.stereotype.Repository;
 
+import java.lang.reflect.Field;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,47 +16,61 @@ import java.util.Map;
 
 @Repository
 public class CountryRepositoryImpl implements CountryRepository {
-    public static void joinTable(Map<String,Object> params,List<String> typeCode,StringBuilder sql){
-        String continentId = (String)params.get("continent_id");
-        if(StringUtil.checkString(continentId)){
-            if(NumberUtil.isNumber(continentId)){
-                sql.append(" INNER JOIN continents C on C.id = CO.continent_id ");
-            }
-        }
-    }
-
-    public static void queryNomal(Map<String,Object> params,StringBuilder where){
-        for(Map.Entry<String,Object> it : params.entrySet()){
-            if(!it.getKey().equals("continent_id") && !it.getKey().equals("typeCode")){
-                String value =(String) it.getValue();
-                if(StringUtil.checkString(value)){
-                    if(NumberUtil.isNumber(value)){
-                        where.append(" AND CO." + it.getKey() + " = " + value);
-                    } else {
-                        where.append(" AND CO." + it.getKey() + " LIKE N'%" + value + "%' ");
-                    }
+    public static void joinTable(CountrySearchBuilder countrySearchBuilder,StringBuilder sql){
+        if(countrySearchBuilder.getContinentId() != null) {
+            String continentId = countrySearchBuilder.getContinentId().toString();
+            if(StringUtil.checkString(continentId)){
+                if(NumberUtil.isNumber(continentId)){
+                    sql.append(" INNER JOIN continents C on C.id = CO.continent_id ");
                 }
             }
         }
     }
 
+    public static void queryNomal(CountrySearchBuilder countrySearchBuilder,StringBuilder where){
+        try{
+            Field[] fields = CountrySearchBuilder.class.getDeclaredFields();
+            for(Field item : fields){
+                item.setAccessible(true);
+                String fieldName = item.getName();
+                if(!fieldName.equals("continentId") && !fieldName.equals("typeCode") && !fieldName.startsWith("this")){
+                    Object objValue = item.get(countrySearchBuilder);
+                    if(objValue != null) {
+                        String value = objValue.toString();
+                        if(StringUtil.checkString(value)){
+                            if(NumberUtil.isNumber(value)){
+                                where.append(" AND CO." + fieldName + " = " + value);
+                            } else {
+                                where.append(" AND CO." + fieldName + " LIKE N'%" + value + "%' ");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
 
-    public static void querySpecial(Map<String,Object> params, List<String> typeCode, StringBuilder where){
-        String continentId = (String) params.get("continent_id");
-        if(StringUtil.checkString(continentId)){
-            if (NumberUtil.isNumber(continentId)){
-                where.append(" AND C.id = " + continentId + " ");
+
+    public static void querySpecial(CountrySearchBuilder countrySearchBuilder, StringBuilder where){
+        if(countrySearchBuilder.getContinentId() != null) {
+            String continentId = countrySearchBuilder.getContinentId().toString();
+            if(StringUtil.checkString(continentId)){
+                if (NumberUtil.isNumber(continentId)){
+                    where.append(" AND C.id = " + continentId + " ");
+                }
             }
         }
     }
 
     @Override
-    public List<CountryEntity> findCountry(Map<String,Object> params,List<String> typeCode) {
+    public List<CountryEntity> findCountry(CountrySearchBuilder countrySearchBuilder) {
         StringBuilder sql = new StringBuilder(" SELECT CO.* FROM countries CO ");
-        joinTable(params,typeCode,sql);
+        joinTable(countrySearchBuilder,sql);
         StringBuilder where = new StringBuilder(" WHERE 1=1 ");
-        queryNomal(params, where);
-        querySpecial(params, typeCode, where);
+        queryNomal(countrySearchBuilder, where);
+        querySpecial(countrySearchBuilder, where);
         sql.append(where);
         List<CountryEntity> results = new ArrayList<>();
         try(Connection conn = ConnectionJDBCUtil.getConnection();

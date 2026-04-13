@@ -1,8 +1,8 @@
 package com.duong.travelweb.repository.impl;
 
-import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
-import com.duong.travelweb.StringUtil.NumberUtil;
-import com.duong.travelweb.StringUtil.StringUtil;
+import com.duong.travelweb.utils.ConnectionJDBCUtil;
+import com.duong.travelweb.utils.NumberUtil;
+import com.duong.travelweb.utils.StringUtil;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.entity.HotelEntity;
 import org.springframework.stereotype.Repository;

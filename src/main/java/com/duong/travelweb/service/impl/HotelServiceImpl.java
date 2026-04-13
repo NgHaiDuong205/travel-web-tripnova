@@ -1,5 +1,6 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.converter.HotelDTOConverter;
 import com.duong.travelweb.model.HotelDTO;
 import com.duong.travelweb.repository.CityRepository;
 import com.duong.travelweb.repository.CountryRepository;
@@ -23,6 +24,9 @@ public class HotelServiceImpl implements HotelService {
     private CityRepository cityRepository;
     @Autowired
     private HotelRepository hotelRepository;
+    @Autowired
+    private HotelDTOConverter hotelDTOConverter;
+
     @Override
     public List<HotelDTO> findHotel(Map<String, Object> params, List<String> typeCode) {
         List<HotelEntity> hotelEntities = hotelRepository.findHotel(params,typeCode);
@@ -32,29 +36,7 @@ public class HotelServiceImpl implements HotelService {
         java.util.Map<String, CountryEntity> countryCache = new java.util.HashMap<>();
         
         for(HotelEntity item : hotelEntities){
-            HotelDTO hotel = new HotelDTO();
-            hotel.setId(item.getId());
-            
-            Long cityId = item.getCityId().longValue();
-            if (!cityCache.containsKey(cityId)) {
-                cityCache.put(cityId, cityRepository.findNameById(cityId));
-            }
-            CityEntity cityEntity = cityCache.get(cityId);
-            
-            String countryId = cityEntity.getCountryID();
-            if (countryId != null && !countryCache.containsKey(countryId)) {
-                countryCache.put(countryId, countryRepository.findNameById(countryId));
-            }
-            CountryEntity countryEntity = countryId != null ? countryCache.get(countryId) : new CountryEntity();
-            
-            String countryName = countryEntity.getCountryName() != null ? countryEntity.getCountryName() : "";
-            String cityName = cityEntity.getName() != null ? cityEntity.getName() : "";
-            
-            hotel.setAddress(item.getAddress() + " - " + cityName + " - " + countryName);
-            hotel.setName(item.getName());
-            hotel.setDescription(item.getDescription());
-            hotel.setAmenities(item.getAmenities());
-            hotel.setRating(item.getRating());
+            HotelDTO hotel = hotelDTOConverter.toHotelDTO(item,cityCache,countryCache);
             hotelDTOS.add(hotel);
         }
         return hotelDTOS;

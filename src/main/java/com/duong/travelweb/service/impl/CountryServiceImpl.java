@@ -1,6 +1,8 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.builder.CountrySearchBuilder;
 import com.duong.travelweb.converter.CountryDTOConverter;
+import com.duong.travelweb.converter.CountrySearchBuiderConverter;
 import com.duong.travelweb.model.CountryDTO;
 import com.duong.travelweb.repository.ContinentRepository;
 import com.duong.travelweb.repository.CountryRepository;
@@ -19,10 +21,13 @@ public class CountryServiceImpl implements CountryService {
     @Autowired
     private CountryDTOConverter countryDTOConverter;
     @Autowired
+    private CountrySearchBuiderConverter countrySearchBuiderConverter;
+    @Autowired
     private CountryRepository countryRepository;
     @Override
     public List<CountryDTO> findCountry(Map<String,Object> params,List<String> typeCode) {
-        List<CountryEntity> countryEntities = countryRepository.findCountry(params,typeCode);
+        CountrySearchBuilder countrySearchBuilder = countrySearchBuiderConverter.toCountrySearchBuilder(params,typeCode);
+        List<CountryEntity> countryEntities = countryRepository.findCountry(countrySearchBuilder);
         List<CountryDTO> result = new ArrayList<CountryDTO>();
         for(CountryEntity item : countryEntities){
             CountryDTO country = countryDTOConverter.toCountryDTO(item);

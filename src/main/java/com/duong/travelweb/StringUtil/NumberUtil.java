@@ -1,4 +1,4 @@
-package com.duong.travelweb.utils;
+package com.duong.travelweb.StringUtil;
 
 public class NumberUtil {
     public static boolean isNumber(String value){

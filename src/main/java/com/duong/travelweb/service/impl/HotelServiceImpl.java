@@ -1,6 +1,8 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.builder.HotelSearchBuider;
 import com.duong.travelweb.converter.HotelDTOConverter;
+import com.duong.travelweb.converter.HotelSearchBuiderConverter;
 import com.duong.travelweb.model.HotelDTO;
 import com.duong.travelweb.repository.CityRepository;
 import com.duong.travelweb.repository.CountryRepository;
@@ -26,10 +28,12 @@ public class HotelServiceImpl implements HotelService {
     private HotelRepository hotelRepository;
     @Autowired
     private HotelDTOConverter hotelDTOConverter;
-
+    @Autowired
+    private HotelSearchBuiderConverter hotelSearchBuiderConverter;
     @Override
     public List<HotelDTO> findHotel(Map<String, Object> params, List<String> typeCode) {
-        List<HotelEntity> hotelEntities = hotelRepository.findHotel(params,typeCode);
+        HotelSearchBuider hotelSearchBuider = hotelSearchBuiderConverter.toHotelSearchBuider(params,typeCode);
+        List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuider);
         List<HotelDTO> hotelDTOS = new ArrayList<HotelDTO>();
         
         java.util.Map<Long, CityEntity> cityCache = new java.util.HashMap<>();

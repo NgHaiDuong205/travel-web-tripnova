@@ -1,9 +1,9 @@
 package com.duong.travelweb.repository.impl;
 
 import com.duong.travelweb.builder.CountrySearchBuilder;
-import com.duong.travelweb.utils.ConnectionJDBCUtil;
-import com.duong.travelweb.utils.NumberUtil;
-import com.duong.travelweb.utils.StringUtil;
+import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
+import com.duong.travelweb.StringUtil.NumberUtil;
+import com.duong.travelweb.StringUtil.StringUtil;
 import com.duong.travelweb.repository.CountryRepository;
 import com.duong.travelweb.repository.entity.CountryEntity;
 import org.springframework.stereotype.Repository;

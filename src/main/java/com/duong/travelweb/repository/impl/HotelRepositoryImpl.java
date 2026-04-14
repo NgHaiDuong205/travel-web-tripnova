@@ -1,58 +1,71 @@
 package com.duong.travelweb.repository.impl;
 
-import com.duong.travelweb.utils.ConnectionJDBCUtil;
-import com.duong.travelweb.utils.NumberUtil;
-import com.duong.travelweb.utils.StringUtil;
+import com.duong.travelweb.StringUtil.ConnectionJDBCUtil;
+import com.duong.travelweb.StringUtil.NumberUtil;
+import com.duong.travelweb.StringUtil.StringUtil;
+import com.duong.travelweb.builder.HotelSearchBuider;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.entity.HotelEntity;
 import org.springframework.stereotype.Repository;
 
+import java.lang.reflect.Field;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 @Repository
 public class HotelRepositoryImpl implements HotelRepository {
-    public static void joinTable(Map<String,Object> params , List<String> typeCode , StringBuilder sql){
-        String cityId = (String) params.get("city_id");
-        String countryId = (String) params.get("country_id");
-        Boolean joinCity = false;
-        if(StringUtil.checkString(cityId)){
-            if(NumberUtil.isNumber(cityId)){
-                sql.append(" INNER JOIN cities CI ON CI.id = H.city_id ");
-                joinCity = true;
+    public static void joinTable(HotelSearchBuider hotelSearchBuider, StringBuilder sql){
+        String cityId = hotelSearchBuider.getCityId() != null ? hotelSearchBuider.getCityId().toString() : null;
+        String countryId = hotelSearchBuider.getCountryId();
+        
+        if(StringUtil.checkString(countryId) || StringUtil.checkString(cityId)){
+            boolean joinCity = false;
+            
+            if(StringUtil.checkString(cityId)){
+                if(NumberUtil.isNumber(cityId)){
+                    sql.append(" INNER JOIN cities CI ON CI.id = H.city_id ");
+                    joinCity = true;
+                }
             }
-        }
-        if(StringUtil.checkString(countryId)){
-            if(!joinCity){
-                sql.append(" INNER JOIN cities CI ON CI.id = H.city_id ");
-                sql.append(" INNER JOIN countries C ON C.id = CI.country_id ");
-            }
-            else {
+            if(StringUtil.checkString(countryId)){
+                if(!joinCity){
+                    sql.append(" INNER JOIN cities CI ON CI.id = H.city_id ");
+                }
                 sql.append(" INNER JOIN countries C ON C.id = CI.country_id ");
             }
         }
     }
 
-    public static void queryNormal(Map<String,Object> params , StringBuilder where){
-        for(Map.Entry<String,Object> it : params.entrySet()){
-            if(!it.getKey().equals("city_id") && !it.getKey().equals("country_id") && !it.getKey().equals("typeCode")){
-                String value =(String) it.getValue();
-                if(StringUtil.checkString(value)){
-                    if(NumberUtil.isNumber(value)){
-                        where.append(" AND H." + it.getKey() + " = " + value +" ");
-                    }
-                    else {
-                        where.append(" AND H." + it.getKey() + " LIKE N'%" + value +"%' " );
+    public static void queryNormal(HotelSearchBuider hotelSearchBuider, StringBuilder where){
+        try{
+            Field[] fields = HotelSearchBuider.class.getDeclaredFields();
+            for(Field item : fields){
+                item.setAccessible(true);
+                String fieldName = item.getName();
+                if(!fieldName.equals("cityId") && !fieldName.equals("countryId") && !fieldName.equals("typeCode") && !fieldName.startsWith("this")){
+                    Object objValue =item.get(hotelSearchBuider);
+                    if(objValue != null){
+                        String value = objValue.toString();
+                        if(StringUtil.checkString(value)){
+                            if(NumberUtil.isNumber(value)){
+                                where.append(" AND H." + fieldName + " = " + value +" ");
+                            }
+                            else {
+                                where.append(" AND H." + fieldName + " LIKE N'%" + value +"%' " );
+                            }
+                        }
                     }
                 }
             }
+        }catch (Exception ex){
+            ex.printStackTrace();
         }
     }
 
-    public static void querySpecial(Map<String,Object> params , List<String> typeCode , StringBuilder where){
-        String cityId = (String) params.get("city_id");
-        String countryId = (String) params.get("country_id");
+    public static void querySpecial(HotelSearchBuider hotelSearchBuider, StringBuilder where){
+        String cityId = hotelSearchBuider.getCityId() != null ? hotelSearchBuider.getCityId().toString() : null;
+        String countryId = hotelSearchBuider.getCountryId();
         if(StringUtil.checkString(cityId)){
             if(NumberUtil.isNumber(cityId)){
                 where.append(" AND CI.id = " + cityId +" ");
@@ -64,12 +77,12 @@ public class HotelRepositoryImpl implements HotelRepository {
     }
 
     @Override
-    public List<HotelEntity> findHotel(Map<String, Object> params, List<String> typeCode) {
+    public List<HotelEntity> findHotel(HotelSearchBuider hotelSearchBuider) {
         StringBuilder sql = new StringBuilder("SELECT H.* FROM hotels H ");
         StringBuilder where = new StringBuilder(" WHERE 1=1 ");
-        joinTable(params,typeCode,sql);
-        queryNormal(params,where);
-        querySpecial(params,typeCode,where);
+        joinTable(hotelSearchBuider,sql);
+        queryNormal(hotelSearchBuider,where);
+        querySpecial(hotelSearchBuider,where);
         sql.append(where);
         List<HotelEntity> hotelEntities = new ArrayList<HotelEntity>();
         try(Connection conn = ConnectionJDBCUtil.getConnection();

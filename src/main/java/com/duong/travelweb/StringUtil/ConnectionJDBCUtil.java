@@ -1,4 +1,4 @@
-package com.duong.travelweb.utils;
+package com.duong.travelweb.StringUtil;
 
 import java.sql.Connection;
 import java.sql.DriverManager;

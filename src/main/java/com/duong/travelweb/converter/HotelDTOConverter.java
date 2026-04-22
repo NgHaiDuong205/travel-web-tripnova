@@ -24,13 +24,13 @@ public class HotelDTOConverter {
 
     public HotelDTO toHotelDTO(HotelEntity item, Map<Long, CityEntity> cityCache ,Map<String, CountryEntity> countryCache){
         HotelDTO hotel = modelMapper.map(item,HotelDTO.class);
-        Long cityId = item.getCityId().longValue();
+        Long cityId = item.getCity().getId().longValue();
         if (!cityCache.containsKey(cityId)) {
             cityCache.put(cityId, cityRepository.findNameById(cityId));
         }
         CityEntity cityEntity = cityCache.get(cityId);
 
-        String countryId = cityEntity.getCountryID();
+        String countryId = cityEntity.getCountry().getId();
         if (countryId != null && !countryCache.containsKey(countryId)) {
             countryCache.put(countryId, countryRepository.findNameById(countryId));
         }

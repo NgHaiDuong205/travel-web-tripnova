@@ -1,10 +1,44 @@
 package com.duong.travelweb.repository.entity;
 
+import jakarta.persistence.*;
+
+import java.util.List;
+
+@Entity
+@Table(name="countries")
 public class CountryEntity {
+    @Id
+    @Column(name = "id")
     private String id;
+
+    @Column(name = "name" , nullable = false)
     private String countryName;
+
+    @Column(name = "flag", nullable = false)
     private String flag;
-    private Integer continentId;
+
+    @ManyToOne
+    @JoinColumn(name = "continent_id")
+    private ContinentEntity continent;
+
+    @OneToMany(mappedBy = "country", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<CityEntity> items;
+
+    public List<CityEntity> getItems() {
+        return items;
+    }
+
+    public void setItems(List<CityEntity> items) {
+        this.items = items;
+    }
+
+    public ContinentEntity getContinent() {
+        return continent;
+    }
+
+    public void setContinent(ContinentEntity continent) {
+        this.continent = continent;
+    }
 
     public String getId() {
         return id;
@@ -30,11 +64,4 @@ public class CountryEntity {
         this.flag = flag;
     }
 
-    public Integer getContinentId() {
-        return continentId;
-    }
-
-    public void setContinentId(Integer continentId) {
-        this.continentId = continentId;
-    }
 }

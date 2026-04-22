@@ -1,29 +1,27 @@
 package com.duong.travelweb.repository.entity;
 
 import jakarta.persistence.*;
-
 import java.util.List;
 
 @Entity
-@Table(name = "continents")
-public class ContinentEntity {
+@Table(name = "roles")
+public class RoleEntity {
     @Id
     @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-
-    @Column(name = "name" , nullable = false)
+    @Column(name = "name",nullable = false)
     private String name;
 
-    @OneToMany(mappedBy = "continent", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private List<CountryEntity> items;
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<UserRoleEntity> userRoles;
 
-    public List<CountryEntity> getItems() {
-        return items;
+    public List<UserRoleEntity> getUserRoles() {
+        return userRoles;
     }
 
-    public void setItems(List<CountryEntity> items) {
-        this.items = items;
+    public void setUserRoles(List<UserRoleEntity> userRoles) {
+        this.userRoles = userRoles;
     }
 
     public Integer getId() {

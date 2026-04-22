@@ -1,17 +1,47 @@
 package com.duong.travelweb.repository.entity;
 
-import java.time.LocalDateTime;
+import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
+@Entity
+@Table(name = "hotels")
 public class HotelEntity {
+    @Id
+    @Column(name = "id")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-    private Integer cityId;
+
+    @Column(name = "name" , nullable = false)
     private String name;
+
+    @Column(name = "address",nullable = false)
     private String address;
+
+    @Column(name = "rating",nullable = false)
     private Double rating;
+
+    @Column(name = "amenities",nullable = false)
     private String amenities;
+
+    @Column(name = "created_at",nullable = false)
     private LocalDateTime createAt;
+
+    @Column(name = "description")
     private String description;
+
+    @Column(name = "repair_at")
     private LocalDateTime repairAt;
+    @ManyToOne
+    @JoinColumn(name = "city_id")
+    private CityEntity city;
+
+    public CityEntity getCity() {
+        return city;
+    }
+
+    public void setCity(CityEntity city) {
+        this.city = city;
+    }
 
     public Integer getId() {
         return id;
@@ -19,14 +49,6 @@ public class HotelEntity {
 
     public void setId(Integer id) {
         this.id = id;
-    }
-
-    public Integer getCityId() {
-        return cityId;
-    }
-
-    public void setCityId(Integer cityId) {
-        this.cityId = cityId;
     }
 
     public String getName() {

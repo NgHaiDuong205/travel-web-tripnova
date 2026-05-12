@@ -17,8 +17,12 @@ public class CountryRepositoryImpl implements CountryRepository {
     private EntityManager entityManager;
     @Override
     public List<CountryEntity> findCountry(CountrySearchBuilder countrySearchBuilder) {
-        String sql = "FROM CountryEntity C";
-        Query query = entityManager.createQuery(sql,CountryEntity.class);
+        //JPQL
+//        String sql = "FROM CountryEntity C";
+//        Query query = entityManager.createQuery(sql,CountryEntity.class);
+        // SQL Native
+        String sql = "SELECT * FROM countries c ";
+        Query query = entityManager.createNativeQuery(sql, CountryEntity.class);
         return query.getResultList();
     }
 

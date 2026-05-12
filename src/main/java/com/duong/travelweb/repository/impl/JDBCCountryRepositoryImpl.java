@@ -7,6 +7,9 @@ import com.duong.travelweb.StringUtil.StringUtil;
 import com.duong.travelweb.repository.CountryRepository;
 import com.duong.travelweb.repository.entity.ContinentEntity;
 import com.duong.travelweb.repository.entity.CountryEntity;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Repository;
@@ -19,7 +22,8 @@ import java.util.List;
 @Repository
 @PropertySource("classpath:application.properties")
 public class JDBCCountryRepositoryImpl implements CountryRepository {
-
+    @PersistenceContext
+    private EntityManager entityManager;
     @Value("${spring.datasource.url}")
     private String DB_URL;
     @Value("${spring.datasource.username}")
@@ -82,26 +86,8 @@ public class JDBCCountryRepositoryImpl implements CountryRepository {
         queryNomal(countrySearchBuilder, where);
         querySpecial(countrySearchBuilder, where);
         sql.append(where);
-        List<CountryEntity> results = new ArrayList<>();
-        try(Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql.toString());) {
-            while (rs.next()) {
-                CountryEntity country = new CountryEntity();
-                country.setId(rs.getString("id"));
-                country.setCountryName(rs.getString("name"));
-                country.setFlag(rs.getString("flag"));
-                
-                ContinentEntity continent = new ContinentEntity();
-                continent.setId(rs.getInt("continent_id"));
-                country.setContinent(continent);
-                
-                results.add(country);
-            }
-        } catch(SQLException e){
-            e.printStackTrace();
-        }
-        return results;
+        Query query = entityManager.createNativeQuery(sql.toString(), CountryEntity.class);
+        return query.getResultList();
     }
 
 

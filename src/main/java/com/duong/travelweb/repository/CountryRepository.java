@@ -1,13 +1,12 @@
 package com.duong.travelweb.repository;
 
-import com.duong.travelweb.builder.CountrySearchBuilder;
-import com.duong.travelweb.repository.entity.CountryEntity;
+import com.duong.travelweb.model.entity.CountryEntity;
+import com.duong.travelweb.repository.custom.CountryRepositoryCustom;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
-public interface CountryRepository extends JpaRepository<CountryEntity, String> {
-    List<CountryEntity> findCountry(CountrySearchBuilder countrySearchBuilder);
-    CountryEntity findNameById(String id);
+public interface CountryRepository extends JpaRepository<CountryEntity, UUID>, JpaSpecificationExecutor<CountryEntity>, CountryRepositoryCustom {
+    
 }

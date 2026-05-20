@@ -1,6 +1,6 @@
 package com.duong.travelweb.api;
 
-import com.duong.travelweb.model.HotelDTO;
+import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.service.HotelService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;

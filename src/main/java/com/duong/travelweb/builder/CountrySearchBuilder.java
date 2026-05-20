@@ -2,22 +2,25 @@ package com.duong.travelweb.builder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class CountrySearchBuilder {
-    private String id;
+    private UUID id;
     private String name;
-    private String flag;
-    private Integer continentId;
+    private String countryCode;
+    private String slug;
+    private UUID continentId;
     private List<String> typeCode = new ArrayList<>();
 
     private CountrySearchBuilder(Builder builder){
         this.id = builder.id;
         this.name = builder.name;
-        this.flag = builder.flag;
+        this.countryCode = builder.countryCode;
+        this.slug = builder.slug;
         this.continentId = builder.continentId;
         this.typeCode = builder.typeCode;
     }
-    public String getId() {
+    public UUID getId() {
         return id;
     }
 
@@ -25,11 +28,15 @@ public class CountrySearchBuilder {
         return name;
     }
 
-    public String getFlag() {
-        return flag;
+    public String getCountryCode() {
+        return countryCode;
     }
 
-    public Integer getContinentId() {
+    public String getSlug() {
+        return slug;
+    }
+
+    public UUID getContinentId() {
         return continentId;
     }
 
@@ -37,13 +44,14 @@ public class CountrySearchBuilder {
         return typeCode;
     }
     public static class Builder{
-        private String id;
+        private UUID id;
         private String name;
-        private String flag;
-        private Integer continentId;
+        private String countryCode;
+        private String slug;
+        private UUID continentId;
         private List<String> typeCode = new ArrayList<>();
 
-        public Builder id(String id) {
+        public Builder id(UUID id) {
             this.id = id;
             return this;
         }
@@ -53,12 +61,17 @@ public class CountrySearchBuilder {
             return this;
         }
 
-        public Builder flag(String flag) {
-            this.flag = flag;
+        public Builder countryCode(String countryCode) {
+            this.countryCode = countryCode;
             return this;
         }
 
-        public Builder continentId(Integer continentId) {
+        public Builder slug(String slug) {
+            this.slug = slug;
+            return this;
+        }
+
+        public Builder continentId(UUID continentId) {
             this.continentId = continentId;
             return this;
         }

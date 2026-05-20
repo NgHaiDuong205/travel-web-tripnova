@@ -1,15 +1,11 @@
 package com.duong.travelweb.service.impl;
 
-import com.duong.travelweb.builder.HotelSearchBuider;
+import com.duong.travelweb.builder.HotelSearchBuilder;
 import com.duong.travelweb.converter.HotelDTOConverter;
 import com.duong.travelweb.converter.HotelSearchBuiderConverter;
-import com.duong.travelweb.model.HotelDTO;
-import com.duong.travelweb.repository.CityRepository;
-import com.duong.travelweb.repository.CountryRepository;
+import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.repository.HotelRepository;
-import com.duong.travelweb.repository.entity.CityEntity;
-import com.duong.travelweb.repository.entity.CountryEntity;
-import com.duong.travelweb.repository.entity.HotelEntity;
+import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.service.HotelService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,10 +17,6 @@ import java.util.Map;
 @Service
 public class HotelServiceImpl implements HotelService {
     @Autowired
-    private CountryRepository countryRepository;
-    @Autowired
-    private CityRepository cityRepository;
-    @Autowired
     private HotelRepository hotelRepository;
     @Autowired
     private HotelDTOConverter hotelDTOConverter;
@@ -32,15 +24,12 @@ public class HotelServiceImpl implements HotelService {
     private HotelSearchBuiderConverter hotelSearchBuiderConverter;
     @Override
     public List<HotelDTO> findHotel(Map<String, Object> params, List<String> typeCode) {
-        HotelSearchBuider hotelSearchBuider = hotelSearchBuiderConverter.toHotelSearchBuider(params,typeCode);
+        HotelSearchBuilder hotelSearchBuider = hotelSearchBuiderConverter.toHotelSearchBuider(params,typeCode);
         List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuider);
         List<HotelDTO> hotelDTOS = new ArrayList<HotelDTO>();
         
-        java.util.Map<Long, CityEntity> cityCache = new java.util.HashMap<>();
-        java.util.Map<String, CountryEntity> countryCache = new java.util.HashMap<>();
-        
         for(HotelEntity item : hotelEntities){
-            HotelDTO hotel = hotelDTOConverter.toHotelDTO(item,cityCache,countryCache);
+            HotelDTO hotel = hotelDTOConverter.toHotelDTO(item);
             hotelDTOS.add(hotel);
         }
         return hotelDTOS;

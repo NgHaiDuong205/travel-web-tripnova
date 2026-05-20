@@ -1,0 +1,179 @@
+﻿     table_name      |      column_name      |        data_type         
+---------------------+-----------------------+--------------------------
+ amenities           | id                    | uuid
+ amenities           | name                  | character varying
+ amenities           | icon_url              | text
+ amenities           | category              | character varying
+ comments            | id                    | uuid
+ comments            | post_id               | uuid
+ comments            | user_id               | uuid
+ comments            | parent_comment_id     | uuid
+ comments            | content               | text
+ comments            | status                | character varying
+ comments            | created_at            | timestamp with time zone
+ comments            | updated_at            | timestamp with time zone
+ continents          | id                    | uuid
+ continents          | code                  | character varying
+ continents          | name                  | character varying
+ continents          | created_at            | timestamp with time zone
+ continents          | updated_at            | timestamp with time zone
+ countries           | id                    | uuid
+ countries           | continent_id          | uuid
+ countries           | country_code          | character varying
+ countries           | name                  | character varying
+ countries           | slug                  | character varying
+ countries           | image_url             | character varying
+ countries           | description           | text
+ countries           | created_at            | timestamp with time zone
+ countries           | updated_at            | timestamp with time zone
+ destinations        | id                    | uuid
+ destinations        | country_id            | uuid
+ destinations        | name                  | character varying
+ destinations        | description           | text
+ destinations        | cover_image_url       | text
+ destinations        | is_popular            | boolean
+ destinations        | is_active             | boolean
+ destinations        | created_at            | timestamp with time zone
+ hotel_amenities     | hotel_id              | uuid
+ hotel_amenities     | amenity_id            | uuid
+ hotel_bookings      | id                    | uuid
+ hotel_bookings      | order_id              | uuid
+ hotel_bookings      | user_id               | uuid
+ hotel_bookings      | hotel_id              | uuid
+ hotel_bookings      | room_type_id          | uuid
+ hotel_bookings      | room_id               | uuid
+ hotel_bookings      | check_in_date         | date
+ hotel_bookings      | check_out_date        | date
+ hotel_bookings      | num_nights            | smallint
+ hotel_bookings      | num_adults            | smallint
+ hotel_bookings      | num_children          | smallint
+ hotel_bookings      | total_price           | numeric
+ hotel_bookings      | discount_amount       | numeric
+ hotel_bookings      | special_requests      | text
+ hotel_bookings      | status                | USER-DEFINED
+ hotel_bookings      | created_at            | timestamp with time zone
+ hotel_bookings      | updated_at            | timestamp with time zone
+ hotels              | id                    | uuid
+ hotels              | destination_id        | uuid
+ hotels              | managed_by            | uuid
+ hotels              | name                  | character varying
+ hotels              | description           | text
+ hotels              | address               | text
+ hotels              | star_rating           | smallint
+ hotels              | check_in_time         | time without time zone
+ hotels              | check_out_time        | time without time zone
+ hotels              | phone                 | character varying
+ hotels              | email                 | character varying
+ hotels              | cancellation_policy   | character varying
+ hotels              | cancellation_hours    | smallint
+ hotels              | breakfast_included    | boolean
+ hotels              | pet_friendly          | boolean
+ hotels              | google_place_id       | character varying
+ hotels              | total_rooms           | smallint
+ hotels              | cover_image_url       | text
+ hotels              | is_active             | boolean
+ hotels              | created_at            | timestamp with time zone
+ hotels              | updated_at            | timestamp with time zone
+ landmarks           | id                    | uuid
+ landmarks           | destination_id        | uuid
+ landmarks           | name                  | character varying
+ landmarks           | description           | text
+ landmarks           | category              | USER-DEFINED
+ landmarks           | cover_image_url       | text
+ landmarks           | opening_hours         | character varying
+ landmarks           | entry_fee             | numeric
+ landmarks           | is_active             | boolean
+ landmarks           | created_at            | timestamp with time zone
+ orders              | id                    | uuid
+ orders              | user_id               | uuid
+ orders              | order_code            | character varying
+ orders              | subtotal              | numeric
+ orders              | discount_total        | numeric
+ orders              | tax_amount            | numeric
+ orders              | currency_code         | character
+ orders              | loyalty_points_used   | integer
+ orders              | loyalty_points_earned | integer
+ orders              | invoice_url           | text
+ orders              | status                | USER-DEFINED
+ orders              | notes                 | text
+ orders              | cancelled_at          | timestamp with time zone
+ orders              | cancel_reason         | text
+ orders              | created_at            | timestamp with time zone
+ orders              | updated_at            | timestamp with time zone
+ payments            | id                    | uuid
+ payments            | order_id              | uuid
+ payments            | payment_method        | USER-DEFINED
+ payments            | amount                | numeric
+ payments            | currency_code         | character
+ payments            | transaction_id        | character varying
+ payments            | gateway_response      | jsonb
+ payments            | status                | USER-DEFINED
+ payments            | paid_at               | timestamp with time zone
+ payments            | created_at            | timestamp with time zone
+ post_reactions      | id                    | uuid
+ post_reactions      | post_id               | uuid
+ post_reactions      | user_id               | uuid
+ post_reactions      | reaction_type         | USER-DEFINED
+ post_reactions      | created_at            | timestamp with time zone
+ posts               | id                    | uuid
+ posts               | user_id               | uuid
+ posts               | entity_type           | character varying
+ posts               | entity_id             | uuid
+ posts               | title                 | character varying
+ posts               | content               | text
+ posts               | rating                | smallint
+ posts               | images                | jsonb
+ posts               | is_verified_booking   | boolean
+ posts               | status                | USER-DEFINED
+ posts               | upvotes               | integer
+ posts               | downvotes             | integer
+ posts               | created_at            | timestamp with time zone
+ posts               | updated_at            | timestamp with time zone
+ roles               | id                    | uuid
+ roles               | name                  | character varying
+ roles               | description           | text
+ roles               | created_at            | timestamp with time zone
+ room_availability   | id                    | uuid
+ room_availability   | room_id               | uuid
+ room_availability   | date                  | date
+ room_availability   | status                | USER-DEFINED
+ room_availability   | blocked_reason        | character varying
+ room_type_amenities | room_type_id          | uuid
+ room_type_amenities | amenity_id            | uuid
+ room_types          | id                    | uuid
+ room_types          | hotel_id              | uuid
+ room_types          | name                  | character varying
+ room_types          | description           | text
+ room_types          | max_occupancy         | smallint
+ room_types          | bed_type              | character varying
+ room_types          | area_sqm              | numeric
+ room_types          | price_per_night       | numeric
+ room_types          | cover_image_url       | text
+ room_types          | is_active             | boolean
+ room_types          | created_at            | timestamp with time zone
+ rooms               | id                    | uuid
+ rooms               | room_type_id          | uuid
+ rooms               | room_number           | character varying
+ rooms               | floor                 | smallint
+ rooms               | status                | USER-DEFINED
+ user_roles          | user_id               | uuid
+ user_roles          | role_id               | uuid
+ user_roles          | assigned_at           | timestamp with time zone
+ user_roles          | assigned_by           | uuid
+ users               | id                    | uuid
+ users               | email                 | character varying
+ users               | password_hash         | character varying
+ users               | full_name             | character varying
+ users               | phone                 | character varying
+ users               | avatar_url            | text
+ users               | date_of_birth         | date
+ users               | gender                | USER-DEFINED
+ users               | loyalty_points        | integer
+ users               | is_verified           | boolean
+ users               | is_active             | boolean
+ users               | last_login_at         | timestamp with time zone
+ users               | deleted_at            | timestamp with time zone
+ users               | created_at            | timestamp with time zone
+ users               | updated_at            | timestamp with time zone
+(175 rows)
+

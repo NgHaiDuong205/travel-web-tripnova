@@ -1,8 +1,8 @@
 package com.duong.travelweb.converter;
 
-import com.duong.travelweb.model.CountryDTO;
-import com.duong.travelweb.repository.entity.ContinentEntity;
-import com.duong.travelweb.repository.entity.CountryEntity;
+import com.duong.travelweb.model.dto.CountryDTO;
+import com.duong.travelweb.model.entity.ContinentEntity;
+import com.duong.travelweb.model.entity.CountryEntity;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

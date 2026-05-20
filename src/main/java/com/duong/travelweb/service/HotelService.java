@@ -1,6 +1,6 @@
 package com.duong.travelweb.service;
 
-import com.duong.travelweb.model.HotelDTO;
+import com.duong.travelweb.model.dto.HotelDTO;
 
 import java.util.List;
 import java.util.Map;

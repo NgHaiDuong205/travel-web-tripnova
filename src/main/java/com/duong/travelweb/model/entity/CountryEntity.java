@@ -38,9 +38,6 @@ public class CountryEntity {
     @JoinColumn(name = "continent_id")
     private ContinentEntity continent;
 
-    @OneToMany(mappedBy = "country", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private List<CityEntity> cities;
-
     public UUID getId() {
         return id;
     }
@@ -111,13 +108,5 @@ public class CountryEntity {
 
     public void setContinent(ContinentEntity continent) {
         this.continent = continent;
-    }
-
-    public List<CityEntity> getCities() {
-        return cities;
-    }
-
-    public void setCities(List<CityEntity> cities) {
-        this.cities = cities;
     }
 }

@@ -8,5 +8,4 @@ import java.util.UUID;
 
 public interface CountryRepositoryCustom {
     List<CountryEntity> findCountry(CountrySearchBuilder countrySearchBuilder);
-    CountryEntity findNameById(UUID id);
 }

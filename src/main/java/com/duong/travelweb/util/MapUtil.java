@@ -14,7 +14,9 @@ public class MapUtil {
                 obj = obj.toString();
             } else if (tClass.getTypeName().equals("java.lang.Double")) {
                 obj = obj != "" ? Double.valueOf(obj.toString()) : null;
-             }
+            } else if (tClass.getTypeName().equals("java.util.UUID")) {
+                obj = (obj != null && !obj.toString().trim().isEmpty()) ? java.util.UUID.fromString(obj.toString().trim()) : null;
+            }
             return tClass.cast(obj);
         }
         return null;

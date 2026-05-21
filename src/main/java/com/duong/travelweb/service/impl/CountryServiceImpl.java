@@ -35,10 +35,7 @@ public class CountryServiceImpl implements CountryService {
     @Override
     public List<CountryDTO> findCountry(Map<String,Object> params,List<String> typeCode) {
         CountrySearchBuilder countrySearchBuilder = countrySearchBuiderConverter.toCountrySearchBuilder(params,typeCode);
-        // Assuming findCountry is in custom repository interface, but wait, original code used findAll()
-        // I will stick to findAll() as in original, or if you meant to use findCountry it would be:
-        // List<CountryEntity> countryEntities = countryRepository.findCountry(countrySearchBuilder);
-        List<CountryEntity> countryEntities = countryRepository.findAll();
+        List<CountryEntity> countryEntities = countryRepository.findCountry(countrySearchBuilder);
         List<CountryDTO> result = new ArrayList<CountryDTO>();
         for(CountryEntity item : countryEntities){
             CountryDTO country = countryDTOConverter.toCountryDTO(item);

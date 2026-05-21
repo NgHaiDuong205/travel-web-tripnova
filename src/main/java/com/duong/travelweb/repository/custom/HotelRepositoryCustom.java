@@ -8,5 +8,4 @@ import java.util.UUID;
 
 public interface HotelRepositoryCustom {
     List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuider);
-    HotelEntity findNameById(UUID id);
 }

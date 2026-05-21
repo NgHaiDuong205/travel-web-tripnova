@@ -20,9 +20,4 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
         Query query = entityManager.createQuery(sql,HotelEntity.class);
         return query.getResultList();
     }
-
-    @Override
-    public HotelEntity findNameById(UUID id) {
-        return entityManager.find(HotelEntity.class, id);
-    }
 }

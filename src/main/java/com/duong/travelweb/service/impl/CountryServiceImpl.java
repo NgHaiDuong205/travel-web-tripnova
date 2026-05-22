@@ -2,7 +2,7 @@ package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.builder.CountrySearchBuilder;
 import com.duong.travelweb.converter.CountryDTOConverter;
-import com.duong.travelweb.converter.CountrySearchBuiderConverter;
+import com.duong.travelweb.converter.CountrySearchBuilderConverter;
 import com.duong.travelweb.model.dto.CountryDTO;
 import com.duong.travelweb.model.dto.CountryRequestDTO;
 import com.duong.travelweb.model.entity.ContinentEntity;
@@ -21,20 +21,21 @@ import java.util.UUID;
 public class CountryServiceImpl implements CountryService {
     
     private final CountryDTOConverter countryDTOConverter;
-    private final CountrySearchBuiderConverter countrySearchBuiderConverter;
+    private final CountrySearchBuilderConverter countrySearchBuilderConverter;
     private final CountryRepository countryRepository;
 
     public CountryServiceImpl(CountryDTOConverter countryDTOConverter, 
-                              CountrySearchBuiderConverter countrySearchBuiderConverter, 
+                              CountrySearchBuilderConverter countrySearchBuilderConverter, 
                               CountryRepository countryRepository) {
         this.countryDTOConverter = countryDTOConverter;
-        this.countrySearchBuiderConverter = countrySearchBuiderConverter;
+        this.countrySearchBuilderConverter = countrySearchBuilderConverter;
         this.countryRepository = countryRepository;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CountryDTO> findCountry(Map<String,Object> params,List<String> typeCode) {
-        CountrySearchBuilder countrySearchBuilder = countrySearchBuiderConverter.toCountrySearchBuilder(params,typeCode);
+        CountrySearchBuilder countrySearchBuilder = countrySearchBuilderConverter.toCountrySearchBuilder(params,typeCode);
         List<CountryEntity> countryEntities = countryRepository.findCountry(countrySearchBuilder);
         List<CountryDTO> result = new ArrayList<CountryDTO>();
         for(CountryEntity item : countryEntities){
@@ -45,6 +46,7 @@ public class CountryServiceImpl implements CountryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CountryDTO getCountryById(UUID id) {
         CountryEntity countryEntity = countryRepository.findById(id).orElse(null);
         if(countryEntity == null) return new CountryDTO();
@@ -55,7 +57,6 @@ public class CountryServiceImpl implements CountryService {
     @Transactional
     public void createCountry(CountryRequestDTO countryRequestDTO) {
         CountryEntity countryEntity = new CountryEntity();
-        countryEntity.setId(countryRequestDTO.getId());
         countryEntity.setName(countryRequestDTO.getName());
         countryEntity.setCountryCode(countryRequestDTO.getCountryCode());
         countryEntity.setSlug(countryRequestDTO.getSlug());

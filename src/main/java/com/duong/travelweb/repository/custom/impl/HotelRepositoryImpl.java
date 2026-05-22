@@ -15,7 +15,7 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
     private EntityManager entityManager;
     
     @Override
-    public List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuider) {
+    public List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuilder) {
         String sql = "FROM HotelEntity H";
         Query query = entityManager.createQuery(sql,HotelEntity.class);
         return query.getResultList();

@@ -2,13 +2,14 @@ package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.builder.HotelSearchBuilder;
 import com.duong.travelweb.converter.HotelDTOConverter;
-import com.duong.travelweb.converter.HotelSearchBuiderConverter;
+import com.duong.travelweb.converter.HotelSearchBuilderConverter;
 import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.service.HotelService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,11 +22,13 @@ public class HotelServiceImpl implements HotelService {
     @Autowired
     private HotelDTOConverter hotelDTOConverter;
     @Autowired
-    private HotelSearchBuiderConverter hotelSearchBuiderConverter;
+    private HotelSearchBuilderConverter hotelSearchBuilderConverter;
+
     @Override
+    @Transactional(readOnly = true)
     public List<HotelDTO> findHotel(Map<String, Object> params, List<String> typeCode) {
-        HotelSearchBuilder hotelSearchBuider = hotelSearchBuiderConverter.toHotelSearchBuider(params,typeCode);
-        List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuider);
+        HotelSearchBuilder hotelSearchBuilder = hotelSearchBuilderConverter.toHotelSearchBuilder(params,typeCode);
+        List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuilder);
         List<HotelDTO> hotelDTOS = new ArrayList<HotelDTO>();
         
         for(HotelEntity item : hotelEntities){

@@ -7,10 +7,11 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 @Component
-public class HotelSearchBuiderConverter {
-    public HotelSearchBuilder toHotelSearchBuider(Map<String,Object> params , List<String> typeCode){
-        HotelSearchBuilder hotelSearchBuider = new HotelSearchBuilder.Builder()
+public class HotelSearchBuilderConverter {
+    public HotelSearchBuilder toHotelSearchBuilder(Map<String,Object> params , List<String> typeCode){
+        HotelSearchBuilder hotelSearchBuilder = new HotelSearchBuilder.Builder()
                 .id(MapUtil.getObject(params,"id",UUID.class))
                 .destinationId(MapUtil.getObject(params,"destination_id",UUID.class))
                 .managedById(MapUtil.getObject(params,"managed_by_id",UUID.class))
@@ -18,6 +19,6 @@ public class HotelSearchBuiderConverter {
                 .starRating(MapUtil.getObject(params,"star_rating",Integer.class))
                 .typeCode(typeCode)
                 .build();
-        return hotelSearchBuider;
+        return hotelSearchBuilder;
     }
 }

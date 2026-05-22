@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface HotelRepositoryCustom {
-    List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuider);
+    List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuilder);
 }

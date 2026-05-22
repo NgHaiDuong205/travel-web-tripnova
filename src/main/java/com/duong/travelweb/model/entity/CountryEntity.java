@@ -10,7 +10,8 @@ import java.util.UUID;
 @Table(name = "countries")
 public class CountryEntity {
     @Id
-    @Column(name = "id")
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "name", nullable = false)

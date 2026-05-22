@@ -7,8 +7,9 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 @Component
-public class CountrySearchBuiderConverter {
+public class CountrySearchBuilderConverter {
     public CountrySearchBuilder toCountrySearchBuilder(Map<String,Object> params , List<String> typeCode){
         CountrySearchBuilder countrySearchBuilder = new CountrySearchBuilder.Builder()
                 .name(MapUtil.getObject(params,"name",String.class))

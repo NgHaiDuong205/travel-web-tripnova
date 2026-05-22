@@ -33,6 +33,6 @@ public class ControllerAdvisor extends ResponseEntityExceptionHandler {
         List<String> details = new ArrayList<>();
         details.add("Country is null");
         errorResponseDTO.setDetail(details);
-        return new ResponseEntity<>(errorResponseDTO, HttpStatus.BAD_GATEWAY);
+        return new ResponseEntity<>(errorResponseDTO, HttpStatus.BAD_REQUEST);
     }
 }

@@ -6,27 +6,17 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "room_type_amenities")
+@IdClass(RoomTypeAmenityId.class)
 public class RoomTypeAmenityEntity {
     @Id
-    @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
-
     @ManyToOne
     @JoinColumn(name = "room_type_id")
     private RoomTypeEntity roomType;
 
+    @Id
     @ManyToOne
     @JoinColumn(name = "amenity_id")
     private AmenityEntity amenity;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
 
     public RoomTypeEntity getRoomType() {
         return roomType;

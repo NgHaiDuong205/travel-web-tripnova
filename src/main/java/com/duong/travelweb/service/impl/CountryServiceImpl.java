@@ -62,6 +62,8 @@ public class CountryServiceImpl implements CountryService {
         countryEntity.setSlug(countryRequestDTO.getSlug());
         countryEntity.setImageUrl(countryRequestDTO.getImageUrl());
         countryEntity.setDescription(countryRequestDTO.getDescription());
+        countryEntity.setLatitude(countryRequestDTO.getLatitude());
+        countryEntity.setLongitude(countryRequestDTO.getLongitude());
         
         ContinentEntity continentEntity = new ContinentEntity();
         continentEntity.setId(countryRequestDTO.getContinentId());

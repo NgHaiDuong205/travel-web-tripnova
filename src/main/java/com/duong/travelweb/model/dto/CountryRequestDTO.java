@@ -10,6 +10,8 @@ public class CountryRequestDTO {
     private String imageUrl;
     private String description;
     private UUID continentId;
+    private Double latitude;
+    private Double longitude;
 
     public UUID getId() {
         return id;
@@ -65,5 +67,21 @@ public class CountryRequestDTO {
 
     public void setContinentId(UUID continentId) {
         this.continentId = continentId;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

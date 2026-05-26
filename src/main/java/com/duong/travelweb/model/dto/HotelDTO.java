@@ -1,7 +1,9 @@
 package com.duong.travelweb.model.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class HotelDTO {
     private UUID id;
@@ -11,22 +13,32 @@ public class HotelDTO {
     private Integer starRating;
     private String checkInTime;
     private String checkOutTime;
+    @JsonIgnore
     private String phone;
     private String email;
     private String cancellationPolicy;
     private Integer cancellationHours;
     private Boolean breakfastIncluded;
     private Boolean petFriendly;
+    @JsonIgnore
     private String googlePlaceId;
     private Integer totalRooms;
     private String coverImageUrl;
+    @JsonIgnore
     private Boolean isActive;
+    @JsonIgnore
     private LocalDateTime createdAt;
+    @JsonIgnore
     private LocalDateTime updatedAt;
+    @JsonIgnore
     private UUID destinationId;
     private String destinationName;
+    private String countryName;
+    @JsonIgnore
     private UUID managedById;
+    @JsonIgnore
     private String managedByName;
+    private List<String> amenities;
 
     public UUID getId() {
         return id;
@@ -196,6 +208,14 @@ public class HotelDTO {
         this.destinationName = destinationName;
     }
 
+    public String getCountryName() {
+        return countryName;
+    }
+
+    public void setCountryName(String countryName) {
+        this.countryName = countryName;
+    }
+
     public UUID getManagedById() {
         return managedById;
     }
@@ -210,5 +230,13 @@ public class HotelDTO {
 
     public void setManagedByName(String managedByName) {
         this.managedByName = managedByName;
+    }
+
+    public List<String> getAmenities() {
+        return amenities;
+    }
+
+    public void setAmenities(List<String> amenities) {
+        this.amenities = amenities;
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class HotelServiceImpl implements HotelService {
@@ -26,8 +27,8 @@ public class HotelServiceImpl implements HotelService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<HotelDTO> findHotel(Map<String, Object> params, List<String> typeCode) {
-        HotelSearchBuilder hotelSearchBuilder = hotelSearchBuilderConverter.toHotelSearchBuilder(params,typeCode);
+    public List<HotelDTO> findHotel(Map<String, Object> params, List<String> amenities) {
+        HotelSearchBuilder hotelSearchBuilder = hotelSearchBuilderConverter.toHotelSearchBuilder(params, amenities);
         List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuilder);
         List<HotelDTO> hotelDTOS = new ArrayList<HotelDTO>();
         
@@ -36,5 +37,13 @@ public class HotelServiceImpl implements HotelService {
             hotelDTOS.add(hotel);
         }
         return hotelDTOS;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HotelDTO getHotelById(UUID id) {
+        HotelEntity hotelEntity = hotelRepository.findById(id).orElse(null);
+        if (hotelEntity == null) return null;
+        return hotelDTOConverter.toHotelDTO(hotelEntity);
     }
 }

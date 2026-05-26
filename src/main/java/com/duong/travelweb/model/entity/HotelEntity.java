@@ -3,6 +3,7 @@ package com.duong.travelweb.model.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -74,6 +75,14 @@ public class HotelEntity {
     @ManyToOne
     @JoinColumn(name = "managed_by")
     private UserEntity managedBy;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "hotel_amenities",
+        joinColumns = @JoinColumn(name = "hotel_id"),
+        inverseJoinColumns = @JoinColumn(name = "amenity_id")
+    )
+    private List<AmenityEntity> hotelAmenities;
 
     public UUID getId() {
         return id;
@@ -241,5 +250,13 @@ public class HotelEntity {
 
     public void setManagedBy(UserEntity managedBy) {
         this.managedBy = managedBy;
+    }
+
+    public List<AmenityEntity> getHotelAmenities() {
+        return hotelAmenities;
+    }
+
+    public void setHotelAmenities(List<AmenityEntity> hotelAmenities) {
+        this.hotelAmenities = hotelAmenities;
     }
 }

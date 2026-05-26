@@ -29,6 +29,12 @@ public class CountryEntity {
     @Column(name = "description")
     private String description;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -109,5 +115,21 @@ public class CountryEntity {
 
     public void setContinent(ContinentEntity continent) {
         this.continent = continent;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

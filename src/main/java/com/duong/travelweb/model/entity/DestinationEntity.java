@@ -26,6 +26,12 @@ public class DestinationEntity {
     @Column(name = "cover_image_url")
     private String coverImageUrl;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "is_popular")
     private Boolean isPopular;
 
@@ -119,5 +125,21 @@ public class DestinationEntity {
 
     public void setLandmarks(List<LandmarkEntity> landmarks) {
         this.landmarks = landmarks;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

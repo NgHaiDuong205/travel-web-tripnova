@@ -5,7 +5,6 @@ import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.model.entity.RoomEntity;
 import com.duong.travelweb.repository.RoomRepository;
 import com.duong.travelweb.service.RoomService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,14 +14,15 @@ import java.util.UUID;
 
 @Service
 public class RoomServiceImpl implements RoomService {
-    @Autowired
-    private RoomRepository roomRepository;
+    private final RoomRepository roomRepository;
+    private final RoomDTOConverter roomDTOConverter;
+    private final com.duong.travelweb.converter.RoomSearchBuilderConverter roomSearchBuilderConverter;
 
-    @Autowired
-    private RoomDTOConverter roomDTOConverter;
-
-    @Autowired
-    private com.duong.travelweb.converter.RoomSearchBuilderConverter roomSearchBuilderConverter;
+    public RoomServiceImpl(RoomRepository roomRepository, RoomDTOConverter roomDTOConverter, com.duong.travelweb.converter.RoomSearchBuilderConverter roomSearchBuilderConverter) {
+        this.roomRepository = roomRepository;
+        this.roomDTOConverter = roomDTOConverter;
+        this.roomSearchBuilderConverter = roomSearchBuilderConverter;
+    }
 
     @Override
     @Transactional(readOnly = true)

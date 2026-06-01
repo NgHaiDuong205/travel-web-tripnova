@@ -14,7 +14,7 @@ import java.util.UUID;
 
 @Repository
 public interface RoomRepository extends JpaRepository<RoomEntity, UUID>, RoomRepositoryCustom {
-    @Query("SELECT r FROM RoomEntity r WHERE r.roomType.hotel.id = :hotelId")
+    @Query("SELECT r FROM RoomEntity r WHERE r.roomType.hotel.id = :hotelId AND r.status = 'available'")
     List<RoomEntity> findByHotelId(@Param("hotelId") UUID hotelId);
 
     @Query("SELECT r FROM RoomEntity r WHERE r.id = :roomId AND r.roomType.hotel.id = :hotelId")

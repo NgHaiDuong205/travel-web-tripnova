@@ -4,13 +4,15 @@ import com.duong.travelweb.model.dto.CountryDTO;
 import com.duong.travelweb.model.entity.ContinentEntity;
 import com.duong.travelweb.model.entity.CountryEntity;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CountryDTOConverter {
-    @Autowired
-    private ModelMapper modelMapper;
+    private final ModelMapper modelMapper;
+
+    public CountryDTOConverter(ModelMapper modelMapper) {
+        this.modelMapper = modelMapper;
+    }
 
     public CountryDTO toCountryDTO(CountryEntity item){
         CountryDTO country = modelMapper.map(item,CountryDTO.class);

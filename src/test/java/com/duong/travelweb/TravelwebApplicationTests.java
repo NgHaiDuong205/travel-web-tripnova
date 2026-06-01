@@ -20,5 +20,4 @@ class TravelwebApplicationTests {
             System.err.println(">>> MIGRATION ERROR: " + e.getMessage());
         }
     }
-
 }

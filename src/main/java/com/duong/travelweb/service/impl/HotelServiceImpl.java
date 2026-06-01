@@ -7,7 +7,6 @@ import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.service.HotelService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,12 +17,15 @@ import java.util.UUID;
 
 @Service
 public class HotelServiceImpl implements HotelService {
-    @Autowired
-    private HotelRepository hotelRepository;
-    @Autowired
-    private HotelDTOConverter hotelDTOConverter;
-    @Autowired
-    private HotelSearchBuilderConverter hotelSearchBuilderConverter;
+    private final HotelRepository hotelRepository;
+    private final HotelDTOConverter hotelDTOConverter;
+    private final HotelSearchBuilderConverter hotelSearchBuilderConverter;
+
+    public HotelServiceImpl(HotelRepository hotelRepository, HotelDTOConverter hotelDTOConverter, HotelSearchBuilderConverter hotelSearchBuilderConverter) {
+        this.hotelRepository = hotelRepository;
+        this.hotelDTOConverter = hotelDTOConverter;
+        this.hotelSearchBuilderConverter = hotelSearchBuilderConverter;
+    }
 
     @Override
     @Transactional(readOnly = true)

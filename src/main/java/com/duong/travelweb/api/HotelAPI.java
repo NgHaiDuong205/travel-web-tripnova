@@ -4,7 +4,6 @@ import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.service.HotelService;
 import com.duong.travelweb.service.RoomService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +17,13 @@ import java.util.UUID;
 
 @RestController
 public class HotelAPI {
-    @Autowired
-    private HotelService hotelService;
+    private final HotelService hotelService;
+    private final RoomService roomService;
 
-    @Autowired
-    private RoomService roomService;
+    public HotelAPI(HotelService hotelService, RoomService roomService) {
+        this.hotelService = hotelService;
+        this.roomService = roomService;
+    }
 
     @GetMapping("/api/hotels/")
     public ResponseEntity<List<HotelDTO>> getHotel (@RequestParam Map<String,Object> params,

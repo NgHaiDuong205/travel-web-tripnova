@@ -20,6 +20,7 @@ public class RoomRepositoryImpl implements RoomRepositoryCustom {
         StringBuilder sql = new StringBuilder("SELECT DISTINCT r.* FROM rooms r ");
         sql.append("JOIN room_types rt ON r.room_type_id = rt.id ");
         sql.append("WHERE rt.hotel_id = :hotelId ");
+        sql.append("AND r.status = 'available'::room_status ");
 
         if (searchBuilder.getRoomTypeName() != null && !searchBuilder.getRoomTypeName().trim().isEmpty()) {
             sql.append("AND LOWER(rt.name) LIKE :roomTypeName ");

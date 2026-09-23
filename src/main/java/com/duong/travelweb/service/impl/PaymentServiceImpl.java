@@ -10,12 +10,18 @@ import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.service.HotelBookingService;
 import com.duong.travelweb.service.PaymentService;
 import com.duong.travelweb.util.SecurityUtil;
+import com.duong.travelweb.model.dto.PaymentSummaryDTO;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -24,21 +30,65 @@ public class PaymentServiceImpl implements PaymentService {
     private final HotelBookingRepository hotelBookingRepository;
     private final HotelBookingService hotelBookingService;
     private final boolean mockEnabled;
+    private final String currencyCode;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               HotelBookingRepository hotelBookingRepository,
                               HotelBookingService hotelBookingService,
-                              @Value("${app.payment.mock-enabled:false}") boolean mockEnabled) {
+                              @Value("${app.payment.mock-enabled:false}") boolean mockEnabled,
+                              @Value("${app.booking.currency:USD}") String currencyCode) {
         this.paymentRepository = paymentRepository;
         this.hotelBookingRepository = hotelBookingRepository;
         this.hotelBookingService = hotelBookingService;
         this.mockEnabled = mockEnabled;
+        this.currencyCode = currencyCode;
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaymentDTO getPayment(UUID userId, UUID paymentId) {
         return toDTO(findOwnedPayment(userId, paymentId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentDTO> findMyPayments(UUID userId, String status, int page, int limit) {
+        String filter = status == null || status.isBlank() || "all".equals(status) ? null : status;
+        if (filter != null && !List.of("pending", "success", "failed", "refunded").contains(filter)) {
+            throw ApiException.badRequest("Trạng thái lọc không hợp lệ: " + status);
+        }
+        PageRequest pageable = PageRequest.of(Math.max(page, 1) - 1, limit);
+        Page<PaymentEntity> payments = filter == null
+                ? paymentRepository.findByUser(userId, pageable)
+                : paymentRepository.findByUserAndStatus(userId, filter, pageable);
+
+        List<UUID> orderIds = payments.stream().map(p -> p.getOrder().getId()).distinct().toList();
+        Map<UUID, UUID> bookingIdByOrder = new HashMap<>();
+        if (!orderIds.isEmpty()) {
+            for (Object[] row : hotelBookingRepository.findBookingIdsByOrderIds(orderIds)) {
+                bookingIdByOrder.putIfAbsent((UUID) row[0], (UUID) row[1]);
+            }
+        }
+        return payments.map(p -> toDTO(p, bookingIdByOrder.get(p.getOrder().getId())));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentSummaryDTO getMySummary(UUID userId) {
+        Object[] row = paymentRepository.summarizeByUser(userId).get(0);
+        PaymentSummaryDTO dto = new PaymentSummaryDTO();
+        dto.setTotalTransactions((Long) row[0]);
+        dto.setTotalPaid(toBigDecimal(row[1]));
+        dto.setTotalRefunded(toBigDecimal(row[2]));
+        dto.setCurrencyCode(currencyCode);
+        return dto;
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        return value == null ? BigDecimal.ZERO : new BigDecimal(value.toString());
     }
 
     @Override
@@ -89,6 +139,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private PaymentDTO toDTO(PaymentEntity payment) {
+        List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(payment.getOrder().getId());
+        return toDTO(payment, bookings.isEmpty() ? null : bookings.get(0).getId());
+    }
+
+    private PaymentDTO toDTO(PaymentEntity payment, UUID bookingId) {
         OrderEntity order = payment.getOrder();
         PaymentDTO dto = new PaymentDTO();
         dto.setId(payment.getId());
@@ -102,10 +157,7 @@ public class PaymentServiceImpl implements PaymentService {
         dto.setTransactionId(payment.getTransactionId());
         dto.setPaidAt(payment.getPaidAt());
         dto.setCreatedAt(payment.getCreatedAt());
-        List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(order.getId());
-        if (!bookings.isEmpty()) {
-            dto.setBookingId(bookings.get(0).getId());
-        }
+        dto.setBookingId(bookingId);
         return dto;
     }
 }

@@ -2,6 +2,8 @@ package com.duong.travelweb.repository;
 
 import com.duong.travelweb.model.entity.PaymentEntity;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -23,4 +25,21 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
 
     @Query("SELECT p FROM PaymentEntity p WHERE p.order.id IN :orderIds ORDER BY p.createdAt DESC")
     List<PaymentEntity> findByOrderIds(@Param("orderIds") List<UUID> orderIds);
+
+    // Không dùng "(:status IS NULL OR ...)" với tham số String: stringtype=unspecified khiến Postgres
+    // không suy ra được kiểu tham số -> lỗi "could not determine data type". Tách 2 query.
+    @Query(value = "SELECT p FROM PaymentEntity p JOIN FETCH p.order o WHERE o.user.id = :userId ORDER BY p.createdAt DESC",
+           countQuery = "SELECT COUNT(p) FROM PaymentEntity p WHERE p.order.user.id = :userId")
+    Page<PaymentEntity> findByUser(@Param("userId") UUID userId, Pageable pageable);
+
+    @Query(value = "SELECT p FROM PaymentEntity p JOIN FETCH p.order o " +
+                   "WHERE o.user.id = :userId AND p.status = :status ORDER BY p.createdAt DESC",
+           countQuery = "SELECT COUNT(p) FROM PaymentEntity p WHERE p.order.user.id = :userId AND p.status = :status")
+    Page<PaymentEntity> findByUserAndStatus(@Param("userId") UUID userId, @Param("status") String status, Pageable pageable);
+
+    @Query("SELECT COUNT(p), " +
+           "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN p.status = 'refunded' THEN p.amount ELSE 0 END), 0) " +
+           "FROM PaymentEntity p WHERE p.order.user.id = :userId")
+    List<Object[]> summarizeByUser(@Param("userId") UUID userId);
 }

@@ -7,6 +7,7 @@ import com.duong.travelweb.model.dto.RoomAvailabilityCheckDTO;
 import com.duong.travelweb.model.entity.OrderEntity;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface HotelBookingService {
@@ -14,6 +15,13 @@ public interface HotelBookingService {
     HotelBookingCreatedDTO createBooking(UUID userId, HotelBookingRequestDTO request);
     HotelBookingDTO getBooking(UUID userId, UUID bookingId);
     HotelBookingDTO cancelBooking(UUID userId, UUID bookingId, String reason);
+
+    /** @param statusGroup all | upcoming | completed | cancelled | pending */
+    List<HotelBookingDTO> findMyBookings(UUID userId, String statusGroup, int page, int limit);
+    long countMyBookings(UUID userId, String statusGroup);
+
+    /** Chuyến sắp tới gần nhất đã xác nhận, null nếu không có. */
+    HotelBookingDTO findNextUpcoming(UUID userId);
 
     /** Gọi khi cổng thanh toán báo thành công. Trả về false nếu phòng đã hết và đơn phải hoàn tiền. */
     boolean confirmOrder(OrderEntity order);

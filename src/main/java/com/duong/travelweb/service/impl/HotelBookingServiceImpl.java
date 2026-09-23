@@ -25,6 +25,7 @@ import com.duong.travelweb.util.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -240,6 +243,55 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<HotelBookingDTO> findMyBookings(UUID userId, String statusGroup, int page, int limit) {
+        List<HotelBookingEntity> bookings = hotelBookingRepository.findByUser(userId, normalizeGroup(statusGroup), page, limit);
+        return toDTOs(bookings);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countMyBookings(UUID userId, String statusGroup) {
+        return hotelBookingRepository.countByUser(userId, normalizeGroup(statusGroup));
+    }
+
+    /** Chuyển danh sách booking sang DTO, lấy payment mới nhất theo lô (tránh N+1). */
+    private List<HotelBookingDTO> toDTOs(List<HotelBookingEntity> bookings) {
+        if (bookings.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> orderIds = bookings.stream().map(b -> b.getOrder().getId()).distinct().toList();
+        Map<UUID, PaymentEntity> latestPaymentByOrder = new HashMap<>();
+        for (PaymentEntity payment : paymentRepository.findByOrderIds(orderIds)) {
+            latestPaymentByOrder.putIfAbsent(payment.getOrder().getId(), payment);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return bookings.stream()
+                .map(b -> hotelBookingDTOConverter.toHotelBookingDTO(b,
+                        latestPaymentByOrder.get(b.getOrder().getId()), isCancellable(b, now)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HotelBookingDTO findNextUpcoming(UUID userId) {
+        List<HotelBookingEntity> upcoming = hotelBookingRepository.findUpcomingConfirmed(
+                userId, LocalDate.now(), PageRequest.of(0, 1));
+        return upcoming.isEmpty() ? null : toDTOs(upcoming).get(0);
+    }
+
+    private String normalizeGroup(String statusGroup) {
+        if (statusGroup == null || statusGroup.isBlank()) {
+            return null;
+        }
+        return switch (statusGroup) {
+            case "upcoming", "completed", "cancelled", "pending" -> statusGroup;
+            case "all" -> null;
+            default -> throw ApiException.badRequest("Trạng thái lọc không hợp lệ: " + statusGroup);
+        };
+    }
+
+    @Override
     @Transactional
     public boolean confirmOrder(OrderEntity order) {
         LocalDateTime now = LocalDateTime.now();
@@ -369,9 +421,13 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     }
 
     private HotelBookingDTO toDTO(HotelBookingEntity booking) {
-        boolean cancellable = "pending".equals(booking.getStatus())
-                || ("confirmed".equals(booking.getStatus()) && isFreeCancellation(booking, LocalDateTime.now()));
-        return hotelBookingDTOConverter.toHotelBookingDTO(booking, findLatestPayment(booking.getOrder()), cancellable);
+        return hotelBookingDTOConverter.toHotelBookingDTO(booking, findLatestPayment(booking.getOrder()),
+                isCancellable(booking, LocalDateTime.now()));
+    }
+
+    private boolean isCancellable(HotelBookingEntity booking, LocalDateTime now) {
+        return "pending".equals(booking.getStatus())
+                || ("confirmed".equals(booking.getStatus()) && isFreeCancellation(booking, now));
     }
 
     private PaymentEntity findLatestPayment(OrderEntity order) {

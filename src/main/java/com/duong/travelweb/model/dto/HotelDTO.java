@@ -39,6 +39,15 @@ public class HotelDTO {
     @JsonIgnore
     private String managedByName;
     private List<String> amenities;
+    private Integer remainingRooms;
+
+    public Integer getRemainingRooms() {
+        return remainingRooms;
+    }
+
+    public void setRemainingRooms(Integer remainingRooms) {
+        this.remainingRooms = remainingRooms;
+    }
 
     public UUID getId() {
         return id;

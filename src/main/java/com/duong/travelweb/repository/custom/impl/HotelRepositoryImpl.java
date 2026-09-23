@@ -8,59 +8,112 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class HotelRepositoryImpl implements HotelRepositoryCustom {
+    private static final int DEFAULT_LIMIT = 10;
+    private static final int MAX_LIMIT = 100;
+
     @PersistenceContext
     private EntityManager entityManager;
-    
+
     @Override
     @SuppressWarnings("unchecked")
     public List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuilder) {
-        StringBuilder sql = new StringBuilder("SELECT DISTINCT h.* FROM hotels h ");
+        HotelSearchSql searchSql = buildSearchSql(hotelSearchBuilder, "SELECT DISTINCT h.* FROM hotels h ");
+
+        Query query = entityManager.createNativeQuery(searchSql.sql.toString(), HotelEntity.class);
+        bindParameters(query, searchSql.params);
+
+        Integer page = hotelSearchBuilder.getPage();
+        Integer limit = hotelSearchBuilder.getLimit();
+        if (page != null || limit != null) {
+            if (page == null || page < 1) page = 1;
+            if (limit == null || limit < 1) limit = DEFAULT_LIMIT;
+            if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+            int offset = (page - 1) * limit;
+            query.setFirstResult(offset);
+            query.setMaxResults(limit);
+        }
+
+        return query.getResultList();
+    }
+
+    @Override
+    public long countHotel(HotelSearchBuilder hotelSearchBuilder) {
+        HotelSearchSql searchSql = buildSearchSql(hotelSearchBuilder, "SELECT COUNT(DISTINCT h.id) FROM hotels h ");
+
+        Query query = entityManager.createNativeQuery(searchSql.sql.toString());
+        bindParameters(query, searchSql.params);
+
+        return ((Number) query.getSingleResult()).longValue();
+    }
+
+    private void bindParameters(Query query, Map<String, Object> params) {
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            query.setParameter(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private HotelSearchSql buildSearchSql(HotelSearchBuilder hotelSearchBuilder, String selectClause) {
+        StringBuilder sql = new StringBuilder(selectClause);
         sql.append("LEFT JOIN destinations d ON h.destination_id = d.id ");
         sql.append("LEFT JOIN countries c ON d.country_id = c.id ");
         sql.append("WHERE 1=1 ");
 
+        Map<String, Object> params = new LinkedHashMap<>();
+
         if (hotelSearchBuilder.getName() != null && !hotelSearchBuilder.getName().trim().isEmpty()) {
-            sql.append("AND LOWER(h.name) LIKE :name ");
+            sql.append("AND h.name ILIKE :name ");
+            params.put("name", "%" + hotelSearchBuilder.getName().trim() + "%");
         }
         if (hotelSearchBuilder.getStarRating() != null) {
             sql.append("AND h.star_rating = :starRating ");
+            params.put("starRating", hotelSearchBuilder.getStarRating());
         }
         if (hotelSearchBuilder.getMinStarRating() != null) {
             sql.append("AND h.star_rating >= :minStarRating ");
+            params.put("minStarRating", hotelSearchBuilder.getMinStarRating());
         }
         if (hotelSearchBuilder.getMaxStarRating() != null) {
             sql.append("AND h.star_rating <= :maxStarRating ");
+            params.put("maxStarRating", hotelSearchBuilder.getMaxStarRating());
         }
         if (hotelSearchBuilder.getTotalRooms() != null) {
             sql.append("AND h.total_rooms >= :totalRooms ");
+            params.put("totalRooms", hotelSearchBuilder.getTotalRooms());
         }
         if (hotelSearchBuilder.getDestinationName() != null && !hotelSearchBuilder.getDestinationName().trim().isEmpty()) {
-            sql.append("AND LOWER(d.name) LIKE :destinationName ");
+            sql.append("AND d.name ILIKE :destinationName ");
+            params.put("destinationName", "%" + hotelSearchBuilder.getDestinationName().trim() + "%");
         }
         if (hotelSearchBuilder.getCountryName() != null && !hotelSearchBuilder.getCountryName().trim().isEmpty()) {
-            sql.append("AND LOWER(c.name) LIKE :countryName ");
+            sql.append("AND c.name ILIKE :countryName ");
+            params.put("countryName", "%" + hotelSearchBuilder.getCountryName().trim() + "%");
         }
         if (hotelSearchBuilder.getDestinationId() != null) {
             sql.append("AND h.destination_id = :destinationId ");
+            params.put("destinationId", hotelSearchBuilder.getDestinationId());
         }
         if (hotelSearchBuilder.getManagedById() != null) {
             sql.append("AND h.managed_by = :managedById ");
+            params.put("managedById", hotelSearchBuilder.getManagedById());
         }
         if (hotelSearchBuilder.getId() != null) {
             sql.append("AND h.id = :id ");
+            params.put("id", hotelSearchBuilder.getId());
         }
 
         // Amenities dynamic filter using subquery
         boolean hasAmenities = hotelSearchBuilder.getAmenities() != null && !hotelSearchBuilder.getAmenities().isEmpty();
-        boolean isUuid = false;
-        List<UUID> amenityIds = new ArrayList<>();
-        List<String> amenityNames = new ArrayList<>();
-
         if (hasAmenities) {
+            boolean isUuid = false;
+            List<UUID> amenityIds = new ArrayList<>();
+            List<String> amenityNames = new ArrayList<>();
+
             for (String item : hotelSearchBuilder.getAmenities()) {
                 if (item == null || item.trim().isEmpty()) continue;
                 try {
@@ -70,79 +123,33 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
                     amenityNames.add(item.trim().toLowerCase());
                 }
             }
-            
-            // Check if we actually have valid items to filter
+
             if (!amenityIds.isEmpty() || !amenityNames.isEmpty()) {
                 if (isUuid) {
                     sql.append("AND (SELECT COUNT(distinct ha.amenity_id) FROM hotel_amenities ha ")
                        .append("WHERE ha.hotel_id = h.id AND ha.amenity_id IN (:amenityIds)) = :amenityCount ");
+                    params.put("amenityIds", amenityIds);
+                    params.put("amenityCount", amenityIds.size());
                 } else {
                     sql.append("AND (SELECT COUNT(distinct ha.amenity_id) FROM hotel_amenities ha ")
                        .append("JOIN amenities a ON ha.amenity_id = a.id ")
                        .append("WHERE ha.hotel_id = h.id AND LOWER(a.name) IN (:amenityNames)) = :amenityCount ");
+                    params.put("amenityNames", amenityNames);
+                    params.put("amenityCount", amenityNames.size());
                 }
-            } else {
-                hasAmenities = false;
             }
         }
 
-        Query query = entityManager.createNativeQuery(sql.toString(), HotelEntity.class);
+        return new HotelSearchSql(sql, params);
+    }
 
-        // Apply Pagination
-        Integer page = hotelSearchBuilder.getPage();
-        Integer limit = hotelSearchBuilder.getLimit();
-        System.out.println("--- HotelRepositoryImpl.findHotel ---");
-        System.out.println("Builder page: " + page + ", limit: " + limit);
-        if (page != null || limit != null) {
-            if (page == null || page < 1) page = 1;
-            if (limit == null || limit < 1) limit = 10;
-            int offset = (page - 1) * limit;
-            System.out.println("Applying setFirstResult(" + offset + ") and setMaxResults(" + limit + ")");
-            query.setFirstResult(offset);
-            query.setMaxResults(limit);
-        }
+    private static class HotelSearchSql {
+        private final StringBuilder sql;
+        private final Map<String, Object> params;
 
-        // Bind parameters safely to prevent SQL Injection
-        if (hotelSearchBuilder.getName() != null && !hotelSearchBuilder.getName().trim().isEmpty()) {
-            query.setParameter("name", "%" + hotelSearchBuilder.getName().trim().toLowerCase() + "%");
+        private HotelSearchSql(StringBuilder sql, Map<String, Object> params) {
+            this.sql = sql;
+            this.params = params;
         }
-        if (hotelSearchBuilder.getStarRating() != null) {
-            query.setParameter("starRating", hotelSearchBuilder.getStarRating());
-        }
-        if (hotelSearchBuilder.getMinStarRating() != null) {
-            query.setParameter("minStarRating", hotelSearchBuilder.getMinStarRating());
-        }
-        if (hotelSearchBuilder.getMaxStarRating() != null) {
-            query.setParameter("maxStarRating", hotelSearchBuilder.getMaxStarRating());
-        }
-        if (hotelSearchBuilder.getTotalRooms() != null) {
-            query.setParameter("totalRooms", hotelSearchBuilder.getTotalRooms());
-        }
-        if (hotelSearchBuilder.getDestinationName() != null && !hotelSearchBuilder.getDestinationName().trim().isEmpty()) {
-            query.setParameter("destinationName", "%" + hotelSearchBuilder.getDestinationName().trim().toLowerCase() + "%");
-        }
-        if (hotelSearchBuilder.getCountryName() != null && !hotelSearchBuilder.getCountryName().trim().isEmpty()) {
-            query.setParameter("countryName", "%" + hotelSearchBuilder.getCountryName().trim().toLowerCase() + "%");
-        }
-        if (hotelSearchBuilder.getDestinationId() != null) {
-            query.setParameter("destinationId", hotelSearchBuilder.getDestinationId());
-        }
-        if (hotelSearchBuilder.getManagedById() != null) {
-            query.setParameter("managedById", hotelSearchBuilder.getManagedById());
-        }
-        if (hotelSearchBuilder.getId() != null) {
-            query.setParameter("id", hotelSearchBuilder.getId());
-        }
-        if (hasAmenities) {
-            if (isUuid) {
-                query.setParameter("amenityIds", amenityIds);
-                query.setParameter("amenityCount", amenityIds.size());
-            } else {
-                query.setParameter("amenityNames", amenityNames);
-                query.setParameter("amenityCount", amenityNames.size());
-            }
-        }
-
-        return query.getResultList();
     }
 }

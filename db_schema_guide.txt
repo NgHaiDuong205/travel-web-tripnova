@@ -1,0 +1,1087 @@
+================================================================================
+ TRIPNOVA - DB SCHEMA GUIDE (Postgres: travel-web-project)
+ Tổng: 59 bảng. Nhóm theo domain. Cuối file là quan hệ giữa các bảng.
+================================================================================
+
+
+================================================================================
+ NHÓM 1. USER / AUTH / PHÂN QUYỀN
+================================================================================
+
+------------------------------------------------------------
+ users  — Tài khoản người dùng (khách + admin)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh user
+email              | Email đăng nhập (unique)
+password_hash      | Mật khẩu đã băm (BCrypt)
+full_name          | Họ tên đầy đủ
+phone              | Số điện thoại
+avatar_url         | Ảnh đại diện
+date_of_birth      | Ngày sinh
+gender             | ENUM (male/female/other)
+loyalty_points     | Điểm thưởng tích luỹ (dùng khi checkout)
+is_verified        | Đã xác thực email chưa
+is_active          | Bị khoá hay không (soft-ban)
+last_login_at      | Lần đăng nhập gần nhất
+deleted_at         | Soft delete
+created_at/updated_at
+Chức năng: đăng ký, đăng nhập, quản lý profile, xác thực, RBAC.
+
+------------------------------------------------------------
+ roles  — Vai trò trong hệ thống (USER, ADMIN, HOTEL_MANAGER…)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh role
+name               | Tên role (unique)
+description        | Mô tả vai trò
+created_at         | Ngày tạo
+Chức năng: nhóm quyền theo role, dùng cho RBAC.
+
+------------------------------------------------------------
+ permissions  — Quyền chi tiết (hotel:create, order:refund…)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh permission
+code               | Mã quyền (unique, VD: hotel:create)
+name               | Tên hiển thị
+description        | Mô tả quyền làm gì
+created_at         | Ngày tạo
+Chức năng: đơn vị nhỏ nhất của phân quyền, gán vào role.
+
+------------------------------------------------------------
+ role_permissions  — Bảng nối role ↔ permission (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+role_id (FK)       | Role được gán
+permission_id (FK) | Quyền được gán
+assigned_at        | Thời điểm gán
+Chức năng: cấu hình role có những quyền nào.
+
+------------------------------------------------------------
+ user_roles  — Bảng nối user ↔ role (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+user_id (FK)       | User
+role_id (FK)       | Role
+assigned_at        | Thời điểm gán
+assigned_by (FK)   | Admin gán role (nullable)
+Chức năng: 1 user có thể có nhiều role.
+
+------------------------------------------------------------
+ user_oauth_accounts  — Liên kết tài khoản OAuth (Google/Facebook)
+------------------------------------------------------------
+Cột                    | Ý nghĩa
+id (uuid, PK)          | Định danh liên kết
+user_id (FK)           | User nội bộ
+provider               | ENUM (google/facebook/…)
+provider_user_id       | ID user bên provider
+email                  | Email từ provider
+display_name           | Tên hiển thị bên provider
+avatar_url             | Avatar từ provider
+access_token           | Access token OAuth
+refresh_token          | Refresh token OAuth
+token_expires_at       | Thời hạn access token
+linked_at              | Thời điểm liên kết
+Chức năng: cho phép 1 user gắn nhiều tài khoản social, login qua OAuth2.
+
+------------------------------------------------------------
+ refresh_tokens  — Token làm mới JWT
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh token
+user_id (FK)       | User sở hữu
+token_hash         | Hash của refresh token
+device_info        | Thông tin thiết bị (browser/mobile)
+ip_address         | IP tạo token
+expires_at         | Thời điểm hết hạn
+revoked_at         | Thời điểm bị thu hồi
+replaced_by (FK)   | Token mới thay thế (rotation, self-FK)
+created_at         | Ngày tạo
+Chức năng: hỗ trợ endpoint /auth/refresh-token, xoay token an toàn.
+
+------------------------------------------------------------
+ password_reset_tokens  — Token quên mật khẩu
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh token
+user_id (FK)       | User yêu cầu reset
+token_hash         | Hash của token gửi qua email
+expires_at         | Thời điểm hết hạn
+used_at            | Thời điểm đã dùng (chỉ dùng 1 lần)
+ip_address         | IP request
+created_at         | Ngày tạo
+Chức năng: luồng forgot-password → reset-password.
+
+------------------------------------------------------------
+ user_preferences  — Sở thích du lịch (đầu vào cho AI gợi ý)
+------------------------------------------------------------
+Cột                       | Ý nghĩa
+user_id (PK, FK)          | User
+travel_styles[]           | Kiểu du lịch (beach/adventure/…)
+preferred_budget          | Ngân sách ưa thích
+budget_currency           | Đơn vị tiền
+preferred_countries[]     | Quốc gia yêu thích
+preferred_amenities[]     | Tiện nghi ưu tiên
+trip_duration_days        | Số ngày mong muốn
+with_children             | Đi cùng trẻ em?
+with_pets                 | Đi cùng thú cưng?
+updated_at                | Cập nhật lần cuối
+Chức năng: cá nhân hoá recommendation, tối ưu prompt AI.
+
+
+================================================================================
+ NHÓM 2. ĐỊA LÝ (Continent → Country → Destination → Landmark)
+================================================================================
+
+------------------------------------------------------------
+ continents  — Châu lục
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+code               | Mã châu (AS/EU/AF…)
+name               | Tên châu
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: cấp cao nhất của cây địa lý.
+
+------------------------------------------------------------
+ countries  — Quốc gia
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+continent_id (FK)  | Thuộc châu nào
+country_code       | Mã ISO (VN/US/…)
+name               | Tên quốc gia
+slug               | Slug URL
+image_url          | Ảnh đại diện
+description        | Mô tả
+latitude           | Toạ độ vĩ độ
+longitude          | Toạ độ kinh độ
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: hiển thị theo châu, filter khách sạn/tour theo quốc gia.
+
+------------------------------------------------------------
+ destinations  — Điểm đến (thành phố / khu du lịch)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+country_id (FK)    | Thuộc quốc gia nào
+name               | Tên điểm đến
+description        | Mô tả
+cover_image_url    | Ảnh bìa
+is_popular         | Có nổi bật?
+is_active          | Còn hiển thị?
+latitude           | Vĩ độ
+longitude          | Kinh độ
+created_at         | Ngày tạo
+Chức năng: gắn hotel/tour/car/landmark vào 1 destination cụ thể.
+
+------------------------------------------------------------
+ landmarks  — Địa danh / điểm tham quan trong destination
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+destination_id (FK)| Thuộc destination nào
+name               | Tên địa danh
+description        | Mô tả
+category           | ENUM (beach/mountain/temple/museum/other…)
+cover_image_url    | Ảnh bìa
+opening_hours      | Giờ mở cửa (chuỗi)
+entry_fee          | Phí vào cửa
+is_active          | Còn hoạt động?
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: liệt kê "chỗ đi chơi" trong 1 destination.
+
+
+================================================================================
+ NHÓM 3. HOTEL (Hotel → RoomType → Room → Availability)
+================================================================================
+
+------------------------------------------------------------
+ hotels  — Khách sạn
+------------------------------------------------------------
+Cột                   | Ý nghĩa
+id (uuid, PK)         | Định danh
+destination_id (FK)   | Thuộc destination nào
+managed_by (FK users) | Chủ quản khách sạn
+name                  | Tên khách sạn
+description           | Mô tả
+address               | Địa chỉ chi tiết
+star_rating           | Xếp hạng sao (1..5)
+check_in_time         | Giờ nhận phòng mặc định
+check_out_time        | Giờ trả phòng mặc định
+phone                 | Điện thoại
+email                 | Email liên hệ
+cancellation_policy   | Chính sách huỷ (free/strict/…)
+cancellation_hours    | Được huỷ trước bao nhiêu giờ
+breakfast_included    | Có bao gồm bữa sáng?
+pet_friendly          | Cho phép thú cưng?
+google_place_id       | ID trên Google Places
+total_rooms           | Tổng số phòng
+cover_image_url       | Ảnh bìa
+latitude              | Vĩ độ
+longitude             | Kinh độ
+is_active             | Còn hiển thị?
+created_at            | Ngày tạo
+updated_at            | Ngày cập nhật
+Chức năng: entity chính cho tìm kiếm và đặt phòng.
+
+------------------------------------------------------------
+ amenities  — Danh mục tiện nghi dùng chung (wifi, pool, gym…)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+name               | Tên tiện nghi
+icon_url           | Icon hiển thị
+category           | Nhóm (basic/comfort/service…)
+Chức năng: dictionary dùng chung cho hotel và room_type.
+
+------------------------------------------------------------
+ hotel_amenities  — Nối hotel ↔ amenity (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+hotel_id (FK)      | Khách sạn
+amenity_id (FK)    | Tiện nghi
+Chức năng: khai báo hotel có những tiện nghi gì.
+
+------------------------------------------------------------
+ room_types  — Loại phòng của khách sạn
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+hotel_id (FK)      | Thuộc hotel nào
+name               | Tên (Deluxe, Suite, Family…)
+description        | Mô tả
+max_occupancy      | Sức chứa tối đa
+bed_type           | Kiểu giường (king/queen/twin…)
+area_sqm           | Diện tích (m²)
+price_per_night    | Giá cơ bản/đêm
+cover_image_url    | Ảnh bìa
+is_active          | Còn bán?
+created_at         | Ngày tạo
+Chức năng: định nghĩa giá gốc và sức chứa của một loại phòng.
+
+------------------------------------------------------------
+ room_type_amenities  — Nối room_type ↔ amenity (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+room_type_id (FK)  | Loại phòng
+amenity_id (FK)    | Tiện nghi
+Chức năng: khai báo loại phòng có tiện nghi gì.
+
+------------------------------------------------------------
+ rooms  — Phòng vật lý (có room_number cụ thể)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh phòng
+room_type_id (FK)  | Thuộc loại phòng nào
+room_number        | Số phòng
+floor              | Tầng
+status             | ENUM (available/occupied/maintenance)
+Chức năng: đại diện phòng thực tế; khoá theo ngày dùng room_availability.
+
+------------------------------------------------------------
+ room_availability  — Trạng thái phòng theo NGÀY (cực kỳ quan trọng)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh bản ghi
+room_id (FK)       | Phòng nào
+date               | Ngày cụ thể
+status             | ENUM (available/booked/blocked)
+blocked_reason     | Lý do bị block (nếu có)
+Ràng buộc: UNIQUE (room_id, date) → chống double-booking.
+Chức năng: khoá phòng theo ngày; sau khi thanh toán thành công INSERT
+bản ghi 'booked' cho từng ngày từ check_in đến check_out - 1.
+
+
+================================================================================
+ NHÓM 4. XE (CAR)
+================================================================================
+
+------------------------------------------------------------
+ cars  — Xe cho thuê
+------------------------------------------------------------
+Cột                   | Ý nghĩa
+id (uuid, PK)         | Định danh
+destination_id (FK)   | Thuộc destination nào
+managed_by (FK users) | Chủ quản
+name                  | Tên xe (hiển thị)
+brand                 | Hãng (Toyota, Honda…)
+model                 | Dòng xe (Camry, Vios…)
+license_plate         | Biển số
+car_type              | ENUM (sedan/suv/van/mpv…)
+seats                 | Số chỗ ngồi
+transmission          | Hộp số (manual/auto)
+fuel_type             | Nhiên liệu (gasoline/diesel/electric)
+price_per_day         | Giá/ngày
+with_driver           | Có tài xế?
+pickup_location       | Nơi nhận xe
+description           | Mô tả
+cover_image_url       | Ảnh bìa
+is_active             | Còn cho thuê?
+created_at            | Ngày tạo
+updated_at            | Ngày cập nhật
+Chức năng: quản lý xe cho thuê tự lái / có tài xế.
+
+------------------------------------------------------------
+ car_bookings  — Đơn đặt xe
+------------------------------------------------------------
+Cột                   | Ý nghĩa
+id (uuid, PK)         | Định danh booking
+order_id (FK)         | Thuộc đơn hàng nào
+user_id (FK)          | Người đặt
+car_id (FK)           | Xe được đặt
+pickup_date           | Thời điểm nhận xe
+return_date           | Thời điểm trả xe
+pickup_location       | Địa điểm nhận
+return_location       | Địa điểm trả
+driver_license_no     | Số GPLX (nếu tự lái)
+total_price           | Tổng tiền
+discount_amount       | Số tiền giảm
+special_requests      | Yêu cầu đặc biệt
+status                | ENUM (pending/confirmed/cancelled/…)
+created_at            | Ngày tạo
+updated_at            | Ngày cập nhật
+Chức năng: đặt xe, gắn vào 1 order để thanh toán.
+
+
+================================================================================
+ NHÓM 5. CHUYẾN BAY (FLIGHT)
+================================================================================
+
+------------------------------------------------------------
+ flights  — Chuyến bay
+------------------------------------------------------------
+Cột                       | Ý nghĩa
+id (uuid, PK)             | Định danh chuyến
+flight_number             | Số hiệu chuyến (VN123)
+airline                   | Hãng bay
+airline_logo_url          | Logo hãng
+departure_airport_code    | Mã sân bay đi (IATA)
+arrival_airport_code      | Mã sân bay đến
+departure_city            | Thành phố đi
+arrival_city              | Thành phố đến
+departure_time            | Giờ khởi hành
+arrival_time              | Giờ hạ cánh
+duration_minutes          | Thời gian bay (phút)
+aircraft_type             | Loại tàu bay
+base_price                | Giá gốc/ghế
+total_seats               | Tổng số ghế
+available_seats           | Số ghế còn trống
+baggage_policy            | Chính sách hành lý
+is_active                 | Còn bán?
+created_at                | Ngày tạo
+updated_at                | Ngày cập nhật
+Chức năng: quản lý inventory chuyến bay.
+
+------------------------------------------------------------
+ flight_seats  — Ghế trên chuyến bay
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh ghế
+flight_id (FK)     | Thuộc chuyến bay nào
+seat_number        | Số ghế (12A, 15C…)
+seat_class         | ENUM (economy/business/first)
+price              | Giá của ghế
+status             | ENUM (available/held/booked)
+Chức năng: cho phép chọn ghế cụ thể, tính giá theo hạng.
+
+------------------------------------------------------------
+ flight_bookings  — Đơn đặt vé máy bay
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh booking
+order_id (FK)      | Thuộc order nào
+user_id (FK)       | Người đặt
+flight_id (FK)     | Chuyến bay
+seat_id (FK)       | Ghế được chọn (nullable)
+passenger_name     | Tên hành khách trên vé
+passenger_email    | Email hành khách
+passenger_phone    | SĐT hành khách
+passport_no        | Số hộ chiếu / CCCD
+baggage_kg         | Hành lý ký gửi (kg)
+total_price        | Tổng tiền
+status             | ENUM (pending/confirmed/cancelled/…)
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: đặt vé, giữ chỗ ghế qua flight_seats.
+
+
+================================================================================
+ NHÓM 6. TOUR
+================================================================================
+
+------------------------------------------------------------
+ tours  — Tour trọn gói
+------------------------------------------------------------
+Cột                   | Ý nghĩa
+id (uuid, PK)         | Định danh
+destination_id (FK)   | Điểm đến chính
+name                  | Tên tour
+slug                  | Slug URL
+description           | Mô tả
+itinerary             | Lịch trình (text tổng quát)
+duration_days         | Số ngày
+duration_nights       | Số đêm
+max_participants      | Số người tối đa
+min_participants      | Số người tối thiểu để khởi hành
+price_adult           | Giá người lớn
+price_child           | Giá trẻ em
+departure_date        | Ngày khởi hành cố định
+return_date           | Ngày về
+departure_location    | Điểm khởi hành
+cover_image_url       | Ảnh bìa
+highlights            | Điểm nhấn (jsonb: list gạch đầu dòng)
+included              | Bao gồm những gì
+excluded              | Không bao gồm những gì
+is_active             | Còn bán?
+created_at            | Ngày tạo
+updated_at            | Ngày cập nhật
+Chức năng: gói tour combo hotel + car + flight + hoạt động.
+
+------------------------------------------------------------
+ tour_hotels  — Nối tour ↔ hotel (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+tour_id (FK)       | Tour
+hotel_id (FK)      | Khách sạn trong tour
+check_in_day       | Ngày thứ mấy của tour bắt đầu nghỉ
+nights             | Số đêm nghỉ tại hotel này
+Chức năng: liệt kê hotel thành phần của tour.
+
+------------------------------------------------------------
+ tour_cars  — Nối tour ↔ car (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+tour_id (FK)       | Tour
+car_id (FK)        | Xe sử dụng
+usage_day          | Ngày thứ mấy dùng xe
+Chức năng: khai báo xe được dùng trong tour.
+
+------------------------------------------------------------
+ tour_flights  — Nối tour ↔ flight (N-N)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+tour_id (FK)       | Tour
+flight_id (FK)     | Chuyến bay
+leg                | outbound / return (chiều đi/về)
+Chức năng: khai báo chuyến bay chiều đi & về của tour.
+
+------------------------------------------------------------
+ tour_bookings  — Đơn đặt tour
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh booking
+order_id (FK)      | Thuộc order nào
+user_id (FK)       | Người đặt
+tour_id (FK)       | Tour được đặt
+num_adults         | Số người lớn
+num_children       | Số trẻ em
+departure_date     | Ngày khởi hành đăng ký
+contact_name       | Người liên hệ
+contact_phone      | SĐT liên hệ
+contact_email      | Email liên hệ
+total_price        | Tổng tiền
+discount_amount    | Số tiền giảm
+special_requests   | Yêu cầu đặc biệt
+status             | ENUM (pending/confirmed/cancelled/…)
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: đặt tour, gắn vào 1 order để thanh toán.
+
+
+================================================================================
+ NHÓM 7. ĐƠN HÀNG & THANH TOÁN
+================================================================================
+
+------------------------------------------------------------
+ orders  — Đơn hàng tổng (có thể chứa nhiều booking)
+------------------------------------------------------------
+Cột                       | Ý nghĩa
+id (uuid, PK)             | Định danh
+user_id (FK)              | Người mua
+order_code                | Mã đơn (unique, VD ORD-20260817-0001)
+subtotal                  | Tạm tính
+discount_total            | Tổng giảm giá
+tax_amount                | Thuế
+total_amount              | Tổng phải trả
+currency_code             | Đơn vị tiền (VND/USD…)
+loyalty_points_used       | Điểm đã dùng
+loyalty_points_earned     | Điểm được cộng
+invoice_url               | Link hoá đơn
+status                    | ENUM (pending/paid/cancelled/refunded)
+notes                     | Ghi chú
+cancelled_at              | Thời điểm huỷ
+cancel_reason             | Lý do huỷ
+created_at                | Ngày tạo
+updated_at                | Ngày cập nhật
+Chức năng: gom mọi loại booking (hotel/car/flight/tour) vào 1 order để
+thanh toán 1 lần.
+
+------------------------------------------------------------
+ payments  — Giao dịch thanh toán
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh giao dịch
+order_id (FK)      | Thuộc order nào
+payment_method     | ENUM (momo/vnpay/card/cash…)
+amount             | Số tiền
+currency_code      | Đơn vị tiền
+transaction_id     | Mã giao dịch từ gateway
+gateway_response   | Phản hồi thô từ gateway (jsonb)
+status             | ENUM (pending/completed/failed/refunded)
+paid_at            | Thời điểm thanh toán thành công
+created_at         | Ngày tạo
+Chức năng: mỗi lần bấm trả tiền là 1 record; có thể retry nhiều lần.
+
+------------------------------------------------------------
+ invoices  — Hoá đơn xuất cho user
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh hoá đơn
+invoice_number     | Số hoá đơn (unique)
+order_id (FK)      | Thuộc order nào
+payment_id (FK)    | Thanh toán tương ứng
+user_id (FK)       | Người nhận hoá đơn
+billing_name       | Tên xuất hoá đơn
+billing_address    | Địa chỉ xuất hoá đơn
+billing_tax_code   | Mã số thuế
+subtotal           | Tạm tính
+discount_total     | Giảm giá
+tax_amount         | Thuế
+total_amount       | Tổng
+currency_code      | Đơn vị tiền
+pdf_url            | Link file PDF
+issued_at          | Thời điểm phát hành
+created_at         | Ngày tạo
+Chức năng: xuất hoá đơn PDF, cho user tải về.
+
+
+================================================================================
+ NHÓM 8. GIỎ HÀNG & YÊU THÍCH
+================================================================================
+
+------------------------------------------------------------
+ carts  — Giỏ hàng (cho guest hoặc user)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh giỏ
+user_id (FK)       | User (nullable nếu là guest)
+session_token      | Token phiên (cho khách chưa login)
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: chứa item chờ checkout; merge khi guest đăng nhập.
+
+------------------------------------------------------------
+ cart_items  — Từng dòng trong giỏ hàng
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh dòng
+cart_id (FK)       | Thuộc giỏ nào
+item_type          | ENUM (hotel/room/flight/car/tour)
+item_id            | ID của item (polymorphic)
+item_snapshot      | Snapshot lúc thêm (jsonb) để giá không đổi
+quantity           | Số lượng
+check_in_date      | Ngày nhận (nếu là hotel)
+check_out_date     | Ngày trả (nếu là hotel)
+room_type_id (FK)  | Loại phòng (nếu là hotel)
+departure_date     | Ngày đi (nếu là flight/tour)
+unit_price         | Đơn giá
+total_price        | Thành tiền
+added_at           | Thời điểm thêm
+Chức năng: giữ mọi loại item với snapshot để chống thay đổi giá.
+
+------------------------------------------------------------
+ favorites  — Danh sách yêu thích
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+user_id (FK)       | User
+item_type          | ENUM (hotel/tour/car/flight/destination)
+item_id            | ID item (polymorphic)
+created_at         | Ngày thêm
+Chức năng: khách bấm ♥ để lưu item quan tâm.
+
+
+================================================================================
+ NHÓM 9. NỘI DUNG CỘNG ĐỒNG (Posts / Comments / Reactions / Reviews)
+================================================================================
+
+------------------------------------------------------------
+ posts  — Bài viết / review (đa dụng cho hotel/tour/destination…)
+------------------------------------------------------------
+Cột                   | Ý nghĩa
+id (uuid, PK)         | Định danh
+user_id (FK)          | Tác giả
+entity_type           | Đối tượng review (hotel/tour/destination…)
+entity_id             | ID đối tượng
+title                 | Tiêu đề
+content               | Nội dung
+rating                | Điểm đánh giá (1..5)
+images                | Danh sách ảnh (jsonb)
+is_verified_booking   | Người review đã thực sự đặt?
+status                | ENUM (pending/approved/rejected/hidden)
+upvotes               | Số upvote
+downvotes             | Số downvote
+created_at            | Ngày tạo
+updated_at            | Ngày cập nhật
+Chức năng: user viết review/blog, gắn với 1 entity bất kỳ.
+
+------------------------------------------------------------
+ comments  — Bình luận (đệ quy self-reference)
+------------------------------------------------------------
+Cột                       | Ý nghĩa
+id (uuid, PK)             | Định danh
+post_id (FK)              | Thuộc post nào
+user_id (FK)              | Người bình luận
+parent_comment_id (FK)    | Bình luận cha (nullable, để reply)
+content                   | Nội dung
+status                    | active/hidden/deleted
+created_at                | Ngày tạo
+updated_at                | Ngày cập nhật
+Chức năng: hội thoại nhiều tầng dưới bài viết.
+
+------------------------------------------------------------
+ post_reactions  — Reaction của user với post
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+post_id (FK)       | Post
+user_id (FK)       | User reaction
+reaction_type      | ENUM (like/love/haha/wow/sad/angry)
+created_at         | Ngày tạo
+Chức năng: cảm xúc nhanh với bài viết.
+
+------------------------------------------------------------
+ review_ai_analysis  — Phân tích AI cho review (sentiment, topic)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+post_id (FK)       | Post được phân tích
+sentiment          | pos/neu/neg
+sentiment_score    | Điểm cảm xúc (-1..1)
+topics             | Chủ đề (mảng)
+aspects            | jsonb: {'service':4.5,'cleanliness':4.8…}
+language           | Ngôn ngữ phát hiện
+is_toxic           | Có độc hại?
+is_spam            | Có phải spam?
+model_version      | Phiên bản model
+analyzed_at        | Thời điểm phân tích
+Chức năng: đầu vào để moderation & summary khách sạn/tour.
+
+
+================================================================================
+ NHÓM 10. LIÊN HỆ (CONTACT)
+================================================================================
+
+------------------------------------------------------------
+ contact_messages  — Tin nhắn gửi qua form Contact
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+user_id (FK)       | User (nullable nếu là khách)
+full_name          | Họ tên người gửi
+email              | Email
+phone              | Số điện thoại
+subject            | Tiêu đề
+message            | Nội dung
+status             | ENUM (new/read/replied/spam)
+ip_address         | IP người gửi
+replied_by (FK)    | Admin trả lời
+reply_content      | Nội dung trả lời
+replied_at         | Thời điểm trả lời
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: nhận feedback/hỗ trợ; admin xử lý & trả lời.
+
+
+================================================================================
+ NHÓM 11. AI / MACHINE LEARNING
+================================================================================
+
+------------------------------------------------------------
+ chat_sessions  — Phiên chat với trợ lý AI
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh phiên
+user_id (FK)       | User (nullable cho khách)
+session_token      | Token phiên cho guest
+title              | Tiêu đề phiên (auto-generate)
+channel            | Kênh (web/mobile/…)
+context_type       | Ngữ cảnh (hotel/tour/…) nếu có
+context_id         | ID ngữ cảnh
+total_tokens       | Tổng token đã dùng
+is_active          | Phiên còn mở?
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: gom message trong 1 cuộc chat.
+
+------------------------------------------------------------
+ chat_messages  — Từng message trong phiên chat
+------------------------------------------------------------
+Cột                    | Ý nghĩa
+id (uuid, PK)          | Định danh
+session_id (FK)        | Thuộc phiên nào
+role                   | user/assistant/system/tool
+content                | Nội dung message
+tool_calls             | Tool call (jsonb) nếu có
+retrieved_chunks       | Chunk RAG được lấy (jsonb)
+model_name             | Tên model dùng
+prompt_tokens          | Token prompt
+completion_tokens      | Token trả về
+latency_ms             | Độ trễ (ms)
+error_message          | Lỗi (nếu có)
+created_at             | Ngày tạo
+Chức năng: log đầy đủ để debug & billing token.
+
+------------------------------------------------------------
+ chat_feedback  — User đánh giá câu trả lời AI
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+message_id (FK)    | Message được đánh giá
+user_id (FK)       | User (nullable)
+rating             | Điểm 1..5
+is_helpful         | Có hữu ích?
+comment            | Ghi chú
+created_at         | Ngày tạo
+Chức năng: thu tín hiệu để fine-tune / cải thiện model.
+
+------------------------------------------------------------
+ knowledge_documents  — Tài liệu nạp vào AI (RAG)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+source_type        | Loại nguồn (hotel/policy/faq…)
+source_id          | ID nguồn (nếu gắn với entity)
+title              | Tiêu đề
+content            | Nội dung đầy đủ
+url                | URL tài liệu gốc
+language           | Ngôn ngữ (vi/en…)
+version            | Phiên bản
+is_active          | Đang dùng?
+indexed_at         | Đã index xong lúc nào
+created_at         | Ngày tạo
+updated_at         | Ngày cập nhật
+Chức năng: nguồn tri thức cho chatbot; sẽ được cắt thành chunks.
+
+------------------------------------------------------------
+ knowledge_chunks  — Chunk văn bản đã tách + embedding
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+document_id (FK)   | Thuộc document nào
+chunk_index        | Thứ tự chunk
+content            | Nội dung chunk
+token_count        | Số token
+embedding          | Vector embedding (jsonb)
+metadata           | Metadata thêm (jsonb)
+created_at         | Ngày tạo
+Chức năng: dùng cho vector search / RAG.
+
+------------------------------------------------------------
+ item_embeddings  — Embedding cho các entity (hotel/tour/…)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+entity_type        | Loại entity (hotel/tour/…)
+entity_id          | ID entity (polymorphic)
+embedding          | Vector (jsonb)
+model_version      | Phiên bản model
+updated_at         | Cập nhật lần cuối
+Chức năng: semantic search, gợi ý item tương tự.
+
+------------------------------------------------------------
+ similar_items  — Cache "item tương tự"
+------------------------------------------------------------
+Cột                    | Ý nghĩa
+entity_type            | Loại entity gốc
+entity_id              | ID gốc
+similar_entity_id      | Item tương tự
+similarity_score       | Điểm tương tự (0..1)
+generated_at           | Sinh lúc nào
+Chức năng: tối ưu hiệu năng gợi ý (không tính lại mỗi lần).
+
+------------------------------------------------------------
+ recommendations  — Gợi ý cá nhân hoá cho user
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+user_id (FK)       | User được gợi ý
+entity_type        | Loại item gợi ý
+entity_id          | ID item
+score              | Điểm gợi ý
+reason             | Lý do (why)
+algorithm          | Thuật toán (cf/content/hybrid)
+generated_at       | Ngày sinh
+expires_at         | Hết hạn (cần refresh)
+Chức năng: hiển thị "Dành cho bạn" trên trang chủ.
+
+------------------------------------------------------------
+ price_history  — Lịch sử giá theo ngày
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (bigint, PK)    | Định danh
+entity_type        | hotel/room_type/flight/tour…
+entity_id          | ID entity
+price              | Giá tại thời điểm ghi
+currency_code      | Đơn vị tiền
+check_date         | Ngày áp dụng
+recorded_at        | Thời điểm ghi
+Chức năng: dữ liệu train model dự đoán giá.
+
+------------------------------------------------------------
+ price_predictions  — Dự đoán giá tương lai
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+entity_type        | Loại entity
+entity_id          | ID entity
+target_date        | Ngày dự đoán
+predicted_price    | Giá dự đoán
+confidence         | Độ tin cậy (0..1)
+recommendation     | buy_now / wait
+model_version      | Phiên bản model
+generated_at       | Sinh lúc nào
+Chức năng: hiển thị "nên đặt ngay" / "nên chờ" cho user.
+
+------------------------------------------------------------
+ ai_summaries  — Bản tóm tắt do AI sinh
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+entity_type        | Loại entity (hotel/tour/…)
+entity_id          | ID entity
+summary_type       | Loại tóm tắt (reviews/description…)
+language           | Ngôn ngữ
+content            | Nội dung tóm tắt
+based_on_count     | Dựa trên bao nhiêu review
+model_version      | Phiên bản model
+generated_at       | Ngày sinh
+Chức năng: tóm tắt hàng trăm review thành 1 đoạn ngắn.
+
+------------------------------------------------------------
+ ai_jobs  — Hàng đợi job AI chạy background
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh job
+job_type           | Loại job (embed/summarize/moderate…)
+payload            | Tham số job (jsonb)
+status             | pending/running/done/failed
+attempts           | Số lần thử
+error_message      | Lỗi (nếu có)
+started_at         | Bắt đầu chạy
+finished_at        | Kết thúc
+created_at         | Enqueue lúc nào
+Chức năng: worker pull job theo status='pending'.
+
+------------------------------------------------------------
+ image_ai_metadata  — Phân tích ảnh (tag, NSFW, caption)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+entity_type        | Ảnh thuộc entity nào
+entity_id          | ID entity
+image_url          | URL ảnh
+tags               | Nhãn tự động (mảng)
+dominant_colors    | Màu chủ đạo (jsonb)
+nsfw_score         | Điểm NSFW (0..1)
+is_approved        | Duyệt hiển thị?
+caption_vi         | Caption tự động (tiếng Việt)
+embedding          | Vector ảnh (jsonb)
+model_version      | Phiên bản model
+analyzed_at        | Phân tích lúc nào
+Chức năng: moderation & search ảnh.
+
+------------------------------------------------------------
+ fraud_scores  — Điểm rủi ro gian lận cho booking/payment
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (uuid, PK)      | Định danh
+entity_type        | booking/payment
+entity_id          | ID entity
+risk_score         | Điểm rủi ro (0..1)
+risk_level         | low/medium/high
+reasons            | Lý do (jsonb)
+action_taken       | Xử lý (allow/review/block)
+model_version      | Phiên bản model
+created_at         | Ngày sinh
+Chức năng: phát hiện gian lận, chặn giao dịch bất thường.
+
+------------------------------------------------------------
+ search_queries  — Log truy vấn tìm kiếm
+------------------------------------------------------------
+Cột                       | Ý nghĩa
+id (bigint, PK)           | Định danh
+user_id (FK)              | User (nullable)
+query_text                | Chuỗi tìm kiếm
+query_embedding           | Embedding của query (jsonb)
+filters                   | Bộ lọc (jsonb)
+result_count              | Số kết quả trả về
+clicked_entity_type       | Loại kết quả user click
+clicked_entity_id         | ID kết quả user click
+created_at                | Ngày tạo
+Chức năng: analytics, cải thiện search & recommendation.
+
+------------------------------------------------------------
+ user_interactions  — Log tương tác (view, click, dwell)
+------------------------------------------------------------
+Cột                | Ý nghĩa
+id (bigint, PK)    | Định danh
+user_id (FK)       | User (nullable)
+session_token      | Phiên guest
+entity_type        | Loại entity
+entity_id          | ID entity
+action             | view/click/like/book…
+dwell_seconds      | Thời gian ở lại (giây)
+weight             | Trọng số tương tác
+metadata           | Chi tiết thêm (jsonb)
+created_at         | Ngày tạo
+Chức năng: nguyên liệu train recommendation model.
+
+
+================================================================================
+ NHÓM 12. HÀNH TRÌNH CÁ NHÂN (ITINERARY)
+================================================================================
+
+------------------------------------------------------------
+ itineraries  — Kế hoạch chuyến đi (user tự lập hoặc AI gen)
+------------------------------------------------------------
+Cột                    | Ý nghĩa
+id (uuid, PK)          | Định danh
+user_id (FK)           | Chủ nhân
+title                  | Tiêu đề (VD: "Đà Nẵng 3N2Đ")
+destination_id (FK)    | Điểm đến chính
+start_date             | Ngày bắt đầu
+end_date               | Ngày kết thúc
+total_budget           | Ngân sách tổng
+party_size             | Số người
+prompt                 | Câu prompt user nhập cho AI
+generated_by           | ai / manual
+model_version          | Phiên bản model AI
+status                 | draft / saved / booked
+created_at             | Ngày tạo
+updated_at             | Ngày cập nhật
+Chức năng: khách lập kế hoạch, AI đề xuất; có thể chuyển sang booking.
+
+------------------------------------------------------------
+ itinerary_items  — Từng hoạt động trong lịch trình
+------------------------------------------------------------
+Cột                    | Ý nghĩa
+id (uuid, PK)          | Định danh
+itinerary_id (FK)      | Thuộc itinerary nào
+day_number             | Ngày thứ mấy
+start_time             | Giờ bắt đầu
+end_time               | Giờ kết thúc
+entity_type            | Loại (hotel/landmark/car/restaurant…)
+entity_id              | ID entity
+title                  | Tiêu đề hoạt động
+notes                  | Ghi chú
+estimated_cost         | Chi phí dự kiến
+sort_order             | Thứ tự trong ngày
+created_at             | Ngày tạo
+Chức năng: mô tả chi tiết từng mốc thời gian trong lịch trình.
+
+
+================================================================================
+ QUAN HỆ GIỮA CÁC BẢNG (FOREIGN KEYS)
+================================================================================
+
+--- Địa lý (cây phân cấp) ---
+continents 1 ── N countries
+countries  1 ── N destinations
+destinations 1 ── N landmarks
+destinations 1 ── N hotels / cars / tours / itineraries
+
+--- User / Auth ---
+users 1 ── N user_roles       N ── 1 roles
+roles 1 ── N role_permissions N ── 1 permissions
+users 1 ── N user_oauth_accounts
+users 1 ── 1 user_preferences
+users 1 ── N refresh_tokens (self-FK replaced_by)
+users 1 ── N password_reset_tokens
+
+--- Hotel ---
+hotels 1 ── N room_types 1 ── N rooms 1 ── N room_availability
+hotels N ── N amenities   (qua hotel_amenities)
+room_types N ── N amenities (qua room_type_amenities)
+hotels    N ── 1 users (managed_by)
+hotels    N ── 1 destinations
+
+--- Car ---
+cars N ── 1 destinations
+cars N ── 1 users (managed_by)
+
+--- Flight ---
+flights 1 ── N flight_seats
+flights 1 ── N flight_bookings
+flight_bookings N ── 1 flight_seats (ghế đã chọn)
+
+--- Tour (composite) ---
+tours N ── 1 destinations
+tours N ── N hotels  (qua tour_hotels)
+tours N ── N cars    (qua tour_cars)
+tours N ── N flights (qua tour_flights)
+
+--- Booking / Order / Payment ---
+users 1 ── N orders
+orders 1 ── N payments
+orders 1 ── N invoices  (invoices N ── 1 payments)
+orders 1 ── N hotel_bookings
+orders 1 ── N car_bookings
+orders 1 ── N flight_bookings
+orders 1 ── N tour_bookings
+hotel_bookings N ── 1 hotels, room_types; N ── 0..1 rooms
+car_bookings   N ── 1 cars
+flight_bookings N ── 1 flights; N ── 0..1 flight_seats
+tour_bookings  N ── 1 tours
+Mỗi *_bookings N ── 1 users
+
+--- Cart / Favorites ---
+users 1 ── N carts 1 ── N cart_items
+cart_items N ── 0..1 room_types  (khi item là hotel room)
+users 1 ── N favorites  (polymorphic: item_type + item_id)
+
+--- Nội dung ---
+users 1 ── N posts
+posts 1 ── N comments (self-FK parent_comment_id để reply)
+posts 1 ── N post_reactions   N ── 1 users
+posts 1 ── 1 review_ai_analysis
+
+--- Contact ---
+contact_messages N ── 0..1 users (nếu user đã login)
+contact_messages N ── 0..1 users (replied_by = admin trả lời)
+
+--- Itinerary ---
+users 1 ── N itineraries 1 ── N itinerary_items
+itineraries N ── 0..1 destinations
+
+--- AI ---
+users 1 ── N chat_sessions 1 ── N chat_messages 1 ── N chat_feedback
+knowledge_documents 1 ── N knowledge_chunks
+users 1 ── N recommendations
+users 1 ── N search_queries / user_interactions
+(item_embeddings, similar_items, price_history, price_predictions,
+ ai_summaries, image_ai_metadata, fraud_scores dùng polymorphic
+ entity_type + entity_id → hotels/tours/rooms/… không có FK cứng)
+
+
+================================================================================
+ GỢI Ý QUAN TRỌNG VỀ TÍNH TOÀN VẸN
+================================================================================
+- UNIQUE (room_id, date) trên room_availability → chống double-booking.
+- UNIQUE (email) trên users, (order_code) trên orders, (invoice_number)
+  trên invoices, (transaction_id) trên payments.
+- Các bảng "polymorphic" (entity_type + entity_id) KHÔNG có FK cứng ở DB
+  → phải validate ở tầng service khi ghi.
+- Soft-delete: users.deleted_at, is_active trên hotels/rooms/tours/...
+  → mọi truy vấn public phải filter is_active = true / deleted_at IS NULL.
+- Order flow chuẩn:
+    orders(pending) + *_bookings(pending) + payments(pending)
+      → user thanh toán → webhook gateway
+      → payments.status=completed, orders.status=paid,
+        *_bookings.status=confirmed,
+        INSERT room_availability(room_id, date, 'booked') cho mỗi ngày.

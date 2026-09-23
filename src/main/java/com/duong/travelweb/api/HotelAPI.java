@@ -29,12 +29,16 @@ public class HotelAPI {
     public ResponseEntity<List<HotelDTO>> getHotel (@RequestParam Map<String,Object> params,
                                                     @RequestParam(required = false) List<String> amenities){
         List<HotelDTO> results = hotelService.findHotel(params, amenities);
-        return ResponseEntity.ok(results);
+        long total = hotelService.countHotel(params, amenities);
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(total))
+                .body(results);
     }
 
     @GetMapping("/api/hotels/{id}/")
-    public ResponseEntity<HotelDTO> getHotelById(@PathVariable UUID id) {
-        HotelDTO result = hotelService.getHotelById(id);
+    public ResponseEntity<HotelDTO> getHotelById(@PathVariable UUID id,
+                                                 @RequestParam Map<String, Object> params) {
+        HotelDTO result = hotelService.getHotelById(id, params);
         if (result != null && result.getId() != null) {
             return ResponseEntity.ok(result);
         }

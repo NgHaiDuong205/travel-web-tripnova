@@ -8,5 +8,6 @@ import java.util.UUID;
 
 public interface HotelService {
     List<HotelDTO> findHotel(Map<String,Object> params, List<String> amenities);
-    HotelDTO getHotelById(UUID id);
+    long countHotel(Map<String,Object> params, List<String> amenities);
+    HotelDTO getHotelById(UUID id, Map<String, Object> params);
 }

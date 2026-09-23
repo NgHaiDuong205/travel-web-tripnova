@@ -18,7 +18,7 @@ public class CountryRepositoryImpl implements CountryRepositoryCustom {
         StringBuilder sql = new StringBuilder("SELECT * FROM countries c WHERE 1=1 ");
 
         if (countrySearchBuilder.getName() != null && !countrySearchBuilder.getName().isEmpty()) {
-            sql.append("AND LOWER(c.name) LIKE :name ");
+            sql.append("AND c.name ILIKE :name ");
         }
         if (countrySearchBuilder.getCountryCode() != null && !countrySearchBuilder.getCountryCode().isEmpty()) {
             sql.append("AND LOWER(c.country_code) = :countryCode ");
@@ -33,7 +33,7 @@ public class CountryRepositoryImpl implements CountryRepositoryCustom {
         Query query = entityManager.createNativeQuery(sql.toString(), CountryEntity.class);
 
         if (countrySearchBuilder.getName() != null && !countrySearchBuilder.getName().isEmpty()) {
-            query.setParameter("name", "%" + countrySearchBuilder.getName().toLowerCase() + "%");
+            query.setParameter("name", "%" + countrySearchBuilder.getName() + "%");
         }
         if (countrySearchBuilder.getCountryCode() != null && !countrySearchBuilder.getCountryCode().isEmpty()) {
             query.setParameter("countryCode", countrySearchBuilder.getCountryCode().toLowerCase());

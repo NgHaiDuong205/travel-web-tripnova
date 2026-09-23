@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface HotelRepositoryCustom {
     List<HotelEntity> findHotel(HotelSearchBuilder hotelSearchBuilder);
+    long countHotel(HotelSearchBuilder hotelSearchBuilder);
 }

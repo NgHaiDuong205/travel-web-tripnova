@@ -1,5 +1,6 @@
 package com.duong.travelweb.builder;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +20,8 @@ public class HotelSearchBuilder {
     private List<String> typeCode = new ArrayList<>();
     private Integer page;
     private Integer limit;
+    private LocalDate checkIn;
+    private LocalDate checkOut;
 
     private HotelSearchBuilder(Builder builder){
         this.id = builder.id;
@@ -35,6 +38,8 @@ public class HotelSearchBuilder {
         this.typeCode = builder.typeCode;
         this.page = builder.page;
         this.limit = builder.limit;
+        this.checkIn = builder.checkIn;
+        this.checkOut = builder.checkOut;
     }
 
     public UUID getId() {
@@ -93,6 +98,14 @@ public class HotelSearchBuilder {
         return limit;
     }
 
+    public LocalDate getCheckIn() {
+        return checkIn;
+    }
+
+    public LocalDate getCheckOut() {
+        return checkOut;
+    }
+
     public static class Builder{
         private UUID id;
         private UUID destinationId;
@@ -108,6 +121,8 @@ public class HotelSearchBuilder {
         private List<String> typeCode = new ArrayList<>();
         private Integer page;
         private Integer limit;
+        private LocalDate checkIn;
+        private LocalDate checkOut;
 
         public Builder id(UUID id){
             this.id = id;
@@ -167,6 +182,14 @@ public class HotelSearchBuilder {
         }
         public Builder limit(Integer limit){
             this.limit = limit;
+            return this;
+        }
+        public Builder checkIn(LocalDate checkIn){
+            this.checkIn = checkIn;
+            return this;
+        }
+        public Builder checkOut(LocalDate checkOut){
+            this.checkOut = checkOut;
             return this;
         }
         public HotelSearchBuilder build(){

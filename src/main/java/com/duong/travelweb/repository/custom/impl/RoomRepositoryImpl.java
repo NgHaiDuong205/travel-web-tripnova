@@ -23,7 +23,7 @@ public class RoomRepositoryImpl implements RoomRepositoryCustom {
         sql.append("AND r.status = 'available'::room_status ");
 
         if (searchBuilder.getRoomTypeName() != null && !searchBuilder.getRoomTypeName().trim().isEmpty()) {
-            sql.append("AND LOWER(rt.name) LIKE :roomTypeName ");
+            sql.append("AND rt.name ILIKE :roomTypeName ");
         }
 
         if (searchBuilder.getMaxOccupancy() != null) {
@@ -38,16 +38,8 @@ public class RoomRepositoryImpl implements RoomRepositoryCustom {
             sql.append("AND rt.price_per_night <= :maxPrice ");
         }
 
-        // Date availability filter
-        if (searchBuilder.getCheckIn() != null && searchBuilder.getCheckOut() != null) {
-            sql.append("AND NOT EXISTS ( ");
-            sql.append("  SELECT 1 FROM room_availability ra ");
-            sql.append("  WHERE ra.room_id = r.id ");
-            sql.append("    AND ra.date >= :checkIn ");
-            sql.append("    AND ra.date < :checkOut ");
-            sql.append("    AND ra.status IN ('booked'::availability_status, 'blocked'::availability_status) ");
-            sql.append(") ");
-        }
+        // Date availability filter (Removed to display all rooms regardless of booked status)
+
 
         // Amenities filter using join and count
         boolean hasAmenities = searchBuilder.getAmenities() != null && !searchBuilder.getAmenities().isEmpty();
@@ -65,7 +57,7 @@ public class RoomRepositoryImpl implements RoomRepositoryCustom {
         query.setParameter("hotelId", hotelId);
 
         if (searchBuilder.getRoomTypeName() != null && !searchBuilder.getRoomTypeName().trim().isEmpty()) {
-            query.setParameter("roomTypeName", "%" + searchBuilder.getRoomTypeName().trim().toLowerCase() + "%");
+            query.setParameter("roomTypeName", "%" + searchBuilder.getRoomTypeName().trim() + "%");
         }
 
         if (searchBuilder.getMaxOccupancy() != null) {
@@ -80,10 +72,7 @@ public class RoomRepositoryImpl implements RoomRepositoryCustom {
             query.setParameter("maxPrice", searchBuilder.getMaxPrice());
         }
 
-        if (searchBuilder.getCheckIn() != null && searchBuilder.getCheckOut() != null) {
-            query.setParameter("checkIn", searchBuilder.getCheckIn());
-            query.setParameter("checkOut", searchBuilder.getCheckOut());
-        }
+
 
         if (hasAmenities) {
             java.util.List<String> lowercaseAmenities = new java.util.ArrayList<>();

@@ -1,0 +1,386 @@
+================================================================================
+ TRIPNOVA - PROPOSED API SPEC (v2)
+ So sánh & mở rộng từ 1.pdf, đối chiếu schema Postgres hiện có
+ Convention:
+   - Base: /api
+   - Không dùng trailing slash
+   - Pagination:  ?page=0&size=20&sort=field,asc|desc   (Spring Data style)
+   - List trả header: X-Total-Count
+   - Auth: JWT Bearer trong header Authorization
+   - Content-Type: application/json (upload: multipart/form-data)
+   - Error body: { "timestamp", "status", "error", "message", "path", "traceId" }
+   - HTTP status theo PDF (200/201/204/400/401/403/404/409/500) + 422 (validation)
+================================================================================
+
+Ký hiệu:
+  [OK]     = đã có trong code
+  [KEEP]   = giữ từ PDF, không đổi
+  [FIX]    = có trong PDF nhưng sửa path/method cho đúng chuẩn
+  [NEW]    = đề xuất thêm (DB đã hỗ trợ hoặc là hạ tầng chuẩn)
+  [ADMIN]  = yêu cầu role ADMIN
+  [AUTH]   = yêu cầu đăng nhập
+
+================================================================================
+ I. PUBLIC / CLIENT
+================================================================================
+
+--- 1. Auth & OAuth2 -----------------------------------------------------------
+[KEEP]  POST   /api/auth/register
+[KEEP]  POST   /api/auth/login
+[KEEP]  POST   /api/auth/logout                              [AUTH]
+[KEEP]  POST   /api/auth/refresh-token
+[KEEP]  GET    /api/auth/me                                  [AUTH]
+[KEEP]  POST   /api/auth/forgot-password
+[KEEP]  POST   /api/auth/reset-password
+[NEW]   POST   /api/auth/verify-email                        (xác thực email khi register)
+[NEW]   POST   /api/auth/resend-verification
+[NEW]   POST   /api/auth/change-password                     [AUTH]  (khác reset-password)
+[FIX]   GET    /oauth2/authorization/google                  (bỏ prefix /api - chuẩn Spring Security)
+[FIX]   GET    /login/oauth2/code/google                     (callback mặc định)
+[FIX]   GET    /oauth2/authorization/facebook
+[FIX]   GET    /login/oauth2/code/facebook
+[NEW]   GET    /oauth2/authorization/github                  (optional)
+
+--- 2. Users / Me --------------------------------------------------------------
+[KEEP]  GET    /api/me/dashboard                             [AUTH]
+[KEEP]  GET    /api/me/profile                               [AUTH]
+[KEEP]  PUT    /api/me/profile                               [AUTH]
+[KEEP]  PUT    /api/me/change-password                       [AUTH]
+[KEEP]  PUT    /api/me/avatar                                [AUTH]  (multipart)
+[NEW]   GET    /api/me/notifications                         [AUTH]
+[NEW]   PATCH  /api/me/notifications/{id}/read               [AUTH]
+[NEW]   POST   /api/me/notifications/mark-all-read           [AUTH]
+[NEW]   GET    /api/me/oauth-accounts                        [AUTH]  (user_oauth_accounts)
+[NEW]   DELETE /api/me/oauth-accounts/{provider}             [AUTH]
+
+--- 3. Account settings -------------------------------------------------------
+[KEEP]  GET    /api/account/settings                         [AUTH]
+[KEEP]  PUT    /api/account/profile                          [AUTH]
+[KEEP]  PUT    /api/account/password                         [AUTH]
+[KEEP]  PUT    /api/account/email                            [AUTH]
+[KEEP]  DELETE /api/account                                  [AUTH]  (soft-delete)
+
+--- 4. Lookup / Master data (public) ------------------------------------------
+[NEW]   GET    /api/continents
+[OK]    GET    /api/countries                                (đã có)
+[OK]    GET    /api/countries/{id}                           (đã có)
+[NEW]   GET    /api/amenities                                (?category=)
+[NEW]   GET    /api/room-types                               (?hotelId=)
+[NEW]   GET    /api/currencies
+
+--- 5. Destinations & Landmarks -----------------------------------------------
+[OK]    GET    /api/destinations                             (?countryCode=&continentCode=&isPopular=&q=)
+[OK]    GET    /api/destinations/{destinationId}
+[OK]    GET    /api/destinations/{destinationId}/landmarks   (?category=)
+[OK]    GET    /api/destinations/{destinationId}/landmarks/{landmarkId}
+[OK]    GET    /api/landmarks                                (?category=&q=)
+[NEW]   GET    /api/landmarks/{landmarkId}                   (chi tiết standalone)
+[NEW]   GET    /api/destinations/{destinationId}/hotels      (shortcut cho front-end)
+[NEW]   GET    /api/destinations/{destinationId}/tours
+
+--- 6. Hotels & Rooms ---------------------------------------------------------
+[OK]    GET    /api/hotels                                   (?destinationId=&checkIn=&checkOut=&adults=&children=
+                                                              &priceMin=&priceMax=&star=&amenities=&sort=&page=&size=)
+[OK]    GET    /api/hotels/{hotelId}
+[OK]    GET    /api/hotels/{hotelId}/rooms                   (?checkIn=&checkOut=&guests=&amenities=)
+[OK]    GET    /api/hotels/{hotelId}/rooms/{roomId}
+[NEW]   GET    /api/hotels/{hotelId}/room-types              (list room types & giá theo ngày)
+[NEW]   GET    /api/hotels/{hotelId}/availability            (?from=&to= — lịch phòng trống)
+[NEW]   GET    /api/hotels/{hotelId}/reviews                 (?page=&size=&sort=)
+[NEW]   POST   /api/hotels/{hotelId}/reviews                 [AUTH] (chỉ user đã đặt)
+[NEW]   GET    /api/hotels/suggest                           (?q=  - autocomplete)
+
+--- 7. Hotel bookings ---------------------------------------------------------
+[KEEP]  POST   /api/hotel-bookings                           [AUTH]
+        Body: { hotelId, roomId (hoặc roomTypeId), checkIn, checkOut, adults,
+                children, specialRequests, paymentMethod }
+        Response: { orderId, bookingId, amount, paymentUrl }
+[NEW]   GET    /api/hotel-bookings/{bookingId}               [AUTH]  (chi tiết)
+[NEW]   POST   /api/hotel-bookings/{bookingId}/cancel        [AUTH]
+[NEW]   GET    /api/hotel-bookings/check-availability        (?hotelId=&roomId=&checkIn=&checkOut=)
+
+--- 8. Cars & Car bookings ----------------------------------------------------
+[KEEP]  GET    /api/cars                                     (?city=&type=&pickupDate=&returnDate=&priceMin=&priceMax=)
+[KEEP]  GET    /api/cars/{carId}
+[NEW]   GET    /api/cars/{carId}/availability
+[KEEP]  POST   /api/car-bookings                             [AUTH]
+[NEW]   GET    /api/car-bookings/{bookingId}                 [AUTH]
+[NEW]   POST   /api/car-bookings/{bookingId}/cancel          [AUTH]
+
+--- 9. Flights & Flight bookings ----------------------------------------------
+[KEEP]  GET    /api/flights                                  (?from=&to=&departDate=&returnDate=&pax=&class=)
+[KEEP]  GET    /api/flights/{flightId}
+[KEEP]  GET    /api/flights/{flightId}/seats                 (?class=)
+[KEEP]  POST   /api/flight-bookings                          [AUTH]
+[KEEP]  POST   /api/flight-bookings/{bookingId}/select-seat  [AUTH]
+[NEW]   GET    /api/flight-bookings/{bookingId}              [AUTH]
+[NEW]   POST   /api/flight-bookings/{bookingId}/cancel       [AUTH]
+[NEW]   GET    /api/airports                                 (?q=  - autocomplete)
+
+--- 10. Tours -----------------------------------------------------------------
+[KEEP]  GET    /api/tours                                    (?destinationId=&priceMin=&priceMax=&days=&q=)
+[KEEP]  GET    /api/tours/{tourId}
+[KEEP]  GET    /api/tours/{tourId}/hotels
+[KEEP]  GET    /api/tours/{tourId}/cars
+[KEEP]  GET    /api/tours/{tourId}/flights
+[NEW]   GET    /api/tours/{tourId}/itinerary                 (chi tiết lịch trình)
+[NEW]   GET    /api/tours/{tourId}/reviews
+[KEEP]  POST   /api/tour-bookings                            [AUTH]
+[NEW]   GET    /api/tour-bookings/{bookingId}                [AUTH]
+[NEW]   POST   /api/tour-bookings/{bookingId}/cancel         [AUTH]
+
+--- 11. Itineraries (kế hoạch cá nhân) ----------------------------------------
+[NEW]   GET    /api/me/itineraries                           [AUTH]
+[NEW]   POST   /api/me/itineraries                           [AUTH]
+[NEW]   GET    /api/me/itineraries/{id}                      [AUTH]
+[NEW]   PUT    /api/me/itineraries/{id}                      [AUTH]
+[NEW]   DELETE /api/me/itineraries/{id}                      [AUTH]
+[NEW]   POST   /api/me/itineraries/{id}/items                [AUTH]
+[NEW]   DELETE /api/me/itineraries/{id}/items/{itemId}       [AUTH]
+
+--- 12. Cart & Favorites (TÁCH RIÊNG, khác với PDF) ---------------------------
+Cart:
+[KEEP]  GET    /api/cart                                     [AUTH]
+[KEEP]  POST   /api/cart/items                               [AUTH]
+[KEEP]  PUT    /api/cart/items/{itemId}                      [AUTH]
+[KEEP]  DELETE /api/cart/items/{itemId}                      [AUTH]
+[KEEP]  DELETE /api/cart/clear                               [AUTH]
+[NEW]   POST   /api/cart/checkout                            [AUTH]  (tạo order từ cart)
+
+Favorites (bảng `favorites`):
+[NEW]   GET    /api/favorites                                [AUTH]  (?type=hotel|tour|car|flight)
+[NEW]   POST   /api/favorites                                [AUTH]  { itemType, itemId }
+[NEW]   DELETE /api/favorites/{favoriteId}                   [AUTH]
+[NEW]   GET    /api/favorites/check                          [AUTH]  (?itemType=&itemId=)
+
+--- 13. Payments --------------------------------------------------------------
+[KEEP]  POST   /api/payments/create                          [AUTH]  (khởi tạo cho order)
+[FIX]   POST   /api/payments/webhook/{provider}              (IPN từ VNPay/MoMo/Stripe — không auth,
+                                                              verify signature) — thay cho /confirm
+[KEEP]  GET    /api/payments/{paymentId}                     [AUTH]
+[NEW]   GET    /api/payments/return/{provider}               (return URL sau khi user thanh toán)
+[NEW]   POST   /api/payments/{paymentId}/refund              [AUTH][ADMIN]
+
+--- 14. Booking history & Invoices -------------------------------------------
+[KEEP]  GET    /api/me/bookings                              [AUTH]  (?type=&status=&from=&to=)
+[KEEP]  GET    /api/me/bookings/{bookingId}                  [AUTH]
+[FIX]   POST   /api/me/bookings/{bookingId}/cancel           [AUTH]  (POST thay vì DELETE - action, không xoá bản ghi)
+[KEEP]  GET    /api/me/payments                              [AUTH]
+[KEEP]  GET    /api/me/payments/{paymentId}                  [AUTH]
+[KEEP]  GET    /api/me/invoices/{invoiceId}                  [AUTH]
+[NEW]   GET    /api/me/invoices                              [AUTH]
+[NEW]   GET    /api/me/invoices/{invoiceId}/download         [AUTH]  (PDF)
+
+--- 15. Reviews (bảng review_ai_analysis + reviews) ---------------------------
+[NEW]   GET    /api/reviews                                  (?targetType=&targetId=)
+[NEW]   POST   /api/reviews                                  [AUTH]
+[NEW]   PUT    /api/reviews/{reviewId}                       [AUTH]  (chỉ chủ review)
+[NEW]   DELETE /api/reviews/{reviewId}                       [AUTH]
+[NEW]   POST   /api/reviews/{reviewId}/helpful               [AUTH]
+
+--- 16. Posts / Blog / Comments ----------------------------------------------
+[NEW]   GET    /api/posts                                    (?q=&tag=&page=&size=)
+[NEW]   GET    /api/posts/{postId}
+[NEW]   POST   /api/posts                                    [AUTH]
+[NEW]   PUT    /api/posts/{postId}                           [AUTH]
+[NEW]   DELETE /api/posts/{postId}                           [AUTH]
+[NEW]   POST   /api/posts/{postId}/reactions                 [AUTH]  { type: like|love|... }
+[NEW]   DELETE /api/posts/{postId}/reactions                 [AUTH]
+[NEW]   GET    /api/posts/{postId}/comments
+[NEW]   POST   /api/posts/{postId}/comments                  [AUTH]
+[NEW]   PUT    /api/comments/{commentId}                     [AUTH]
+[NEW]   DELETE /api/comments/{commentId}                     [AUTH]
+
+--- 17. Contact / About / Static --------------------------------------------
+[KEEP]  POST   /api/contact
+[KEEP]  GET    /api/contact/info
+[KEEP]  GET    /api/about
+[KEEP]  GET    /api/about/company-info
+[KEEP]  GET    /api/about/terms
+[KEEP]  GET    /api/about/privacy-policy
+
+--- 18. Search & AI features (bảng ai_*, chat_*, recommendations, price_*) ---
+[NEW]   GET    /api/search                                   (?q=&type=all|hotel|tour|flight|car|destination)
+[NEW]   GET    /api/search/suggest                           (?q= - autocomplete cross-entity)
+[NEW]   POST   /api/ai/chat/sessions                         [AUTH]  (mở session)
+[NEW]   GET    /api/ai/chat/sessions                         [AUTH]
+[NEW]   GET    /api/ai/chat/sessions/{sessionId}/messages    [AUTH]
+[NEW]   POST   /api/ai/chat/sessions/{sessionId}/messages    [AUTH]  (gửi tin nhắn)
+[NEW]   POST   /api/ai/chat/messages/{messageId}/feedback    [AUTH]
+[NEW]   GET    /api/ai/recommendations                       [AUTH]  (?type=hotel|tour|...)
+[NEW]   GET    /api/ai/price-predictions                     (?itemType=&itemId=&date=)
+[NEW]   POST   /api/ai/summarize                             [AUTH]  (tóm tắt review, tour...)
+
+--- 19. Uploads --------------------------------------------------------------
+[NEW]   POST   /api/uploads/images                           [AUTH]  (multipart, trả về url)
+[NEW]   DELETE /api/uploads/images                           [AUTH]  { url }
+
+================================================================================
+ II. ADMIN (prefix /api/admin, require ROLE_ADMIN)
+================================================================================
+
+--- A1. Dashboard ------------------------------------------------------------
+[KEEP]  GET    /api/admin/dashboard
+[KEEP]  GET    /api/admin/dashboard/statistics               (?from=&to=&granularity=day|month)
+[KEEP]  GET    /api/admin/dashboard/revenue                  (?from=&to=&groupBy=)
+[KEEP]  GET    /api/admin/dashboard/recent-bookings          (?limit=)
+[KEEP]  GET    /api/admin/dashboard/recent-payments          (?limit=)
+[NEW]   GET    /api/admin/dashboard/top-hotels
+[NEW]   GET    /api/admin/dashboard/top-destinations
+
+--- A2. Hotels & Rooms ------------------------------------------------------
+[KEEP]  GET    /api/admin/hotels
+[KEEP]  POST   /api/admin/hotels
+[KEEP]  GET    /api/admin/hotels/{hotelId}
+[KEEP]  PUT    /api/admin/hotels/{hotelId}
+[KEEP]  DELETE /api/admin/hotels/{hotelId}
+[KEEP]  GET    /api/admin/hotels/{hotelId}/rooms
+[KEEP]  POST   /api/admin/hotels/{hotelId}/rooms
+[KEEP]  GET    /api/admin/hotels/{hotelId}/rooms/{roomId}
+[KEEP]  PUT    /api/admin/hotels/{hotelId}/rooms/{roomId}
+[KEEP]  DELETE /api/admin/hotels/{hotelId}/rooms/{roomId}
+[NEW]   GET    /api/admin/hotels/{hotelId}/room-types
+[NEW]   POST   /api/admin/hotels/{hotelId}/room-types
+[NEW]   PUT    /api/admin/hotels/{hotelId}/room-types/{roomTypeId}
+[NEW]   DELETE /api/admin/hotels/{hotelId}/room-types/{roomTypeId}
+[NEW]   PUT    /api/admin/hotels/{hotelId}/amenities         { amenityIds:[...] }
+[NEW]   PUT    /api/admin/rooms/{roomId}/availability        (bulk set trạng thái ngày)
+[NEW]   POST   /api/admin/hotels/{hotelId}/images
+[NEW]   DELETE /api/admin/hotels/{hotelId}/images/{imageId}
+
+--- A3. Hotel Bookings ------------------------------------------------------
+[KEEP]  GET    /api/admin/hotel-bookings                     (?status=&from=&to=&hotelId=&userId=)
+[KEEP]  GET    /api/admin/hotel-bookings/{bookingId}
+[KEEP]  PUT    /api/admin/hotel-bookings/{bookingId}/status
+[KEEP]  DELETE /api/admin/hotel-bookings/{bookingId}
+[NEW]   POST   /api/admin/hotel-bookings/{bookingId}/refund
+
+--- A4. Cars & Car Bookings ------------------------------------------------
+[KEEP]  GET    /api/admin/cars
+[KEEP]  POST   /api/admin/cars
+[KEEP]  GET    /api/admin/cars/{carId}
+[KEEP]  PUT    /api/admin/cars/{carId}
+[KEEP]  DELETE /api/admin/cars/{carId}
+[KEEP]  GET    /api/admin/car-bookings
+[KEEP]  GET    /api/admin/car-bookings/{bookingId}
+[KEEP]  PUT    /api/admin/car-bookings/{bookingId}/status
+
+--- A5. Flights & Seats ---------------------------------------------------
+[KEEP]  GET    /api/admin/flights
+[KEEP]  POST   /api/admin/flights
+[KEEP]  GET    /api/admin/flights/{flightId}
+[KEEP]  PUT    /api/admin/flights/{flightId}
+[KEEP]  DELETE /api/admin/flights/{flightId}
+[KEEP]  GET    /api/admin/flights/{flightId}/seats
+[KEEP]  POST   /api/admin/flights/{flightId}/seats
+[KEEP]  PUT    /api/admin/flights/{flightId}/seats/{seatId}
+[KEEP]  DELETE /api/admin/flights/{flightId}/seats/{seatId}
+[KEEP]  GET    /api/admin/flight-bookings
+[KEEP]  GET    /api/admin/flight-bookings/{bookingId}
+[KEEP]  PUT    /api/admin/flight-bookings/{bookingId}/status
+
+--- A6. Tours ------------------------------------------------------------
+[KEEP]  GET    /api/admin/tours
+[KEEP]  POST   /api/admin/tours
+[KEEP]  GET    /api/admin/tours/{tourId}
+[KEEP]  PUT    /api/admin/tours/{tourId}
+[KEEP]  DELETE /api/admin/tours/{tourId}
+[KEEP]  POST   /api/admin/tours/{tourId}/hotels/{hotelId}
+[KEEP]  DELETE /api/admin/tours/{tourId}/hotels/{hotelId}
+[KEEP]  POST   /api/admin/tours/{tourId}/cars/{carId}
+[KEEP]  DELETE /api/admin/tours/{tourId}/cars/{carId}
+[KEEP]  POST   /api/admin/tours/{tourId}/flights/{flightId}
+[KEEP]  DELETE /api/admin/tours/{tourId}/flights/{flightId}
+[KEEP]  GET    /api/admin/tour-bookings
+[KEEP]  GET    /api/admin/tour-bookings/{bookingId}
+[KEEP]  PUT    /api/admin/tour-bookings/{bookingId}/status
+
+--- A7. Geography (Continent / Country / Destination / Landmark) -----------
+[NEW]   GET    /api/admin/continents
+[NEW]   POST   /api/admin/continents
+[NEW]   PUT    /api/admin/continents/{id}
+[NEW]   DELETE /api/admin/continents/{id}
+[NEW]   GET    /api/admin/countries
+[NEW]   POST   /api/admin/countries
+[NEW]   PUT    /api/admin/countries/{id}
+[NEW]   DELETE /api/admin/countries/{id}
+[KEEP]  GET    /api/admin/destinations
+[KEEP]  POST   /api/admin/destinations
+[KEEP]  GET    /api/admin/destinations/{destinationId}
+[KEEP]  PUT    /api/admin/destinations/{destinationId}
+[KEEP]  DELETE /api/admin/destinations/{destinationId}
+[NEW]   GET    /api/admin/landmarks
+[NEW]   POST   /api/admin/landmarks
+[NEW]   PUT    /api/admin/landmarks/{landmarkId}
+[NEW]   DELETE /api/admin/landmarks/{landmarkId}
+
+--- A8. Users / Roles / Permissions ---------------------------------------
+[KEEP]  GET    /api/admin/users                              (?q=&role=&status=)
+[KEEP]  GET    /api/admin/users/{userId}
+[KEEP]  PUT    /api/admin/users/{userId}
+[KEEP]  DELETE /api/admin/users/{userId}
+[KEEP]  PUT    /api/admin/users/{userId}/status
+[KEEP]  PUT    /api/admin/users/{userId}/roles
+[NEW]   GET    /api/admin/roles
+[NEW]   POST   /api/admin/roles
+[NEW]   PUT    /api/admin/roles/{roleId}
+[NEW]   DELETE /api/admin/roles/{roleId}
+[NEW]   GET    /api/admin/permissions
+[NEW]   PUT    /api/admin/roles/{roleId}/permissions         { permissionIds:[...] }
+
+--- A9. Payments & Invoices ----------------------------------------------
+[KEEP]  GET    /api/admin/payments                           (?status=&method=&from=&to=)
+[KEEP]  GET    /api/admin/payments/{paymentId}
+[KEEP]  PUT    /api/admin/payments/{paymentId}/status
+[NEW]   POST   /api/admin/payments/{paymentId}/refund
+[NEW]   GET    /api/admin/invoices
+[NEW]   GET    /api/admin/invoices/{invoiceId}
+[NEW]   POST   /api/admin/invoices/{invoiceId}/resend
+
+--- A10. Contact messages -----------------------------------------------
+[KEEP]  GET    /api/admin/contact-messages
+[KEEP]  GET    /api/admin/contact-messages/{messageId}
+[KEEP]  PUT    /api/admin/contact-messages/{messageId}/status
+[KEEP]  DELETE /api/admin/contact-messages/{messageId}
+[NEW]   POST   /api/admin/contact-messages/{messageId}/reply
+
+--- A11. Reviews / Posts moderation -------------------------------------
+[NEW]   GET    /api/admin/reviews                            (?status=pending|approved|rejected)
+[NEW]   PUT    /api/admin/reviews/{reviewId}/status
+[NEW]   DELETE /api/admin/reviews/{reviewId}
+[NEW]   GET    /api/admin/posts
+[NEW]   PUT    /api/admin/posts/{postId}/status
+[NEW]   DELETE /api/admin/posts/{postId}
+[NEW]   GET    /api/admin/comments
+[NEW]   DELETE /api/admin/comments/{commentId}
+
+--- A12. Amenities (master data) ----------------------------------------
+[NEW]   GET    /api/admin/amenities
+[NEW]   POST   /api/admin/amenities
+[NEW]   PUT    /api/admin/amenities/{id}
+[NEW]   DELETE /api/admin/amenities/{id}
+
+--- A13. AI / Knowledge base --------------------------------------------
+[NEW]   GET    /api/admin/ai/jobs                            (theo dõi ai_jobs)
+[NEW]   POST   /api/admin/ai/jobs/reindex                    (rebuild embeddings)
+[NEW]   GET    /api/admin/ai/knowledge-documents
+[NEW]   POST   /api/admin/ai/knowledge-documents             (upload doc → chunk + embed)
+[NEW]   DELETE /api/admin/ai/knowledge-documents/{id}
+[NEW]   GET    /api/admin/ai/chat-sessions
+[NEW]   GET    /api/admin/ai/fraud-scores                    (bảng fraud_scores)
+
+--- A14. Audit / Logs ---------------------------------------------------
+[NEW]   GET    /api/admin/audit-logs                         (?userId=&action=&from=&to=)
+[NEW]   GET    /api/admin/search-queries                     (?userId=&from=&to=)
+
+================================================================================
+ III. TỔNG KẾT
+================================================================================
+- Đã có (khớp PDF): 11 endpoint (Hotel 4, Destination 4, Landmark 1, Country 2 - bonus).
+- Đề xuất TOTAL: ~230 endpoint (Public ~110, Admin ~120).
+- Đề xuất mới ngoài PDF: tách Favorites, Reviews, Posts/Comments,
+  Itineraries, Notifications, Uploads, Search, AI (chat/recommend/predict),
+  Refunds, Invoices download, OAuth accounts, Bulk availability,
+  Roles/Permissions management, Audit logs.
+- Sửa PDF: bỏ prefix `/api` cho OAuth, đổi confirm-payment thành webhook,
+  cancel booking dùng POST thay DELETE, chuẩn hoá bỏ trailing slash.

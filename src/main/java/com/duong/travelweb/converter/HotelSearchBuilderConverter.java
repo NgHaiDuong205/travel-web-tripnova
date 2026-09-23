@@ -1,9 +1,11 @@
 package com.duong.travelweb.converter;
 
+import com.duong.travelweb.util.DateUtil;
 import com.duong.travelweb.util.MapUtil;
 import com.duong.travelweb.builder.HotelSearchBuilder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,9 +58,9 @@ public class HotelSearchBuilderConverter {
         if (limit == null) {
             limit = MapUtil.getObject(params, "size", Integer.class);
         }
-        System.out.println("--- HotelSearchBuilderConverter ---");
-        System.out.println("Raw params map: " + params);
-        System.out.println("Parsed page: " + page + ", limit: " + limit);
+
+        LocalDate checkIn = DateUtil.parseLocalDate(params.get("checkIn"));
+        LocalDate checkOut = DateUtil.parseLocalDate(params.get("checkOut"));
 
         HotelSearchBuilder hotelSearchBuilder = new HotelSearchBuilder.Builder()
                 .id(MapUtil.getObject(params,"id",UUID.class))
@@ -74,6 +76,8 @@ public class HotelSearchBuilderConverter {
                 .amenities(amenities)
                 .page(page)
                 .limit(limit)
+                .checkIn(checkIn)
+                .checkOut(checkOut)
                 .build();
         return hotelSearchBuilder;
     }

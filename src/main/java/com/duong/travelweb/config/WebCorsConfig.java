@@ -13,6 +13,7 @@ public class WebCorsConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
+                .exposedHeaders("X-Total-Count")
                 .allowCredentials(true)
                 .maxAge(3600);
     }

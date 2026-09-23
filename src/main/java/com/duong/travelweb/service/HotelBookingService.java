@@ -20,6 +20,13 @@ public interface HotelBookingService {
     List<HotelBookingDTO> findMyBookings(UUID userId, String statusGroup, int page, int limit);
     long countMyBookings(UUID userId, String statusGroup);
 
+    // ---- Admin ----
+    List<HotelBookingDTO> findForAdmin(String status, String keyword, int page, int limit);
+    long countForAdmin(String status, String keyword);
+
+    /** Chuyển trạng thái: confirmed→checked_in→checked_out→completed, confirmed→no_show, pending|confirmed→cancelled. */
+    HotelBookingDTO updateStatusByAdmin(UUID bookingId, String newStatus, String reason);
+
     /** Chuyến sắp tới gần nhất đã xác nhận, null nếu không có. */
     HotelBookingDTO findNextUpcoming(UUID userId);
 

@@ -14,6 +14,9 @@ public interface PaymentService {
 
     PaymentSummaryDTO getMySummary(UUID userId);
 
+    /** Admin: tất cả giao dịch, lọc theo trạng thái. */
+    Page<PaymentDTO> findAllForAdmin(String status, int page, int limit);
+
     /** Giả lập cổng thanh toán trả kết quả (chỉ dùng khi chưa tích hợp VNPay/MoMo thật). */
     PaymentDTO mockPayment(UUID userId, UUID paymentId, boolean success);
 

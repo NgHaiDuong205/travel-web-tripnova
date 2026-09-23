@@ -35,6 +35,49 @@ public class HotelBookingRepositoryImpl implements HotelBookingRepositoryCustom 
         return query.getSingleResult();
     }
 
+    @Override
+    public List<HotelBookingEntity> findForAdmin(String status, String keyword, int page, int limit) {
+        String jpql = "SELECT b FROM HotelBookingEntity b " +
+                "JOIN FETCH b.order o JOIN FETCH b.user u JOIN FETCH b.hotel h JOIN FETCH b.roomType LEFT JOIN FETCH b.room " +
+                "WHERE 1 = 1" + buildAdminCondition(status, keyword) +
+                " ORDER BY b.createdAt DESC";
+        TypedQuery<HotelBookingEntity> query = entityManager.createQuery(jpql, HotelBookingEntity.class);
+        bindAdminParams(query, status, keyword);
+        query.setFirstResult((Math.max(page, 1) - 1) * limit);
+        query.setMaxResults(limit);
+        return query.getResultList();
+    }
+
+    @Override
+    public long countForAdmin(String status, String keyword) {
+        String jpql = "SELECT COUNT(b) FROM HotelBookingEntity b JOIN b.order o JOIN b.user u JOIN b.hotel h " +
+                "WHERE 1 = 1" + buildAdminCondition(status, keyword);
+        TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
+        bindAdminParams(query, status, keyword);
+        return query.getSingleResult();
+    }
+
+    private String buildAdminCondition(String status, String keyword) {
+        StringBuilder where = new StringBuilder();
+        if (status != null) {
+            where.append(" AND b.status = :status");
+        }
+        if (keyword != null) {
+            where.append(" AND (LOWER(o.orderCode) LIKE :keyword OR LOWER(u.email) LIKE :keyword " +
+                    "OR LOWER(u.fullName) LIKE :keyword OR LOWER(h.name) LIKE :keyword)");
+        }
+        return where.toString();
+    }
+
+    private void bindAdminParams(TypedQuery<?> query, String status, String keyword) {
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+        if (keyword != null) {
+            query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
+        }
+    }
+
     /** Điều kiện cố định theo nhóm — không nối chuỗi input của người dùng. */
     private String buildStatusCondition(String statusGroup) {
         if (statusGroup == null) {

@@ -53,15 +53,35 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public Page<PaymentDTO> findMyPayments(UUID userId, String status, int page, int limit) {
-        String filter = status == null || status.isBlank() || "all".equals(status) ? null : status;
-        if (filter != null && !List.of("pending", "success", "failed", "refunded").contains(filter)) {
-            throw ApiException.badRequest("Trạng thái lọc không hợp lệ: " + status);
-        }
+        String filter = normalizeStatus(status);
         PageRequest pageable = PageRequest.of(Math.max(page, 1) - 1, limit);
         Page<PaymentEntity> payments = filter == null
                 ? paymentRepository.findByUser(userId, pageable)
                 : paymentRepository.findByUserAndStatus(userId, filter, pageable);
+        return toDTOPage(payments);
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentDTO> findAllForAdmin(String status, int page, int limit) {
+        String filter = normalizeStatus(status);
+        PageRequest pageable = PageRequest.of(Math.max(page, 1) - 1, limit);
+        Page<PaymentEntity> payments = filter == null
+                ? paymentRepository.findAllForAdmin(pageable)
+                : paymentRepository.findAllForAdminByStatus(filter, pageable);
+        return toDTOPage(payments);
+    }
+
+    private String normalizeStatus(String status) {
+        String filter = status == null || status.isBlank() || "all".equals(status) ? null : status;
+        if (filter != null && !List.of("pending", "success", "failed", "refunded").contains(filter)) {
+            throw ApiException.badRequest("Trạng thái lọc không hợp lệ: " + status);
+        }
+        return filter;
+    }
+
+    /** Map sang DTO, lấy bookingId theo lô. */
+    private Page<PaymentDTO> toDTOPage(Page<PaymentEntity> payments) {
         List<UUID> orderIds = payments.stream().map(p -> p.getOrder().getId()).distinct().toList();
         Map<UUID, UUID> bookingIdByOrder = new HashMap<>();
         if (!orderIds.isEmpty()) {
@@ -158,6 +178,9 @@ public class PaymentServiceImpl implements PaymentService {
         dto.setPaidAt(payment.getPaidAt());
         dto.setCreatedAt(payment.getCreatedAt());
         dto.setBookingId(bookingId);
+        if (order.getUser() != null) {
+            dto.setUserEmail(order.getUser().getEmail());
+        }
         return dto;
     }
 }

@@ -17,6 +17,15 @@ public class PaymentDTO {
     private String transactionId;
     private LocalDateTime paidAt;
     private LocalDateTime createdAt;
+    private String userEmail;
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
 
     public UUID getId() {
         return id;

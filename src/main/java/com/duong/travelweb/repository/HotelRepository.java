@@ -21,6 +21,9 @@ public interface HotelRepository extends JpaRepository<HotelEntity, UUID>, JpaSp
     @Query("SELECT h FROM HotelEntity h WHERE h.starRating >= :minRating")
     List<HotelEntity> findByStarRatingGreaterThanEqual(@Param("minRating") Integer minRating);
 
+    @Query("SELECT COUNT(h) FROM HotelEntity h WHERE h.isActive = true")
+    long countActive();
+
     @Query("SELECT h.id, a.name FROM HotelEntity h JOIN h.hotelAmenities a WHERE h.id IN :hotelIds")
     List<Object[]> findAmenityNamesByHotelIds(@Param("hotelIds") List<UUID> hotelIds);
 }

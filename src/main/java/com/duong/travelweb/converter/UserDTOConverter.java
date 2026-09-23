@@ -22,6 +22,9 @@ public class UserDTOConverter {
         dto.setLoyaltyPoints(entity.getLoyaltyPoints());
         dto.setIsVerified(entity.getIsVerified());
         dto.setRoles(roles != null ? roles : new ArrayList<>());
+        dto.setIsActive(entity.getIsActive());
+        dto.setLastLoginAt(entity.getLastLoginAt());
+        dto.setCreatedAt(entity.getCreatedAt());
         return dto;
     }
 }

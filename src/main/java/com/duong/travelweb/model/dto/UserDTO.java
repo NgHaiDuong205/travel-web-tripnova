@@ -1,6 +1,7 @@
 package com.duong.travelweb.model.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +17,33 @@ public class UserDTO {
     private Integer loyaltyPoints;
     private Boolean isVerified;
     private List<String> roles = new ArrayList<>();
+    private Boolean isActive;
+    private LocalDateTime lastLoginAt;
+    private LocalDateTime createdAt;
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 
     public UUID getId() {
         return id;

@@ -219,27 +219,80 @@ public class HotelBookingServiceImpl implements HotelBookingService {
                 if (!isFreeCancellation(booking, now)) {
                     throw ApiException.badRequest("Đã quá hạn huỷ miễn phí của khách sạn, không thể huỷ đặt phòng");
                 }
-                if (booking.getRoom() != null) {
-                    roomAvailabilityRepository.releaseDays(booking.getRoom().getId(),
-                            booking.getCheckInDate(), booking.getCheckOutDate());
-                }
-                booking.setStatus("cancelled");
-                booking.setRefundAmount(booking.getTotalPrice());
-                booking.setRefundReason(cancelReason);
-                booking.setRefundedAt(now);
-                booking.setUpdatedAt(now);
-                order.setStatus("refunded");
-                order.setCancelledAt(now);
-                order.setCancelReason(cancelReason);
-                order.setUpdatedAt(now);
-                PaymentEntity payment = findLatestPayment(order);
-                if (payment != null && "success".equals(payment.getStatus())) {
-                    payment.setStatus("refunded");
-                }
+                refundConfirmedBooking(booking, cancelReason, now);
             }
             default -> throw ApiException.badRequest("Không thể huỷ đặt phòng ở trạng thái " + booking.getStatus());
         }
         return toDTO(booking);
+    }
+
+    /** Huỷ booking đã xác nhận: trả phòng, hoàn 100%, cập nhật order/payment. */
+    private void refundConfirmedBooking(HotelBookingEntity booking, String reason, LocalDateTime now) {
+        OrderEntity order = booking.getOrder();
+        if (booking.getRoom() != null) {
+            roomAvailabilityRepository.releaseDays(booking.getRoom().getId(),
+                    booking.getCheckInDate(), booking.getCheckOutDate());
+        }
+        booking.setStatus("cancelled");
+        booking.setRefundAmount(booking.getTotalPrice());
+        booking.setRefundReason(reason);
+        booking.setRefundedAt(now);
+        booking.setUpdatedAt(now);
+        order.setStatus("refunded");
+        order.setCancelledAt(now);
+        order.setCancelReason(reason);
+        order.setUpdatedAt(now);
+        PaymentEntity payment = findLatestPayment(order);
+        if (payment != null && "success".equals(payment.getStatus())) {
+            payment.setStatus("refunded");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HotelBookingDTO> findForAdmin(String status, String keyword, int page, int limit) {
+        return toDTOs(hotelBookingRepository.findForAdmin(blankToNull(status), blankToNull(keyword), page, limit));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countForAdmin(String status, String keyword) {
+        return hotelBookingRepository.countForAdmin(blankToNull(status), blankToNull(keyword));
+    }
+
+    @Override
+    @Transactional
+    public HotelBookingDTO updateStatusByAdmin(UUID bookingId, String newStatus, String reason) {
+        HotelBookingEntity booking = hotelBookingRepository.findDetailById(bookingId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy đặt phòng"));
+        String current = booking.getStatus();
+        LocalDateTime now = LocalDateTime.now();
+        String note = reason != null && !reason.isBlank() ? reason.trim() : "Quản trị viên huỷ đặt phòng";
+
+        switch (current + "->" + newStatus) {
+            case "pending->cancelled" -> cancelPendingOrder(booking.getOrder(), note);
+            case "confirmed->cancelled" -> refundConfirmedBooking(booking, note, now);
+            case "confirmed->checked_in" -> {
+                booking.setStatus("checked_in");
+                if (booking.getRoom() != null) {
+                    booking.getRoom().setStatus("occupied");
+                }
+            }
+            case "checked_in->checked_out" -> {
+                booking.setStatus("checked_out");
+                if (booking.getRoom() != null) {
+                    booking.getRoom().setStatus("available");
+                }
+            }
+            case "checked_out->completed", "confirmed->no_show" -> booking.setStatus(newStatus);
+            default -> throw ApiException.badRequest("Không thể chuyển trạng thái từ " + current + " sang " + newStatus);
+        }
+        booking.setUpdatedAt(now);
+        return toDTO(booking);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() || "all".equals(value) ? null : value.trim();
     }
 
     @Override

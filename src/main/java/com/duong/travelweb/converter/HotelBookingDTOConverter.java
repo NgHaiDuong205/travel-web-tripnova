@@ -45,6 +45,11 @@ public class HotelBookingDTOConverter {
             dto.setPaidAt(payment.getPaidAt());
         }
         dto.setCancellable(cancellable);
+        if (booking.getUser() != null) {
+            dto.setUserId(booking.getUser().getId());
+            dto.setUserEmail(booking.getUser().getEmail());
+            dto.setUserFullName(booking.getUser().getFullName());
+        }
         return dto;
     }
 }

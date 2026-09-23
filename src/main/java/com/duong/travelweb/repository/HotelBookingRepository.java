@@ -41,6 +41,10 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
                                                    @Param("today") LocalDate today,
                                                    Pageable pageable);
 
+    /** [status, số booking] cho dashboard admin. */
+    @Query("SELECT b.status, COUNT(b) FROM HotelBookingEntity b GROUP BY b.status")
+    List<Object[]> countGroupByStatus();
+
     /** Booking pending quá hạn giữ phòng — dùng cho job tự huỷ. */
     @Query("SELECT b FROM HotelBookingEntity b WHERE b.status = 'pending' AND b.createdAt < :before")
     List<HotelBookingEntity> findPendingCreatedBefore(@Param("before") LocalDateTime before);

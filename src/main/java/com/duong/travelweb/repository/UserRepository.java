@@ -1,6 +1,7 @@
 package com.duong.travelweb.repository;
 
 import com.duong.travelweb.model.entity.UserEntity;
+import com.duong.travelweb.repository.custom.UserRepositoryCustom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface UserRepository extends JpaRepository<UserEntity, UUID> {
+public interface UserRepository extends JpaRepository<UserEntity, UUID>, UserRepositoryCustom {
 
     @Query("SELECT u FROM UserEntity u WHERE LOWER(u.email) = LOWER(:email) AND u.deletedAt IS NULL")
     Optional<UserEntity> findActiveByEmail(@Param("email") String email);
@@ -19,4 +20,11 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     @Query("SELECT ur.role.name FROM UserRoleEntity ur WHERE ur.user.id = :userId")
     List<String> findRoleNamesByUserId(@Param("userId") UUID userId);
+
+    /** [userId, roleName] theo lô. */
+    @Query("SELECT ur.user.id, ur.role.name FROM UserRoleEntity ur WHERE ur.user.id IN :userIds")
+    List<Object[]> findRoleNamesByUserIds(@Param("userIds") List<UUID> userIds);
+
+    @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.deletedAt IS NULL")
+    long countActiveAccounts();
 }

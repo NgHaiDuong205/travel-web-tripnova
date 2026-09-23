@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Table(name = "roles")
 public class RoleEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
     private UUID id;
     

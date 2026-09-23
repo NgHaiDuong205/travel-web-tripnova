@@ -2,6 +2,7 @@ package com.duong.travelweb.model.entity;
 
 import jakarta.persistence.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -30,7 +31,7 @@ public class UserEntity {
     private String avatarUrl;
     
     @Column(name = "date_of_birth")
-    private String dateOfBirth;
+    private LocalDate dateOfBirth;
     
     @Column(name = "gender")
     private String gender;
@@ -124,11 +125,11 @@ public class UserEntity {
         this.avatarUrl = avatarUrl;
     }
 
-    public String getDateOfBirth() {
+    public LocalDate getDateOfBirth() {
         return dateOfBirth;
     }
 
-    public void setDateOfBirth(String dateOfBirth) {
+    public void setDateOfBirth(LocalDate dateOfBirth) {
         this.dateOfBirth = dateOfBirth;
     }
 

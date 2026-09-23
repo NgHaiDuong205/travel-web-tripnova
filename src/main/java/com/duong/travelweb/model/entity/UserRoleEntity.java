@@ -6,16 +6,15 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "user_roles")
+@IdClass(UserRoleId.class)
 public class UserRoleEntity {
 
     @Id
-    @Column(name = "id")
-    private UUID id;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private UserEntity user;
 
+    @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     private RoleEntity role;
@@ -25,14 +24,6 @@ public class UserRoleEntity {
 
     @Column(name = "assigned_by")
     private UUID assignedBy;
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
 
     public UserEntity getUser() {
         return user;

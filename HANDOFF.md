@@ -1,100 +1,91 @@
 # HANDOFF — TripNova (BE + FE)
 
-Cập nhật: 2026-09-23. Phiên trước chỉ đọc code + viết file này, **chưa code thêm gì mới**.
+Cập nhật: 2026-09-23 (cuối phiên 1). Người dùng yêu cầu **làm lần lượt cả FE + BE, không cần hỏi ý kiến**.
 
 ## 1. Mục tiêu tổng thể
-Làm tiếp các API trong spec `C:\Users\HPC\Desktop\1.pdf` cho cả:
-- **BE**: `D:\travel-web-tripnova` (Spring Boot 4.0.3, Java 21, JPA, PostgreSQL `travel-web-project`, ModelMapper).
-- **FE**: `D:\fe-tripnova` (React 19 CRA, react-router 7, axios, Tailwind 3).
+Làm hết các API trong spec `C:\Users\HPC\Desktop\1.pdf` cho:
+- **BE**: `D:\travel-web-tripnova` — Spring Boot 4.0.3, **Java 21**, JPA, PostgreSQL `travel-web-project`, Spring Security 7 + JWT (oauth2-resource-server/Nimbus).
+- **FE**: `D:\fe-tripnova` — React 19 CRA, react-router 7, axios, Tailwind 3.
 
-Tài liệu tham chiếu trong repo BE (chưa commit):
-- `proposed_apis.txt` — bản chuẩn hoá lại toàn bộ PDF + đề xuất thêm (~230 endpoint, gắn nhãn `[OK]/[KEEP]/[FIX]/[NEW]/[AUTH]/[ADMIN]`). **Dùng file này thay cho đọc PDF.**
-- `db_schema_guide.txt` — mô tả 59 bảng Postgres theo domain + luồng đặt phòng (cuối file).
-- `.cursorrules` — quy chuẩn code BẮT BUỘC (xem mục 5).
+Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_schema_guide.txt` (59 bảng), `.cursorrules` (quy chuẩn BẮT BUỘC), FE `STRUCTURE.md`.
 
-## 2. Đã hoàn thành
-### BE — đã commit (d3dfe75 trở về trước)
-| Endpoint | File |
-|---|---|
-| `GET /api/countries/`, `/{id}/`, `POST /`, `DELETE /{id}/` | `api/CountryAPI.java` |
-| `GET /api/destinations/`, `/{destinationId}/`, `/{id}/landmarks/`, `/{id}/landmarks/{landmarkId}/` | `api/DestinationAPI.java` |
-| `GET /api/landmarks/` | `api/LandmarkAPI.java` |
-| `GET /api/hotels/`, `/{id}/`, `/{hotelId}/rooms/`, `/{hotelId}/rooms/{roomId}/` | `api/HotelAPI.java` |
+## 2. Đã hoàn thành (đều đã commit, test E2E bằng curl với DB thật)
+| Nhóm | BE commit | FE commit |
+|---|---|---|
+| Hotel/Room GET + remainingRooms + X-Total-Count | `6eefd95` | `976f44f` (khởi tạo FE) |
+| Auth JWT | `bc41828` | `0ce057d` |
+| Hotel booking + payment (mock) | `340a434` | `38b096e` |
+| /api/me (profile, dashboard, bookings, payments) | `dd6b562` | `f8124e7` |
 
-### BE — đã sửa nhưng CHƯA commit (build `mvnw -o compile` PASS)
-Tính năng: **đếm phòng còn trống theo ngày + header phân trang + amenities batch**.
-- `HotelAPI.java`: list trả header `X-Total-Count`; `GET /api/hotels/{id}/` nhận thêm `?checkIn=&checkOut=`.
-- `WebCorsConfig.java`: `exposedHeaders("X-Total-Count")` (thiếu cái này FE không đọc được header).
-- `HotelSearchBuilder.java` + `HotelSearchBuilderConverter.java`: thêm `checkIn/checkOut` (LocalDate).
-- `util/DateUtil.java` (mới): `parseLocalDate(Object)` → null nếu sai format.
-- `HotelDTO.java`: thêm `remainingRooms`.
-- `HotelRepository.java`: `findAmenityNamesByHotelIds` (tránh N+1).
-- `HotelRepositoryCustom` / `HotelRepositoryImpl.java`: thêm `countHotel(builder)`, refactor lọc + phân trang (`page` 1-based, `limit`, có `DEFAULT_LIMIT`/`MAX_LIMIT`).
-- `RoomRepository.java`: các query đếm phòng trống (loại phòng có `room_availability.status IN ('booked','blocked')` trong `[checkIn, checkOut)`), `findBookedOrBlockedRoomStatuses`, `findAmenityNamesByRoomTypeIds`.
-- `HotelServiceImpl.java`: gắn `remainingRooms` + amenities cho list và detail; `countHotel`.
-- `RoomServiceImpl.java`, `RoomDTOConverter.java`, `RoomSearchBuilderConverter.java`, `RoomRepositoryImpl.java`: trạng thái phòng theo ngày + amenities theo room type.
-- `HotelDTOConverter.java`: overload `toHotelDTO(entity, amenities)`.
-- `CountryRepositoryImpl.java`: sửa nhỏ.
-- Đã xoá `schema_dump.txt`, `schema_dump_utf8.txt` (thay bằng `db_schema_guide.txt`).
+### BE endpoints hiện có (tất cả có trailing slash)
+- Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
+- Auth (public POST): `/api/auth/register|login|logout|refresh-token|forgot-password|reset-password/`; `[AUTH]` `GET /api/auth/me/`, `POST /api/auth/change-password/`
+- Booking `[AUTH]`: `POST /api/hotel-bookings/`, `GET /api/hotel-bookings/{id}/`, `POST /api/hotel-bookings/{id}/cancel/`
+- Payment `[AUTH]`: `GET /api/payments/{id}/`, `POST /api/payments/{id}/mock-confirm/ {success}`
+- Me `[AUTH]`: `GET|PUT /api/me/profile/`, `PUT /api/me/change-password/`, `GET /api/me/dashboard/`, `GET /api/me/bookings/?status=all|upcoming|completed|cancelled|pending&page&limit`, `GET /api/me/bookings/{id}/`, `POST /api/me/bookings/{id}/cancel/`, `GET /api/me/payments/?status=all|pending|success|failed|refunded&page&limit`, `GET /api/me/payments/summary/`, `GET /api/me/payments/{id}/`
+- `POST/DELETE /api/countries/` và `/api/admin/**` yêu cầu ROLE_ADMIN.
 
-### FE — `D:\fe-tripnova` (toàn bộ CHƯA commit, git chỉ có commit CRA init)
-- Hạ tầng: `src/config/axiosConfig.js` (baseURL từ `REACT_APP_API_BASE_URL`, default `http://localhost:8080`), `src/setupProxy.js`, `.env.development`, `STRUCTURE.md` (quy tắc: page không gọi axios trực tiếp, chỉ qua `services/`).
-- Services đã có: `countryService.js`, `destinationService.js`, `hotelService.js`, `roomService.js` (+ `utils/apiHelpers.js`: `pickField`, `unwrapListResponse`).
-- Hooks: `useHotelsPage.js`, `useRoomsPage.js`, `useCountryDestinationOptions.js`.
-- Pages đã nối API: Home, Hotels, HotelDetail, Rooms, RoomDetail, Destinations, DestinationDetail.
-- Pages mới là UI tĩnh/placeholder: Login, Register, Profile, BookingHistory, PaymentHistory, SavedTrips, AccountSettings, About. `context/AuthContext.js` chưa gắn API thật. `routes/AdminRoutes.js` chưa có trang admin.
+### File BE chính
+`config/SecurityConfig.java` (danh sách PUBLIC_GET/PUBLIC_POST), `config/WebCorsConfig.java` (bean CorsConfigurationSource), `config/RoleInitializer.java` (seed USER/ADMIN/HOTEL_MANAGER), `config/SchedulingConfig.java` (job huỷ booking quá hạn mỗi phút), `security/JwtService.java`, `security/JsonAuthErrorHandler.java`, `exception/ApiException.java`, `advice/ControllerAdvisor.java`, `util/SecurityUtil.java` (`getCurrentUserId()`), `util/TokenUtil.java`, `service/impl/{Auth,HotelBooking,Payment,User}ServiceImpl.java`, `repository/custom/impl/HotelBookingRepositoryImpl.java`, `api/{Auth,HotelBooking,Payment,Me}API.java`.
 
-## 3. Đang dở ở đâu
-- Nhóm **Hotel GET** (mục 6 trong `proposed_apis.txt`) xong code, **chưa commit**, chưa test tay với DB thật cho trường hợp có `checkIn/checkOut`.
-- Chưa bắt đầu bất kỳ endpoint nào cần đăng nhập. **BE chưa có Spring Security / JWT** (pom chỉ có data-jpa, webmvc, thymeleaf, modelmapper, postgresql, lombok).
+### File FE chính
+`config/axiosConfig.js` (gắn Bearer, refresh 1 lần khi 401, lỗi có `.status/.details`), `utils/tokenStorage.js`, `context/AuthContext.js` (`useAuth()`: user, isLoggedIn, initializing, login, register, logout, refreshUser, hasRole), `routes/PrivateRoute.js` (`role="ADMIN"`), services: `auth|booking|payment|me|hotel|room|country|destination`, pages mới: `auth/ForgotPassword`, `auth/ResetPassword`, `client/Checkout`, `client/Payment`, `client/BookingDetail`; đã nối API thật: Login, Register, Profile, BookingHistory, PaymentHistory, AccountSettings, RoomDetail. Components chung: `FormInput, FormAlert, StatusBadge, Pagination, UserAvatar`, `client/BookingListItem`. `utils/formatters.js` (formatMoney/Date, isoDateFromToday, nightsBetween).
+
+## 3. Đang dở
+Không có gì dở giữa chừng — vừa xong nhóm /api/me và commit cả 2 repo.
 
 ## 4. Bước tiếp theo (theo thứ tự)
-1. Test tay các endpoint hotel/room (lệnh ở mục 7) → commit BE (`feat: hotel availability count + X-Total-Count`) và commit FE lần đầu.
-2. **Auth** (chặn mọi thứ phía sau): thêm `spring-boot-starter-security`, `spring-boot-starter-validation`, lib JWT (jjwt). Viết `UserRepository`, `AuthAPI` (`/api/auth/register|login|logout|refresh-token|me`), BCrypt cho `users.password_hash`, gán role qua `user_roles`. FE: `services/authService.js`, nối Login/Register, `AuthContext` lưu token, axios interceptor gắn `Authorization: Bearer`, `routes/PrivateRoute.js`.
-3. **Hotel booking** `POST /api/hotel-bookings/` theo luồng trong PDF / cuối `db_schema_guide.txt`:
-   - GĐ1 (1 transaction): check trống trên `room_availability` → insert `orders(pending)` + `hotel_bookings(pending)` + `payments(pending)` → trả `{orderId, bookingId, amount, paymentUrl}`.
-   - GĐ2 webhook `POST /api/payments/webhook/{provider}`: payment `completed`+`paid_at`, order `paid`, booking `confirmed`, INSERT `room_availability(room_id, date, 'booked')` cho mỗi ngày `checkIn ≤ d < checkOut`. Bắt lỗi unique `(room_id,date)` → rollback + refund. `rooms.status` giữ nguyên `available`.
-   - Cần tạo mới: `RoomAvailabilityRepository`, `OrderRepository`, `PaymentRepository`, `HotelBookingRepository`, DTO request/response, `HotelBookingAPI`, `PaymentAPI`. FE: nút "Đặt phòng" ở RoomDetail → trang checkout.
-4. `/api/me/bookings`, `/api/me/payments`, `/api/me/profile` → nối các page BookingHistory / PaymentHistory / Profile.
-5. Lookup nhỏ: `/api/continents/`, `/api/amenities/`, `/api/room-types/` (entity đã có sẵn).
-6. Sau đó mới tới Cars / Flights / Tours (chưa có entity — phải tạo từ `db_schema_guide.txt`), rồi Admin.
+1. **Lookup public**: `GET /api/continents/`, `/api/amenities/?category=`, `/api/room-types/?hotelId=` (entity đã có). FE dùng cho filter Hotels.
+2. **Favorites** (bảng `favorites`) → trang FE `SavedTrips` (đang mockup): `GET/POST /api/favorites/`, `DELETE /api/favorites/{id}/`, `GET /api/favorites/check/`. Nút tim ở HotelDetail/HotelListCard.
+3. **Reviews** khách sạn (`reviews`): `GET/POST /api/hotels/{id}/reviews/` (chỉ user đã có booking completed/confirmed đã qua ngày).
+4. **Contact**: `POST /api/contact/` (bảng `contact_messages`), `GET /api/contact/info/`; FE menu có `/contacts` chưa có trang.
+5. **Admin** (FE `routes/AdminRoutes.js` mới là khung): dashboard thống kê, CRUD hotels/rooms/room-types, quản lý hotel-bookings (đổi status), users (status/roles), payments. Cần cách tạo admin đầu tiên (xem mục 6).
+6. Cars / Flights / Tours: **chưa có entity** — tạo từ `db_schema_guide.txt` (kiểm tra schema thật bằng psql trước).
+7. Cổng thanh toán thật (VNPay sandbox): `POST /api/payments/webhook/{provider}/` + `GET /api/payments/return/{provider}/` gọi `PaymentService.handleGatewayResult(...)` (đã có, idempotent). Tắt `app.payment.mock-enabled`.
+8. OAuth2 Google/Facebook (đã bỏ nút Google ở Login/Register vì chưa có backend).
 
 ## 5. Quyết định kỹ thuật & lý do
-- **Giữ trailing slash** (`/api/hotels/`) dù `proposed_apis.txt` đề xuất bỏ: `.cursorrules` bắt buộc, toàn bộ BE + FE đang dùng. Không đổi lẻ tẻ.
-- **Phân trang**: `page` (1-based) + `limit`, tổng số qua header `X-Total-Count` (không bọc body) — FE `hotelService.buildHotelQueryParams` đang gửi đúng kiểu này. Không dùng `page=0&size=` của Spring Data.
-- **Không Lombok**: getter/setter/constructor viết tay; constructor injection thủ công (`.cursorrules`).
-- Query động dùng `EntityManager` + native SQL có binding trong `repository/custom/impl`; query tĩnh dùng JPQL `@Query`.
-- Tính phòng trống bằng `NOT EXISTS room_availability` với khoảng `[checkIn, checkOut)` — ngày checkout không tính đêm.
-- Amenities/remainingRooms lấy **batch theo list hotelIds** rồi ghép bằng Map (tránh N+1).
-- OAuth: dùng path chuẩn Spring `/oauth2/authorization/{provider}`, `/login/oauth2/code/{provider}` (PDF ghi có prefix `/api` — sai).
-- Hủy booking: `POST .../cancel` thay vì `DELETE`.
+- **Trailing slash** ở mọi endpoint (theo `.cursorrules`, FE cũng gọi có `/`).
+- **Phân trang**: `page` (1-based) + `limit`, tổng qua header `X-Total-Count` (đã expose trong CORS). Không dùng `page=0&size=`.
+- **Không Lombok**, getter/setter/constructor viết tay; constructor injection. Code Java viết tay (người dùng yêu cầu "làm bằng Java 21", không sinh code bằng script).
+- **JWT HS256** qua `spring-boot-starter-oauth2-resource-server` (không dùng jjwt). Claim: `sub`=userId, `email`, `roles` → authority `ROLE_x`. Access 15 phút, refresh 7 ngày: chuỗi random, lưu **SHA-256** trong `refresh_tokens`, **xoay vòng** (`replaced_by`), dùng lại token cũ → thu hồi toàn bộ phiên của user.
+- Refresh token trả trong body, FE lưu `localStorage` (đơn giản, chưa dùng httpOnly cookie).
+- Forgot-password: chưa có mail server → **log link reset ra console** (`AuthServiceImpl`), luôn trả 204 để không lộ email.
+- **Đặt phòng**: giai đoạn 1 giữ phòng 15 phút bằng booking `pending` (không ghi `room_availability`); giai đoạn 2 (thanh toán OK) khoá dòng `rooms` (`PESSIMISTIC_WRITE`), kiểm tra lại, upsert `room_availability` = `booked` từng ngày `[checkIn, checkOut)`. Phòng bị lấy mất → tự chuyển phòng khác cùng hạng, hết phòng → booking/order/payment `refunded`. Callback trùng → idempotent.
+- Huỷ miễn phí nếu trước `checkIn + hotels.check_in_time − hotels.cancellation_hours` (mặc định 14:00 và 24h) → hoàn 100%, xoá dòng `booked`.
+- Không tính thuế (tax=0); FE đã bỏ "8% tax" giả. Đơn vị tiền `app.booking.currency=USD` (giá trong DB 60–2000 nên không phải VND).
+- Mock payment: `app.payment.mock-enabled=true` → trang FE `/payment/:id` có nút Pay / Simulate failed.
 
-## 6. Bẫy đã gặp / cần lưu ý
-- `pdftotext` (mingw) làm vỡ tiếng Việt trong `1.pdf`; `pypdf` chưa cài. → đọc `proposed_apis.txt` (đã tổng hợp PDF), hoặc `pip install pypdf`.
-- `ddl-auto=none`: schema do DB quản lý, **không** để Hibernate tạo bảng. Entity phải khớp cột thật trong `db_schema_guide.txt`.
-- Các cột status (`room_availability.status`, `rooms.status`, `orders.status`…) là **Postgres ENUM** nhưng entity map `String`. SELECT/so sánh chạy được; **INSERT/UPDATE có thể lỗi** `column "status" is of type availability_status but expression is of type character varying`. Khi làm booking: thêm `@JdbcType(PostgreSQLEnumJdbcType.class)` hoặc `?stringtype=unspecified` vào JDBC URL.
-- `application.properties` bật profile `uat`; `application-uat.properties` chứa user/pass DB và bị `.gitignore` — không commit, không in ra.
-- CORS: header tuỳ biến phải thêm vào `exposedHeaders`, nếu không axios đọc `undefined`.
-- FE: `paramsSerializer: { indexes: null }` để gửi `amenities=a&amenities=b` (Spring bind `List<String>`); bỏ đi sẽ thành `amenities[]=` và BE không nhận.
-- `HotelAPI` nhận `@RequestParam Map<String,Object> params` → mọi query param (kể cả `amenities`, `page`) đều lọt vào map; converter phải bỏ qua key không dùng.
+## 6. Bẫy đã gặp
+- Cột status/gender là **Postgres ENUM**, `ip_address` là `inet`, `gateway_response` là `jsonb` nhưng entity map `String` → đã thêm `spring.datasource.hikari.data-source-properties.stringtype=unspecified`. **Hệ quả**: JPQL dạng `(:param IS NULL OR x = :param)` với tham số String sẽ lỗi `could not determine data type of parameter` → tách thành 2 query (xem `PaymentRepository.findByUser/findByUserAndStatus`). Tham số UUID thì không bị.
+- `hotel_bookings.num_nights` là **generated column** → `@Column(insertable=false, updatable=false)`.
+- `user_roles` **không có cột id**, PK = (user_id, role_id) → `@IdClass(UserRoleId)`.
+- Nhiều cột `created_at/updated_at` NOT NULL nhưng Hibernate chèn null nếu không set → luôn set trong service.
+- Entity cũ thiếu `@GeneratedValue` và thiếu cột (`orders.total_amount`, refund của hotel_bookings) → đã sửa; entity khác (cars, tours…) cần đối chiếu schema thật trước khi dùng. Kiểm tra: `select column_name, udt_name, is_nullable, column_default, is_generated from information_schema.columns where table_name='...'`.
+- Spring Boot 4 dùng **Jackson 3** (`tools.jackson.databind.ObjectMapper`).
+- Devtools tự restart khi `mvnw compile` chạy lúc app đang chạy → đôi khi lỗi `ClassNotFoundException` giữa chừng; muốn chắc thì kill hẳn process :8080 rồi chạy lại. `taskkill` xong phải **chờ cổng 8080 được giải phóng** mới start lại.
+- Git Bash trên Windows: `curl -d` với tiếng Việt bị lỗi encoding (400) → test bằng ASCII; `-w "/path"` bị MSYS đổi path; Python Windows không thấy `/tmp`.
+- CRA dev server chỉ trả `index.html` cho request có `Accept: text/html`.
+- `pdftotext` làm vỡ tiếng Việt của `1.pdf`.
+- `application-uat.properties` (user/pass DB) bị gitignore — không commit, không in ra.
+- Commit: **không thêm dòng Co-Authored-By Claude** (người dùng yêu cầu).
+- Chưa có admin nào: tạo bằng SQL: `insert into user_roles(user_id, role_id) select u.id, r.id from users u, roles r where u.email='<email>' and r.name='ADMIN';` rồi đăng nhập lại (roles nằm trong JWT).
 
 ## 7. Lệnh chạy / test
 ```bash
-# BE (cần Postgres local :5432, DB travel-web-project)
+# BE (Postgres 16 local :5432, psql tại "C:/Program Files/PostgreSQL/16/bin/psql")
 cd D:/travel-web-tripnova
-./mvnw -o compile            # build nhanh (offline) — hiện PASS
-./mvnw spring-boot:run       # chạy :8080
-./mvnw test
+./mvnw -q -o compile          # build nhanh
+./mvnw spring-boot:run        # :8080 (lần đầu sau khi thêm dependency: bỏ -o)
 
 # Smoke test
-curl -i "http://localhost:8080/api/hotels/?page=1&limit=5"                       # xem header X-Total-Count
-curl "http://localhost:8080/api/hotels/?checkIn=2026-10-01&checkOut=2026-10-03&amenities=Wifi"
-curl "http://localhost:8080/api/hotels/<hotelId>/?checkIn=2026-10-01&checkOut=2026-10-03"
-curl "http://localhost:8080/api/hotels/<hotelId>/rooms/?checkIn=2026-10-01&checkOut=2026-10-03"
-curl "http://localhost:8080/api/destinations/"
+curl -i "http://localhost:8080/api/hotels/?page=1&limit=5"
+curl -s -H 'Content-Type: application/json' -d '{"email":"a@b.local","password":"secret123","fullName":"A"}' http://localhost:8080/api/auth/register/
+curl -s -H "Authorization: Bearer <accessToken>" http://localhost:8080/api/me/dashboard/
 
 # FE
 cd D:/fe-tripnova
-npm install
-npm start                    # :3000, gọi BE qua REACT_APP_API_BASE_URL (.env.development)
+npm start                     # :3000, BE qua REACT_APP_API_BASE_URL (.env.development)
+npx react-scripts build       # kiểm tra compile + ESLint (cảnh báo source map @mediapipe là có sẵn, bỏ qua)
 ```
+Script test E2E của phiên trước nằm trong scratchpad (không còn ở phiên mới): tạo user `claude.test+…@tripnova.local`, đặt/thanh toán/huỷ, rồi xoá sạch dữ liệu test theo email đó.

@@ -9,6 +9,7 @@ import java.util.UUID;
 @Table(name = "room_availability")
 public class RoomAvailabilityEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
     private UUID id;
 

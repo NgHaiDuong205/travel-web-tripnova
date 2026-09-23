@@ -47,6 +47,7 @@ public class SecurityConfig {
             "/api/contact/info/**",
             "/api/about/**",
             "/api/payments/return/**",
+            "/api/hotel-bookings/check-availability/",
     };
 
     /** Endpoint POST công khai. */

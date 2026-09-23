@@ -2,6 +2,8 @@ package com.duong.travelweb.model.entity;
 
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +12,7 @@ import java.util.UUID;
 @Table(name = "orders")
 public class OrderEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
     private UUID id;
 
@@ -21,13 +24,13 @@ public class OrderEntity {
     private String orderCode;
 
     @Column(name = "subtotal")
-    private Double subtotal;
+    private BigDecimal subtotal;
 
     @Column(name = "discount_total")
-    private Double discountTotal;
+    private BigDecimal discountTotal;
 
     @Column(name = "tax_amount")
-    private Double taxAmount;
+    private BigDecimal taxAmount;
 
     @Column(name = "currency_code")
     private String currencyCode;
@@ -89,27 +92,27 @@ public class OrderEntity {
         this.orderCode = orderCode;
     }
 
-    public Double getSubtotal() {
+    public BigDecimal getSubtotal() {
         return subtotal;
     }
 
-    public void setSubtotal(Double subtotal) {
+    public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
     }
 
-    public Double getDiscountTotal() {
+    public BigDecimal getDiscountTotal() {
         return discountTotal;
     }
 
-    public void setDiscountTotal(Double discountTotal) {
+    public void setDiscountTotal(BigDecimal discountTotal) {
         this.discountTotal = discountTotal;
     }
 
-    public Double getTaxAmount() {
+    public BigDecimal getTaxAmount() {
         return taxAmount;
     }
 
-    public void setTaxAmount(Double taxAmount) {
+    public void setTaxAmount(BigDecimal taxAmount) {
         this.taxAmount = taxAmount;
     }
 
@@ -207,5 +210,16 @@ public class OrderEntity {
 
     public void setPayments(List<PaymentEntity> payments) {
         this.payments = payments;
+    }
+
+    @Column(name = "total_amount")
+    private BigDecimal totalAmount;
+
+    public BigDecimal getTotalAmount() {
+        return totalAmount;
+    }
+
+    public void setTotalAmount(BigDecimal totalAmount) {
+        this.totalAmount = totalAmount;
     }
 }

@@ -1,46 +1,21 @@
-package com.duong.travelweb.model.entity;
-
-import jakarta.persistence.*;
+package com.duong.travelweb.model.dto;
 
 import java.math.BigDecimal;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "payments")
-public class PaymentEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id")
+public class PaymentDTO {
     private UUID id;
-
-    @ManyToOne
-    @JoinColumn(name = "order_id")
-    private OrderEntity order;
-
-    @Column(name = "payment_method")
+    private UUID orderId;
+    private String orderCode;
+    private String orderStatus;
+    private UUID bookingId;
     private String paymentMethod;
-
-    @Column(name = "amount")
     private BigDecimal amount;
-
-    @Column(name = "currency_code")
     private String currencyCode;
-
-    @Column(name = "transaction_id")
-    private String transactionId;
-
-    @Column(name = "gateway_response")
-    private String gatewayResponse;
-
-    @Column(name = "status")
     private String status;
-
-    @Column(name = "paid_at")
+    private String transactionId;
     private LocalDateTime paidAt;
-
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     public UUID getId() {
@@ -51,12 +26,36 @@ public class PaymentEntity {
         this.id = id;
     }
 
-    public OrderEntity getOrder() {
-        return order;
+    public UUID getOrderId() {
+        return orderId;
     }
 
-    public void setOrder(OrderEntity order) {
-        this.order = order;
+    public void setOrderId(UUID orderId) {
+        this.orderId = orderId;
+    }
+
+    public String getOrderCode() {
+        return orderCode;
+    }
+
+    public void setOrderCode(String orderCode) {
+        this.orderCode = orderCode;
+    }
+
+    public String getOrderStatus() {
+        return orderStatus;
+    }
+
+    public void setOrderStatus(String orderStatus) {
+        this.orderStatus = orderStatus;
+    }
+
+    public UUID getBookingId() {
+        return bookingId;
+    }
+
+    public void setBookingId(UUID bookingId) {
+        this.bookingId = bookingId;
     }
 
     public String getPaymentMethod() {
@@ -83,28 +82,20 @@ public class PaymentEntity {
         this.currencyCode = currencyCode;
     }
 
-    public String getTransactionId() {
-        return transactionId;
-    }
-
-    public void setTransactionId(String transactionId) {
-        this.transactionId = transactionId;
-    }
-
-    public String getGatewayResponse() {
-        return gatewayResponse;
-    }
-
-    public void setGatewayResponse(String gatewayResponse) {
-        this.gatewayResponse = gatewayResponse;
-    }
-
     public String getStatus() {
         return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getTransactionId() {
+        return transactionId;
+    }
+
+    public void setTransactionId(String transactionId) {
+        this.transactionId = transactionId;
     }
 
     public LocalDateTime getPaidAt() {

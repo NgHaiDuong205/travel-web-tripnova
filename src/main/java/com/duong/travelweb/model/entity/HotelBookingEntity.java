@@ -2,6 +2,8 @@ package com.duong.travelweb.model.entity;
 
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -10,6 +12,7 @@ import java.util.UUID;
 @Table(name = "hotel_bookings")
 public class HotelBookingEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
     private UUID id;
 
@@ -39,7 +42,7 @@ public class HotelBookingEntity {
     @Column(name = "check_out_date")
     private LocalDate checkOutDate;
 
-    @Column(name = "num_nights")
+    @Column(name = "num_nights", insertable = false, updatable = false)
     private Integer numNights;
 
     @Column(name = "num_adults")
@@ -49,10 +52,10 @@ public class HotelBookingEntity {
     private Integer numChildren;
 
     @Column(name = "total_price")
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     @Column(name = "discount_amount")
-    private Double discountAmount;
+    private BigDecimal discountAmount;
 
     @Column(name = "special_requests")
     private String specialRequests;
@@ -154,19 +157,19 @@ public class HotelBookingEntity {
         this.numChildren = numChildren;
     }
 
-    public Double getTotalPrice() {
+    public BigDecimal getTotalPrice() {
         return totalPrice;
     }
 
-    public void setTotalPrice(Double totalPrice) {
+    public void setTotalPrice(BigDecimal totalPrice) {
         this.totalPrice = totalPrice;
     }
 
-    public Double getDiscountAmount() {
+    public BigDecimal getDiscountAmount() {
         return discountAmount;
     }
 
-    public void setDiscountAmount(Double discountAmount) {
+    public void setDiscountAmount(BigDecimal discountAmount) {
         this.discountAmount = discountAmount;
     }
 
@@ -200,5 +203,38 @@ public class HotelBookingEntity {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @Column(name = "refund_amount")
+    private BigDecimal refundAmount;
+
+    @Column(name = "refund_reason")
+    private String refundReason;
+
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public String getRefundReason() {
+        return refundReason;
+    }
+
+    public void setRefundReason(String refundReason) {
+        this.refundReason = refundReason;
+    }
+
+    public LocalDateTime getRefundedAt() {
+        return refundedAt;
+    }
+
+    public void setRefundedAt(LocalDateTime refundedAt) {
+        this.refundedAt = refundedAt;
     }
 }

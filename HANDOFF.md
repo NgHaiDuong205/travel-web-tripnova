@@ -17,7 +17,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Hotel booking + payment (mock) | `340a434` | `38b096e` |
 | /api/me (profile, dashboard, bookings, payments) | `dd6b562` | `f8124e7` |
 | Lookup (continents/amenities/room-types), Favorites, Contact | `6b90f35` | `954f3d6` |
-| Admin đợt 1 (dashboard, bookings, users, payments, contact messages) | `8e3db96` | **đang làm, chưa commit** |
+| Admin đợt 1 (dashboard, bookings, users, payments, contact messages) | `8e3db96` | `feb511f` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -37,18 +37,12 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 ### File FE chính
 `config/axiosConfig.js` (gắn Bearer, refresh 1 lần khi 401, lỗi có `.status/.details`), `utils/tokenStorage.js`, `context/AuthContext.js` (`useAuth()`: user, isLoggedIn, initializing, login, register, logout, refreshUser, hasRole), `routes/PrivateRoute.js` (`role="ADMIN"`), services: `auth|booking|payment|me|hotel|room|country|destination`, pages mới: `auth/ForgotPassword`, `auth/ResetPassword`, `client/Checkout`, `client/Payment`, `client/BookingDetail`; đã nối API thật: Login, Register, Profile, BookingHistory, PaymentHistory, AccountSettings, RoomDetail. Components chung: `FormInput, FormAlert, StatusBadge, Pagination, UserAvatar`, `client/BookingListItem`. `utils/formatters.js` (formatMoney/Date, isoDateFromToday, nightsBetween).
 
-## 3. Đang dở — FE Admin đợt 1 (`D:\fe-tripnova`, chưa commit)
-Đã viết (chưa build, chưa commit):
-- `src/services/adminService.js` — gọi toàn bộ API admin đợt 1 + `BOOKING_NEXT_STATUSES`, `ALL_ROLES`, `CONTACT_STATUS_LABELS`.
-- `src/components/layouts/AdminLayout.js` — sidebar (Dashboard, Bookings, Users, Payments, Messages), dùng `<Outlet/>`.
-- `src/components/admin/RevenueChart.js` — biểu đồ cột doanh thu 30 ngày (1 màu #003580, tooltip hover, bảng số liệu trong `<details>`).
+## 3. Đang dở
+**Không có gì dở.** Admin đợt 1 đã xong cả BE + FE, cả 2 repo sạch (đã commit). Theo yêu cầu người dùng (2026-09-24): phiên đó chỉ làm nốt phần dở, **không bắt đầu tính năng mới** — phiên sau chờ người dùng chọn việc tiếp theo trong mục 4 trước khi làm.
 
-Còn phải làm, theo thứ tự:
-1. Pages trong `src/pages/admin/`: `Dashboard` (thẻ tổng, RevenueChart, số booking theo status, recent bookings), `Bookings` (bảng + lọc status + ô tìm `q` + nút chuyển trạng thái theo `BOOKING_NEXT_STATUSES`, huỷ thì hỏi lý do), `Users` (bảng + lọc q/role/status + khoá/mở + sửa roles bằng checkbox `ALL_ROLES`), `Payments` (bảng + lọc status), `Messages` (danh sách + đổi status).
-2. Thay `src/routes/AdminRoutes.js` (đang là khung đỏ tạm) bằng route lồng trong `AdminLayout`. `AppRouter` đã bọc `/admin/*` bằng `PrivateRoute role="ADMIN"`.
-3. `npx react-scripts build` → commit FE.
+FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). Kiểm chứng: `npx react-scripts build` sạch; API admin đã test E2E bằng curl; **chưa bấm thử giao diện admin trên trình duyệt** (không có công cụ trình duyệt, dev server bị tắt vì thiếu RAM).
 
-## 4. Bước tiếp theo (sau khi xong mục 3)
+## 4. Bước tiếp theo (chưa làm — hỏi người dùng trước)
 1. **Admin đợt 2 — CRUD khách sạn**: `GET/POST/PUT/DELETE /api/admin/hotels/` (xoá mềm `is_active=false`), room-types, rooms (+ FE form). Lưu ý bẫy ở mục 6: `hotels.total_rooms` do trigger, `check_in_time/check_out_time` là kiểu `time`, `cancellation_policy` ∈ free|partial|strict, `star_rating` 1–5, `destination_id` NOT NULL.
 2. Cars / Flights / Tours: **chưa có entity** — tạo từ `db_schema_guide.txt` (kiểm tra schema thật bằng psql trước). Sau đó mở Favorites cho tour/car/flight (`FavoriteServiceImpl.SUPPORTED_TYPES`).
 3. Cổng thanh toán thật (VNPay sandbox): `POST /api/payments/webhook/{provider}/` + `GET /api/payments/return/{provider}/` gọi `PaymentService.handleGatewayResult(...)` (đã có, idempotent). Tắt `app.payment.mock-enabled`.

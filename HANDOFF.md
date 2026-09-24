@@ -20,6 +20,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Admin đợt 1 (dashboard, bookings, users, payments, contact messages) | `8e3db96` | `feb511f` |
 | Admin A2: hotels / room types / rooms / lịch khoá phòng (+ fix destinations, landmarks 500) | `de0aaa5`, `24e418e` | `7f7e7a4` |
 | Admin A12: amenities | `04c0107` | `ab6890a` |
+| Admin A7: continents / countries / destinations / landmarks | `d8d97c7` | `2f708ce` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -43,7 +44,9 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong checklist mục 4, không cần hỏi**; làm xong mục nào thì đánh `[x]` vào checklist.
 - A2 xong cả BE + FE (FE: `pages/admin/{Hotels,HotelEdit}`, `components/admin/{HotelForm,RoomTypeManager,RoomManager,RoomAvailabilityPanel}.js`, `services/adminHotelService.js`; build sạch, chưa bấm thử trên trình duyệt).
 - A12 xong (BE `api/AdminAmenityAPI.java`, FE `pages/admin/Amenities`).
-- Đang làm: **A7 — Admin Geography** (continents / countries / destinations / landmarks).
+- A7 xong (BE `api/AdminGeographyAPI.java`; FE `pages/admin/Geography/*`). POST/DELETE `/api/countries/` cũ đã bỏ, dùng `/api/admin/countries/`.
+- Tiếp theo: phần còn lại A1/A3/A8/A9/A10.
+- **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (+ order/payment/booking), khách sạn `Claude Test Hotel%`, điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
 
@@ -150,9 +153,11 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **A4. Cars** — [ ] toàn bộ · **A5. Flights & Seats** — [ ] toàn bộ · **A6. Tours** — [ ] toàn bộ
 
-**A7. Geography**
-- [~] POST|DELETE countries: có ở `/api/countries/` (ROLE_ADMIN), chưa có ở `/api/admin/countries`
-- [ ] continents · countries (PUT) · destinations · landmarks CRUD dưới /api/admin
+**A7. Geography** — BE + FE xong (`AdminGeographyAPI`)
+- [x] GET|POST /api/admin/continents · PUT|DELETE /{id} (409 nếu còn quốc gia)
+- [x] GET|POST /api/admin/countries (?q&continentId) · PUT|DELETE /{id} (409 nếu còn điểm đến; slug tự sinh)
+- [x] GET|POST /api/admin/destinations (phân trang) · GET|PUT|DELETE /{id} (xoá mềm)
+- [x] GET|POST /api/admin/landmarks (phân trang, ?category) · PUT|DELETE /{id} (xoá mềm)
 
 **A8. Users / Roles**
 - [x] GET /api/admin/users · /{id} · PUT /{id}/status · PUT /{id}/roles

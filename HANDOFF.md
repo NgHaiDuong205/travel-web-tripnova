@@ -18,6 +18,8 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | /api/me (profile, dashboard, bookings, payments) | `dd6b562` | `f8124e7` |
 | Lookup (continents/amenities/room-types), Favorites, Contact | `6b90f35` | `954f3d6` |
 | Admin đợt 1 (dashboard, bookings, users, payments, contact messages) | `8e3db96` | `feb511f` |
+| Admin A2: hotels / room types / rooms / lịch khoá phòng (+ fix destinations, landmarks 500) | `de0aaa5`, `24e418e` | `7f7e7a4` |
+| Admin A12: amenities | `04c0107` | `ab6890a` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -39,7 +41,9 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 
 ## 3. Đang dở
 Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong checklist mục 4, không cần hỏi**; làm xong mục nào thì đánh `[x]` vào checklist.
-- Đang làm: **A2 — Admin Hotels & Rooms**: BE xong (`api/AdminHotelAPI.java`, `service/impl/AdminHotelServiceImpl.java`, đã test E2E). **Còn FE** (trang admin Hotels: list/form khách sạn, hạng phòng, phòng, lịch khoá phòng).
+- A2 xong cả BE + FE (FE: `pages/admin/{Hotels,HotelEdit}`, `components/admin/{HotelForm,RoomTypeManager,RoomManager,RoomAvailabilityPanel}.js`, `services/adminHotelService.js`; build sạch, chưa bấm thử trên trình duyệt).
+- A12 xong (BE `api/AdminAmenityAPI.java`, FE `pages/admin/Amenities`).
+- Đang làm: **A7 — Admin Geography** (continents / countries / destinations / landmarks).
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
 
@@ -132,7 +136,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/admin/dashboard (đã gồm tổng số, booking theo trạng thái, doanh thu 30 ngày, booking gần đây)
 - [ ] GET /dashboard/statistics · /revenue?from&to&groupBy · /recent-bookings · /recent-payments · /top-hotels · /top-destinations
 
-**A2. Hotels & Rooms** ← BE xong, FE đang làm (`AdminHotelAPI`)
+**A2. Hotels & Rooms** — BE + FE xong (`AdminHotelAPI`)
 - [x] GET|POST /api/admin/hotels · GET|PUT|DELETE /{hotelId} (xoá mềm)
 - [x] GET|POST /api/admin/hotels/{hotelId}/room-types · PUT|DELETE /{roomTypeId}
 - [x] GET|POST /api/admin/hotels/{hotelId}/rooms · GET|PUT|DELETE /{roomId}
@@ -164,7 +168,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [ ] GET /{id} · DELETE /{id} · POST /{id}/reply
 
 **A11. Reviews / Posts moderation** — [ ] toàn bộ (reviews: no table)
-**A12. Amenities** — [ ] GET|POST|PUT|DELETE /api/admin/amenities
+**A12. Amenities** — [x] GET?category (kèm hotelCount/roomTypeCount) · POST · PUT · DELETE (409 nếu đang dùng, `?force=true` để xoá)
 **A13. AI / Knowledge base** — [ ] toàn bộ
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 

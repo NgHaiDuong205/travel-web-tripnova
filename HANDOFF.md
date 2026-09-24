@@ -1,6 +1,6 @@
 # HANDOFF — TripNova (BE + FE)
 
-Cập nhật: 2026-09-24. Người dùng yêu cầu **làm lần lượt cả FE + BE, không cần hỏi ý kiến**.
+Cập nhật: 2026-09-24. Người dùng yêu cầu **làm lần lượt cả FE + BE theo checklist mục 4, không cần hỏi ý kiến**.
 
 ## 1. Mục tiêu tổng thể
 Làm hết các API trong spec `C:\Users\HPC\Desktop\1.pdf` cho:
@@ -38,17 +38,140 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 `config/axiosConfig.js` (gắn Bearer, refresh 1 lần khi 401, lỗi có `.status/.details`), `utils/tokenStorage.js`, `context/AuthContext.js` (`useAuth()`: user, isLoggedIn, initializing, login, register, logout, refreshUser, hasRole), `routes/PrivateRoute.js` (`role="ADMIN"`), services: `auth|booking|payment|me|hotel|room|country|destination`, pages mới: `auth/ForgotPassword`, `auth/ResetPassword`, `client/Checkout`, `client/Payment`, `client/BookingDetail`; đã nối API thật: Login, Register, Profile, BookingHistory, PaymentHistory, AccountSettings, RoomDetail. Components chung: `FormInput, FormAlert, StatusBadge, Pagination, UserAvatar`, `client/BookingListItem`. `utils/formatters.js` (formatMoney/Date, isoDateFromToday, nightsBetween).
 
 ## 3. Đang dở
-**Không có gì dở.** Admin đợt 1 đã xong cả BE + FE, cả 2 repo sạch (đã commit). Theo yêu cầu người dùng (2026-09-24): phiên đó chỉ làm nốt phần dở, **không bắt đầu tính năng mới** — phiên sau chờ người dùng chọn việc tiếp theo trong mục 4 trước khi làm.
+Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong checklist mục 4, không cần hỏi**; làm xong mục nào thì đánh `[x]` vào checklist.
+- Đang làm: **A2 — Admin Hotels & Rooms** (BE trước, rồi FE). Chưa có code nào được viết cho phần này.
 
-FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). Kiểm chứng: `npx react-scripts build` sạch; API admin đã test E2E bằng curl; **chưa bấm thử giao diện admin trên trình duyệt** (không có công cụ trình duyệt, dev server bị tắt vì thiếu RAM).
+FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
 
-## 4. Bước tiếp theo (chưa làm — hỏi người dùng trước)
-1. **Admin đợt 2 — CRUD khách sạn**: `GET/POST/PUT/DELETE /api/admin/hotels/` (xoá mềm `is_active=false`), room-types, rooms (+ FE form). Lưu ý bẫy ở mục 6: `hotels.total_rooms` do trigger, `check_in_time/check_out_time` là kiểu `time`, `cancellation_policy` ∈ free|partial|strict, `star_rating` 1–5, `destination_id` NOT NULL.
-2. Cars / Flights / Tours: **chưa có entity** — tạo từ `db_schema_guide.txt` (kiểm tra schema thật bằng psql trước). Sau đó mở Favorites cho tour/car/flight (`FavoriteServiceImpl.SUPPORTED_TYPES`).
-3. Cổng thanh toán thật (VNPay sandbox): `POST /api/payments/webhook/{provider}/` + `GET /api/payments/return/{provider}/` gọi `PaymentService.handleGatewayResult(...)` (đã có, idempotent). Tắt `app.payment.mock-enabled`.
-4. OAuth2 Google/Facebook (đã bỏ nút Google ở Login/Register vì chưa có backend).
-5. **Reviews: DB không có bảng `reviews`** → cần tạo bảng (ddl-auto=none, phải viết SQL migration) hoặc bỏ tính năng; hỏi người dùng trước khi tạo bảng.
-6. Cải tiến nhỏ: `FavoriteButton` gọi `/check/` cho từng card (10 request/trang) → có thể gom bằng 1 lần `GET /api/favorites/`.
+## 4. Checklist API theo `proposed_apis.txt`
+Quy ước khi code (khác spec, đã chốt): mọi path **có trailing slash**, phân trang `page` (1-based) + `limit`, tổng qua `X-Total-Count`.
+Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay bằng endpoint tương đương · `[ ]` chưa làm · `(no table)` DB chưa có bảng → cần viết SQL migration, **hỏi người dùng trước khi tạo bảng**.
+
+### I. Public / Client
+**1. Auth & OAuth2**
+- [x] POST /api/auth/register · login · logout · refresh-token · forgot-password · reset-password · change-password
+- [x] GET /api/auth/me
+- [ ] POST /api/auth/verify-email · resend-verification (chưa có mail server → log link ra console như forgot-password)
+- [ ] OAuth2 Google / Facebook / GitHub (`/oauth2/authorization/*`, bảng `user_oauth_accounts`)
+
+**2. Users / Me**
+- [x] GET /api/me/dashboard · GET|PUT /api/me/profile · PUT /api/me/change-password
+- [ ] PUT /api/me/avatar (multipart — cần hạ tầng upload, xem mục 19)
+- [ ] /api/me/notifications (GET, PATCH {id}/read, POST mark-all-read) (no table `notifications`)
+- [ ] GET /api/me/oauth-accounts · DELETE /api/me/oauth-accounts/{provider}
+
+**3. Account settings**
+- [~] GET /api/account/settings · PUT /api/account/profile · PUT /api/account/password → đã phủ bởi /api/me/profile, /api/me/change-password (FE AccountSettings dùng /api/me)
+- [ ] PUT /api/account/email · DELETE /api/account (soft-delete)
+
+**4. Lookup**
+- [x] GET /api/continents · /api/countries · /api/countries/{id} · /api/amenities?category · /api/room-types?hotelId
+- [ ] GET /api/currencies (no table — có thể trả danh sách tĩnh từ config)
+
+**5. Destinations & Landmarks**
+- [x] GET /api/destinations · /{id} · /{id}/landmarks · /{id}/landmarks/{landmarkId} · GET /api/landmarks
+- [ ] GET /api/landmarks/{landmarkId}
+- [ ] GET /api/destinations/{id}/hotels (hiện dùng /api/hotels?destinationId=)
+- [ ] GET /api/destinations/{id}/tours
+
+**6. Hotels & Rooms**
+- [x] GET /api/hotels · /{hotelId} · /{hotelId}/rooms · /{hotelId}/rooms/{roomId} · /{hotelId}/room-types
+- [ ] GET /api/hotels/{hotelId}/availability?from&to
+- [ ] GET /api/hotels/suggest?q
+- [ ] GET|POST /api/hotels/{hotelId}/reviews (no table `reviews`)
+
+**7. Hotel bookings**
+- [x] POST /api/hotel-bookings · GET /{id} · POST /{id}/cancel · GET /check-availability
+
+**8. Cars & Car bookings** (chưa có entity)
+- [ ] GET /api/cars · /{carId} · /{carId}/availability
+- [ ] POST /api/car-bookings · GET /{id} · POST /{id}/cancel
+
+**9. Flights & Flight bookings** (chưa có entity)
+- [ ] GET /api/flights · /{flightId} · /{flightId}/seats
+- [ ] POST /api/flight-bookings · POST /{id}/select-seat · GET /{id} · POST /{id}/cancel
+- [ ] GET /api/airports?q (no table — có thể lấy distinct từ `flights`)
+
+**10. Tours** (chưa có entity)
+- [ ] GET /api/tours · /{tourId} · /{tourId}/hotels · /cars · /flights · /itinerary
+- [ ] GET /api/tours/{tourId}/reviews (no table)
+- [ ] POST /api/tour-bookings · GET /{id} · POST /{id}/cancel
+
+**11. Itineraries** (bảng `itineraries`, `itinerary_items`)
+- [ ] GET|POST /api/me/itineraries · GET|PUT|DELETE /{id} · POST /{id}/items · DELETE /{id}/items/{itemId}
+
+**12. Cart & Favorites**
+- [ ] GET /api/cart · POST|PUT|DELETE /api/cart/items[/{itemId}] · DELETE /api/cart/clear · POST /api/cart/checkout
+- [x] GET|POST /api/favorites · DELETE /{id} · GET /check (hiện chỉ `hotel`; mở tour/car/flight khi có entity)
+
+**13. Payments**
+- [~] POST /api/payments/create → payment được tạo cùng booking (POST /api/hotel-bookings)
+- [x] GET /api/payments/{paymentId} (+ POST /{id}/mock-confirm khi `app.payment.mock-enabled`)
+- [ ] POST /api/payments/webhook/{provider} · GET /api/payments/return/{provider} (VNPay sandbox; gọi `PaymentService.handleGatewayResult`)
+- [ ] POST /api/payments/{paymentId}/refund [ADMIN]
+
+**14. Booking history & Invoices**
+- [x] GET /api/me/bookings · /{id} · POST /{id}/cancel · GET /api/me/payments · /{id} (+ /summary) — hiện chỉ booking khách sạn
+- [ ] GET /api/me/invoices · /{invoiceId} · /{invoiceId}/download (bảng `invoices`)
+
+**15. Reviews** — [ ] toàn bộ (no table `reviews`)
+
+**16. Posts / Comments** (bảng `posts`, `post_reactions`, `comments`)
+- [ ] GET|POST /api/posts · GET|PUT|DELETE /{id} · POST|DELETE /{id}/reactions · GET|POST /{id}/comments · PUT|DELETE /api/comments/{id}
+
+**17. Contact / About**
+- [x] POST /api/contact · GET /api/contact/info
+- [ ] GET /api/about · /about/company-info · /about/terms · /about/privacy-policy (nội dung tĩnh từ config)
+
+**18. Search & AI** — [ ] /api/search, /api/search/suggest, /api/ai/* (bảng `search_queries`, `chat_*`, `recommendations`, `price_predictions`…)
+
+**19. Uploads** — [ ] POST|DELETE /api/uploads/images
+
+### II. Admin (`/api/admin/**`, ROLE_ADMIN)
+**A1. Dashboard**
+- [x] GET /api/admin/dashboard (đã gồm tổng số, booking theo trạng thái, doanh thu 30 ngày, booking gần đây)
+- [ ] GET /dashboard/statistics · /revenue?from&to&groupBy · /recent-bookings · /recent-payments · /top-hotels · /top-destinations
+
+**A2. Hotels & Rooms** ← ĐANG LÀM
+- [ ] GET|POST /api/admin/hotels · GET|PUT|DELETE /{hotelId} (xoá mềm)
+- [ ] GET|POST /api/admin/hotels/{hotelId}/room-types · PUT|DELETE /{roomTypeId}
+- [ ] GET|POST /api/admin/hotels/{hotelId}/rooms · GET|PUT|DELETE /{roomId}
+- [ ] PUT /api/admin/hotels/{hotelId}/amenities {amenityIds}
+- [ ] PUT /api/admin/rooms/{roomId}/availability (bulk)
+- [ ] POST|DELETE /api/admin/hotels/{hotelId}/images (no table `hotel_images` — hiện chỉ có `cover_image_url`)
+
+**A3. Hotel bookings**
+- [x] GET /api/admin/hotel-bookings · /{id} · PUT /{id}/status
+- [ ] DELETE /{id} · POST /{id}/refund
+
+**A4. Cars** — [ ] toàn bộ · **A5. Flights & Seats** — [ ] toàn bộ · **A6. Tours** — [ ] toàn bộ
+
+**A7. Geography**
+- [~] POST|DELETE countries: có ở `/api/countries/` (ROLE_ADMIN), chưa có ở `/api/admin/countries`
+- [ ] continents · countries (PUT) · destinations · landmarks CRUD dưới /api/admin
+
+**A8. Users / Roles**
+- [x] GET /api/admin/users · /{id} · PUT /{id}/status · PUT /{id}/roles
+- [ ] PUT /{id} · DELETE /{id}
+- [ ] /api/admin/roles CRUD · GET /api/admin/permissions · PUT /roles/{id}/permissions
+
+**A9. Payments & Invoices**
+- [x] GET /api/admin/payments?status
+- [ ] GET /{id} · PUT /{id}/status · POST /{id}/refund · /api/admin/invoices (GET, GET {id}, POST {id}/resend)
+
+**A10. Contact messages**
+- [x] GET /api/admin/contact-messages · PUT /{id}/status
+- [ ] GET /{id} · DELETE /{id} · POST /{id}/reply
+
+**A11. Reviews / Posts moderation** — [ ] toàn bộ (reviews: no table)
+**A12. Amenities** — [ ] GET|POST|PUT|DELETE /api/admin/amenities
+**A13. AI / Knowledge base** — [ ] toàn bộ
+**A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
+
+### Thứ tự dự kiến
+A2 Hotels/Rooms → A12 Amenities → A7 Geography → phần còn lại A1/A3/A8/A9/A10 → Landmark/Destination shortcuts, hotel availability/suggest, About/Currencies → Itineraries → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+
+Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng card (10 request/trang) → gom bằng 1 lần `GET /api/favorites/`.
 
 ## 5. Quyết định kỹ thuật & lý do
 - **Trailing slash** ở mọi endpoint (theo `.cursorrules`, FE cũng gọi có `/`).

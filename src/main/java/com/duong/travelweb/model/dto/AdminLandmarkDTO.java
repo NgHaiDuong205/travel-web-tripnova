@@ -1,56 +1,21 @@
-package com.duong.travelweb.model.entity;
-
-import jakarta.persistence.*;
+package com.duong.travelweb.model.dto;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "landmarks")
-public class LandmarkEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id")
+/** Địa danh cho màn admin. */
+public class AdminLandmarkDTO {
     private UUID id;
-
-    @ManyToOne
-    @JoinColumn(name = "destination_id")
-    private DestinationEntity destination;
-
-    @Column(name = "name")
+    private UUID destinationId;
+    private String destinationName;
     private String name;
-
-    @Column(name = "description")
     private String description;
-
-    @Column(name = "category")
     private String category;
-
-    @Column(name = "cover_image_url")
     private String coverImageUrl;
-
-    @Column(name = "opening_hours")
     private String openingHours;
-
-    @Column(name = "entry_fee")
     private Double entryFee;
-
-    @Column(name = "is_active")
     private Boolean isActive;
-
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 
     public UUID getId() {
         return id;
@@ -60,12 +25,20 @@ public class LandmarkEntity {
         this.id = id;
     }
 
-    public DestinationEntity getDestination() {
-        return destination;
+    public UUID getDestinationId() {
+        return destinationId;
     }
 
-    public void setDestination(DestinationEntity destination) {
-        this.destination = destination;
+    public void setDestinationId(UUID destinationId) {
+        this.destinationId = destinationId;
+    }
+
+    public String getDestinationName() {
+        return destinationName;
+    }
+
+    public void setDestinationName(String destinationName) {
+        this.destinationName = destinationName;
     }
 
     public String getName() {

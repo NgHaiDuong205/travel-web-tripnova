@@ -1,6 +1,7 @@
 package com.duong.travelweb.repository;
 
 import com.duong.travelweb.model.entity.LandmarkEntity;
+import com.duong.travelweb.repository.custom.LandmarkRepositoryCustom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,7 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface LandmarkRepository extends JpaRepository<LandmarkEntity, UUID> {
+public interface LandmarkRepository extends JpaRepository<LandmarkEntity, UUID>, LandmarkRepositoryCustom {
     @Query("SELECT l FROM LandmarkEntity l WHERE l.destination.id = :destinationId AND l.isActive = true AND " +
            "(:category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
            "ORDER BY l.name ASC")

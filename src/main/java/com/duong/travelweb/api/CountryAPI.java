@@ -1,7 +1,6 @@
 package com.duong.travelweb.api;
 
 import com.duong.travelweb.model.dto.CountryDTO;
-import com.duong.travelweb.model.dto.CountryRequestDTO;
 import com.duong.travelweb.service.CountryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,16 +35,4 @@ public class CountryAPI {
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
-
-    @PostMapping("/")
-    public ResponseEntity<Void> createCountry(@RequestBody CountryRequestDTO countryRequestDTO) {
-        countryService.createCountry(countryRequestDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
-    
-    @DeleteMapping("/{id}/")
-    public ResponseEntity<Void> deleteCountry(@PathVariable UUID id) {
-        countryService.deleteCountry(id);
-        return ResponseEntity.noContent().build();
-    }
-}

@@ -92,7 +92,7 @@ public class HotelServiceImpl implements HotelService {
     @Transactional(readOnly = true)
     public HotelDTO getHotelById(UUID id, Map<String, Object> params) {
         HotelEntity hotelEntity = hotelRepository.findById(id).orElse(null);
-        if (hotelEntity == null) return null;
+        if (hotelEntity == null || !Boolean.TRUE.equals(hotelEntity.getIsActive())) return null;
 
         HotelDTO hotel = hotelDTOConverter.toHotelDTO(hotelEntity);
 

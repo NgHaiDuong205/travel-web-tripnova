@@ -10,6 +10,7 @@ import java.util.UUID;
 @Table(name = "room_types")
 public class RoomTypeEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
     private UUID id;
 

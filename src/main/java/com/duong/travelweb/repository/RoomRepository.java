@@ -96,4 +96,16 @@ public interface RoomRepository extends JpaRepository<RoomEntity, UUID>, RoomRep
 
     @Query("SELECT rta.roomType.id, rta.amenity.name FROM RoomTypeAmenityEntity rta WHERE rta.roomType.id IN :roomTypeIds")
     List<Object[]> findAmenityNamesByRoomTypeIds(@Param("roomTypeIds") List<UUID> roomTypeIds);
+
+    /** Tất cả phòng của khách sạn (mọi trạng thái) — cho admin. */
+    @Query("SELECT r FROM RoomEntity r JOIN FETCH r.roomType rt WHERE rt.hotel.id = :hotelId " +
+           "AND (:roomTypeId IS NULL OR rt.id = :roomTypeId) ORDER BY r.roomNumber")
+    List<RoomEntity> findAllByHotelIdForAdmin(@Param("hotelId") UUID hotelId, @Param("roomTypeId") UUID roomTypeId);
+
+    /** Số phòng là duy nhất trong 1 khách sạn (DB chỉ ràng buộc theo hạng phòng). */
+    @Query("SELECT COUNT(r) > 0 FROM RoomEntity r WHERE r.roomType.hotel.id = :hotelId " +
+           "AND LOWER(r.roomNumber) = LOWER(:roomNumber) AND (:excludeRoomId IS NULL OR r.id <> :excludeRoomId)")
+    boolean existsRoomNumberInHotel(@Param("hotelId") UUID hotelId,
+                                    @Param("roomNumber") String roomNumber,
+                                    @Param("excludeRoomId") UUID excludeRoomId);
 }

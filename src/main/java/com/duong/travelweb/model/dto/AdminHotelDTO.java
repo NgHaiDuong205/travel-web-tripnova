@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class HotelDTO {
+/** Khách sạn cho màn admin: đủ trường (HotelDTO public ẩn bớt bằng @JsonIgnore). */
+public class AdminHotelDTO {
     private UUID id;
     private String name;
     private String description;
@@ -14,43 +14,28 @@ public class HotelDTO {
     private Integer starRating;
     private String checkInTime;
     private String checkOutTime;
-    @JsonIgnore
     private String phone;
     private String email;
     private String cancellationPolicy;
     private Integer cancellationHours;
     private Boolean breakfastIncluded;
     private Boolean petFriendly;
-    @JsonIgnore
     private String googlePlaceId;
     private Integer totalRooms;
     private String coverImageUrl;
-    @JsonIgnore
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private Boolean isActive;
-    @JsonIgnore
     private LocalDateTime createdAt;
-    @JsonIgnore
     private LocalDateTime updatedAt;
-    @JsonIgnore
     private UUID destinationId;
     private String destinationName;
     private String countryName;
-    @JsonIgnore
     private UUID managedById;
-    @JsonIgnore
     private String managedByName;
     private List<String> amenities;
-    private Integer remainingRooms;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-
-    public Integer getRemainingRooms() {
-        return remainingRooms;
-    }
-
-    public void setRemainingRooms(Integer remainingRooms) {
-        this.remainingRooms = remainingRooms;
-    }
+    private List<UUID> amenityIds;
+    private Integer roomTypeCount;
 
     public UUID getId() {
         return id;
@@ -180,6 +165,22 @@ public class HotelDTO {
         this.coverImageUrl = coverImageUrl;
     }
 
+    public BigDecimal getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(BigDecimal latitude) {
+        this.latitude = latitude;
+    }
+
+    public BigDecimal getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(BigDecimal longitude) {
+        this.longitude = longitude;
+    }
+
     public Boolean getIsActive() {
         return isActive;
     }
@@ -252,19 +253,19 @@ public class HotelDTO {
         this.amenities = amenities;
     }
 
-    public BigDecimal getLatitude() {
-        return latitude;
+    public List<UUID> getAmenityIds() {
+        return amenityIds;
     }
 
-    public void setLatitude(BigDecimal latitude) {
-        this.latitude = latitude;
+    public void setAmenityIds(List<UUID> amenityIds) {
+        this.amenityIds = amenityIds;
     }
 
-    public BigDecimal getLongitude() {
-        return longitude;
+    public Integer getRoomTypeCount() {
+        return roomTypeCount;
     }
 
-    public void setLongitude(BigDecimal longitude) {
-        this.longitude = longitude;
+    public void setRoomTypeCount(Integer roomTypeCount) {
+        this.roomTypeCount = roomTypeCount;
     }
 }

@@ -2,6 +2,7 @@ package com.duong.travelweb.model.entity;
 
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -53,8 +54,15 @@ public class HotelEntity {
     @Column(name = "google_place_id")
     private String googlePlaceId;
 
-    @Column(name = "total_rooms")
+    /** Do trigger trg_rooms_sync_total cập nhật — không ghi từ ứng dụng. */
+    @Column(name = "total_rooms", insertable = false, updatable = false)
     private Integer totalRooms;
+
+    @Column(name = "latitude")
+    private BigDecimal latitude;
+
+    @Column(name = "longitude")
+    private BigDecimal longitude;
 
     @Column(name = "cover_image_url")
     private String coverImageUrl;
@@ -202,6 +210,22 @@ public class HotelEntity {
 
     public void setTotalRooms(Integer totalRooms) {
         this.totalRooms = totalRooms;
+    }
+
+    public BigDecimal getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(BigDecimal latitude) {
+        this.latitude = latitude;
+    }
+
+    public BigDecimal getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(BigDecimal longitude) {
+        this.longitude = longitude;
     }
 
     public String getCoverImageUrl() {

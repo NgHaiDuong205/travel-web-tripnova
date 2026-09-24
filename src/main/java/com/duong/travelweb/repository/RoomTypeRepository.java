@@ -20,4 +20,12 @@ public interface RoomTypeRepository extends JpaRepository<RoomTypeEntity, UUID> 
     /** [roomTypeId, số phòng] */
     @Query("SELECT r.roomType.id, COUNT(r) FROM RoomEntity r WHERE r.roomType.id IN :roomTypeIds GROUP BY r.roomType.id")
     List<Object[]> countRoomsByRoomTypeIds(@Param("roomTypeIds") List<UUID> roomTypeIds);
+
+    /** Tất cả hạng phòng của khách sạn (kể cả đã ẩn) — cho admin. */
+    @Query("SELECT rt FROM RoomTypeEntity rt WHERE rt.hotel.id = :hotelId ORDER BY rt.isActive DESC, rt.pricePerNight")
+    List<RoomTypeEntity> findAllByHotelId(@Param("hotelId") UUID hotelId);
+
+    /** [hotelId, số hạng phòng] */
+    @Query("SELECT rt.hotel.id, COUNT(rt) FROM RoomTypeEntity rt WHERE rt.hotel.id IN :hotelIds GROUP BY rt.hotel.id")
+    List<Object[]> countByHotelIds(@Param("hotelIds") List<UUID> hotelIds);
 }

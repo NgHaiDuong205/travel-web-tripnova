@@ -21,10 +21,8 @@ public class AmenityEntity {
     @Column(name = "category")
     private String category;
 
-    @OneToMany(mappedBy = "amenity", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private List<HotelAmenityEntity> hotelAmenities;
-
-    @OneToMany(mappedBy = "amenity", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    // Không cascade: room_type_amenities đã ON DELETE CASCADE ở DB
+    @OneToMany(mappedBy = "amenity", fetch = FetchType.LAZY)
     private List<RoomTypeAmenityEntity> roomTypeAmenities;
 
     public UUID getId() {
@@ -57,14 +55,6 @@ public class AmenityEntity {
 
     public void setCategory(String category) {
         this.category = category;
-    }
-
-    public List<HotelAmenityEntity> getHotelAmenities() {
-        return hotelAmenities;
-    }
-
-    public void setHotelAmenities(List<HotelAmenityEntity> hotelAmenities) {
-        this.hotelAmenities = hotelAmenities;
     }
 
     public List<RoomTypeAmenityEntity> getRoomTypeAmenities() {

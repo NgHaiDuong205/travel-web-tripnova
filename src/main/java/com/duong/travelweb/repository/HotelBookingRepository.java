@@ -48,4 +48,20 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
     /** Booking pending quá hạn giữ phòng — dùng cho job tự huỷ. */
     @Query("SELECT b FROM HotelBookingEntity b WHERE b.status = 'pending' AND b.createdAt < :before")
     List<HotelBookingEntity> findPendingCreatedBefore(@Param("before") LocalDateTime before);
+
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId")
+    boolean existsByRoomId(@Param("roomId") UUID roomId);
+
+    /** Phòng còn booking chưa kết thúc (pending/confirmed/checked_in, chưa tới ngày trả phòng). */
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId " +
+           "AND b.status IN ('pending', 'confirmed', 'checked_in') AND b.checkOutDate > :today")
+    boolean existsOpenBookingForRoom(@Param("roomId") UUID roomId, @Param("today") LocalDate today);
+
+    /** Booking còn mở của phòng giao với khoảng ngày [from, toExclusive). */
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId " +
+           "AND b.status IN ('pending', 'confirmed', 'checked_in') " +
+           "AND b.checkInDate < :toExclusive AND b.checkOutDate > :from")
+    boolean existsOpenBookingInRange(@Param("roomId") UUID roomId,
+                                     @Param("from") LocalDate from,
+                                     @Param("toExclusive") LocalDate toExclusive);
 }

@@ -6,6 +6,7 @@ import com.duong.travelweb.model.entity.HotelEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
+import jakarta.persistence.TypedQuery;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,6 +53,51 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
         return ((Number) query.getSingleResult()).longValue();
     }
 
+    @Override
+    public List<HotelEntity> findForAdmin(String keyword, UUID destinationId, Boolean active, int page, int limit) {
+        String jpql = "SELECT h FROM HotelEntity h LEFT JOIN FETCH h.destination d LEFT JOIN FETCH d.country WHERE 1=1"
+                + buildAdminCondition(keyword, destinationId, active) + " ORDER BY h.createdAt DESC, h.name";
+        TypedQuery<HotelEntity> query = entityManager.createQuery(jpql, HotelEntity.class);
+        bindAdminParams(query, keyword, destinationId, active);
+        query.setFirstResult((Math.max(page, 1) - 1) * limit);
+        query.setMaxResults(limit);
+        return query.getResultList();
+    }
+
+    @Override
+    public long countForAdmin(String keyword, UUID destinationId, Boolean active) {
+        String jpql = "SELECT COUNT(h) FROM HotelEntity h WHERE 1=1" + buildAdminCondition(keyword, destinationId, active);
+        TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
+        bindAdminParams(query, keyword, destinationId, active);
+        return query.getSingleResult();
+    }
+
+    private String buildAdminCondition(String keyword, UUID destinationId, Boolean active) {
+        StringBuilder where = new StringBuilder();
+        if (keyword != null) {
+            where.append(" AND (LOWER(h.name) LIKE :keyword OR LOWER(h.address) LIKE :keyword)");
+        }
+        if (destinationId != null) {
+            where.append(" AND h.destination.id = :destinationId");
+        }
+        if (active != null) {
+            where.append(" AND h.isActive = :active");
+        }
+        return where.toString();
+    }
+
+    private void bindAdminParams(TypedQuery<?> query, String keyword, UUID destinationId, Boolean active) {
+        if (keyword != null) {
+            query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
+        }
+        if (destinationId != null) {
+            query.setParameter("destinationId", destinationId);
+        }
+        if (active != null) {
+            query.setParameter("active", active);
+        }
+    }
+
     private void bindParameters(Query query, Map<String, Object> params) {
         for (Map.Entry<String, Object> entry : params.entrySet()) {
             query.setParameter(entry.getKey(), entry.getValue());
@@ -62,7 +108,7 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
         StringBuilder sql = new StringBuilder(selectClause);
         sql.append("LEFT JOIN destinations d ON h.destination_id = d.id ");
         sql.append("LEFT JOIN countries c ON d.country_id = c.id ");
-        sql.append("WHERE 1=1 ");
+        sql.append("WHERE h.is_active = true ");
 
         Map<String, Object> params = new LinkedHashMap<>();
 

@@ -1,40 +1,45 @@
 package com.duong.travelweb.model.dto;
 
-import java.util.ArrayList;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
 import java.util.List;
 import java.util.UUID;
 
-public class RoomTypeDTO {
-    private UUID id;
-    private UUID hotelId;
+/** Body tạo/sửa hạng phòng (admin). */
+public class RoomTypeRequestDTO {
+    @NotBlank(message = "Tên hạng phòng không được trống")
+    @Size(max = 100, message = "Tên tối đa 100 ký tự")
     private String name;
+
     private String description;
+
+    @Min(value = 1, message = "Số khách tối thiểu là 1")
+    @Max(value = 20, message = "Số khách tối đa là 20")
     private Integer maxOccupancy;
+
+    @Size(max = 60, message = "Loại giường tối đa 60 ký tự")
     private String bedType;
+
+    @DecimalMin(value = "0.0", inclusive = false, message = "Diện tích phải lớn hơn 0")
+    @DecimalMax(value = "9999.99", message = "Diện tích quá lớn")
     private Double areaSqM;
+
+    @NotNull(message = "Thiếu giá mỗi đêm")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Giá phải lớn hơn 0")
+    @DecimalMax(value = "9999999999.99", message = "Giá quá lớn")
     private Double pricePerNight;
+
     private String coverImageUrl;
-    private Integer totalRooms;
-    private List<String> amenities = new ArrayList<>();
-    private Boolean isActive;
-    /** Chỉ điền ở API admin (form sửa). */
+
     private List<UUID> amenityIds;
 
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public UUID getHotelId() {
-        return hotelId;
-    }
-
-    public void setHotelId(UUID hotelId) {
-        this.hotelId = hotelId;
-    }
+    private Boolean isActive;
 
     public String getName() {
         return name;
@@ -92,20 +97,12 @@ public class RoomTypeDTO {
         this.coverImageUrl = coverImageUrl;
     }
 
-    public Integer getTotalRooms() {
-        return totalRooms;
+    public List<UUID> getAmenityIds() {
+        return amenityIds;
     }
 
-    public void setTotalRooms(Integer totalRooms) {
-        this.totalRooms = totalRooms;
-    }
-
-    public List<String> getAmenities() {
-        return amenities;
-    }
-
-    public void setAmenities(List<String> amenities) {
-        this.amenities = amenities;
+    public void setAmenityIds(List<UUID> amenityIds) {
+        this.amenityIds = amenityIds;
     }
 
     public Boolean getIsActive() {
@@ -114,13 +111,5 @@ public class RoomTypeDTO {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
-    }
-
-    public List<UUID> getAmenityIds() {
-        return amenityIds;
-    }
-
-    public void setAmenityIds(List<UUID> amenityIds) {
-        this.amenityIds = amenityIds;
     }
 }

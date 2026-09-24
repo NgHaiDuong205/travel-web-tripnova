@@ -39,7 +39,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 
 ## 3. Đang dở
 Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong checklist mục 4, không cần hỏi**; làm xong mục nào thì đánh `[x]` vào checklist.
-- Đang làm: **A2 — Admin Hotels & Rooms** (BE trước, rồi FE). Chưa có code nào được viết cho phần này.
+- Đang làm: **A2 — Admin Hotels & Rooms**: BE xong (`api/AdminHotelAPI.java`, `service/impl/AdminHotelServiceImpl.java`, đã test E2E). **Còn FE** (trang admin Hotels: list/form khách sạn, hạng phòng, phòng, lịch khoá phòng).
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
 
@@ -132,12 +132,12 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/admin/dashboard (đã gồm tổng số, booking theo trạng thái, doanh thu 30 ngày, booking gần đây)
 - [ ] GET /dashboard/statistics · /revenue?from&to&groupBy · /recent-bookings · /recent-payments · /top-hotels · /top-destinations
 
-**A2. Hotels & Rooms** ← ĐANG LÀM
-- [ ] GET|POST /api/admin/hotels · GET|PUT|DELETE /{hotelId} (xoá mềm)
-- [ ] GET|POST /api/admin/hotels/{hotelId}/room-types · PUT|DELETE /{roomTypeId}
-- [ ] GET|POST /api/admin/hotels/{hotelId}/rooms · GET|PUT|DELETE /{roomId}
-- [ ] PUT /api/admin/hotels/{hotelId}/amenities {amenityIds}
-- [ ] PUT /api/admin/rooms/{roomId}/availability (bulk)
+**A2. Hotels & Rooms** ← BE xong, FE đang làm (`AdminHotelAPI`)
+- [x] GET|POST /api/admin/hotels · GET|PUT|DELETE /{hotelId} (xoá mềm)
+- [x] GET|POST /api/admin/hotels/{hotelId}/room-types · PUT|DELETE /{roomTypeId}
+- [x] GET|POST /api/admin/hotels/{hotelId}/rooms · GET|PUT|DELETE /{roomId}
+- [x] PUT /api/admin/hotels/{hotelId}/amenities {amenityIds}
+- [x] PUT /api/admin/rooms/{roomId}/availability {from,to (tính cả 2 đầu),status=blocked|available,reason} + GET ?from&to (chỉ trả ngày booked/blocked)
 - [ ] POST|DELETE /api/admin/hotels/{hotelId}/images (no table `hotel_images` — hiện chỉ có `cover_image_url`)
 
 **A3. Hotel bookings**
@@ -203,6 +203,12 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - CRA/ESLint đôi khi dùng **cache cũ** (báo lỗi ở số dòng không khớp file hiện tại) → `rm -rf node_modules/.cache` rồi build lại.
 - Không có bảng `reviews` trong DB (dù `proposed_apis.txt` có nhắc).
 - Máy thiếu RAM: dev server FE chạy nền từng bị hệ thống tắt. Chạy FE + BE cùng lúc có thể không ổn định; kiểm tra FE bằng `npx react-scripts build` là đủ.
+- `hotels.total_rooms` do trigger `trg_rooms_sync_total` → entity đã để `insertable=false, updatable=false` (nếu không Hibernate sẽ ghi đè số cũ). `hotels.updated_at` cũng có trigger.
+- `HotelDTO` (public) ẩn nhiều trường bằng `@JsonIgnore` (phone, isActive, destinationId…) → admin dùng `AdminHotelDTO` + `AdminHotelDTOConverter` (map tay, không ModelMapper vì Hotel/Destination trùng tên trường như `latitude`).
+- `HotelAmenityEntity` (map sai: bảng `hotel_amenities` không có cột `id`) đã **xoá**; `HotelEntity.hotelAmenities` là `@ManyToMany` trực tiếp. `room_type_amenities` (entity `@IdClass`) ghi bằng native insert `RoomTypeAmenityRepository.insertLink` — `saveAll/merge` sinh SQL lỗi.
+- Một số file `.java` dùng CRLF (vd `AmenityEntity.java`) → sửa bằng perl/sed với `\n` sẽ **không khớp**; dùng công cụ Edit.
+- **Test E2E: chỉ thao tác trên dữ liệu tự tạo**, không dùng phòng/khách sạn seed (từng xoá nhầm phòng 403 seed, đã khôi phục). `room_availability` từng có dòng `booked` mồ côi (không có booking).
+- Public: `/api/hotels/` và `/api/hotels/{id}/` giờ **chỉ trả khách sạn `is_active=true`** (xoá mềm từ admin).
 
 ## 7. Lệnh chạy / test
 ```bash

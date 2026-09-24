@@ -1,5 +1,6 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.converter.RoomTypeDTOConverter;
 import com.duong.travelweb.model.dto.RoomTypeDTO;
 import com.duong.travelweb.model.entity.RoomTypeEntity;
 import com.duong.travelweb.repository.RoomRepository;
@@ -18,10 +19,14 @@ import java.util.UUID;
 public class RoomTypeServiceImpl implements RoomTypeService {
     private final RoomTypeRepository roomTypeRepository;
     private final RoomRepository roomRepository;
+    private final RoomTypeDTOConverter roomTypeDTOConverter;
 
-    public RoomTypeServiceImpl(RoomTypeRepository roomTypeRepository, RoomRepository roomRepository) {
+    public RoomTypeServiceImpl(RoomTypeRepository roomTypeRepository,
+                               RoomRepository roomRepository,
+                               RoomTypeDTOConverter roomTypeDTOConverter) {
         this.roomTypeRepository = roomTypeRepository;
         this.roomRepository = roomRepository;
+        this.roomTypeDTOConverter = roomTypeDTOConverter;
     }
 
     @Override
@@ -42,20 +47,10 @@ public class RoomTypeServiceImpl implements RoomTypeService {
             amenities.computeIfAbsent((UUID) row[0], k -> new ArrayList<>()).add((String) row[1]);
         }
 
-        return roomTypes.stream().map(rt -> {
-            RoomTypeDTO dto = new RoomTypeDTO();
-            dto.setId(rt.getId());
-            dto.setHotelId(hotelId);
-            dto.setName(rt.getName());
-            dto.setDescription(rt.getDescription());
-            dto.setMaxOccupancy(rt.getMaxOccupancy());
-            dto.setBedType(rt.getBedType());
-            dto.setAreaSqM(rt.getAreaSqM());
-            dto.setPricePerNight(rt.getPricePerNight());
-            dto.setCoverImageUrl(rt.getCoverImageUrl());
-            dto.setTotalRooms(roomCounts.getOrDefault(rt.getId(), 0));
-            dto.setAmenities(amenities.getOrDefault(rt.getId(), new ArrayList<>()));
-            return dto;
-        }).toList();
+        return roomTypes.stream()
+                .map(rt -> roomTypeDTOConverter.toRoomTypeDTO(rt,
+                        roomCounts.getOrDefault(rt.getId(), 0),
+                        amenities.getOrDefault(rt.getId(), new ArrayList<>())))
+                .toList();
     }
 }

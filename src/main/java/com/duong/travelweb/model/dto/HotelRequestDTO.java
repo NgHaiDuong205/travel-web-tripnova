@@ -1,63 +1,84 @@
 package com.duong.travelweb.model.dto;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class HotelDTO {
-    private UUID id;
-    private String name;
-    private String description;
-    private String address;
-    private Integer starRating;
-    private String checkInTime;
-    private String checkOutTime;
-    @JsonIgnore
-    private String phone;
-    private String email;
-    private String cancellationPolicy;
-    private Integer cancellationHours;
-    private Boolean breakfastIncluded;
-    private Boolean petFriendly;
-    @JsonIgnore
-    private String googlePlaceId;
-    private Integer totalRooms;
-    private String coverImageUrl;
-    @JsonIgnore
-    private Boolean isActive;
-    @JsonIgnore
-    private LocalDateTime createdAt;
-    @JsonIgnore
-    private LocalDateTime updatedAt;
-    @JsonIgnore
+/** Body tạo/sửa khách sạn (admin). */
+public class HotelRequestDTO {
+    @NotNull(message = "Thiếu điểm đến")
     private UUID destinationId;
-    private String destinationName;
-    private String countryName;
-    @JsonIgnore
-    private UUID managedById;
-    @JsonIgnore
-    private String managedByName;
-    private List<String> amenities;
-    private Integer remainingRooms;
+
+    @NotBlank(message = "Tên khách sạn không được trống")
+    @Size(max = 200, message = "Tên tối đa 200 ký tự")
+    private String name;
+
+    private String description;
+
+    @NotBlank(message = "Địa chỉ không được trống")
+    private String address;
+
+    @NotNull(message = "Thiếu hạng sao")
+    @Min(value = 1, message = "Hạng sao từ 1 đến 5")
+    @Max(value = 5, message = "Hạng sao từ 1 đến 5")
+    private Integer starRating;
+
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d(:[0-5]\\d)?$", message = "Giờ phải có dạng HH:mm")
+    private String checkInTime;
+
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d(:[0-5]\\d)?$", message = "Giờ phải có dạng HH:mm")
+    private String checkOutTime;
+
+    @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")
+    private String phone;
+
+    @Email(message = "Email không hợp lệ")
+    @Size(max = 255)
+    private String email;
+
+    @Pattern(regexp = "^(free|partial|strict)$", message = "Chính sách huỷ phải là free, partial hoặc strict")
+    private String cancellationPolicy;
+
+    @Min(value = 0, message = "Số giờ huỷ không hợp lệ")
+    @Max(value = 720, message = "Số giờ huỷ tối đa 720")
+    private Integer cancellationHours;
+
+    private Boolean breakfastIncluded;
+
+    private Boolean petFriendly;
+
+    private String coverImageUrl;
+
+    @DecimalMin(value = "-90", message = "Vĩ độ không hợp lệ")
+    @DecimalMax(value = "90", message = "Vĩ độ không hợp lệ")
     private BigDecimal latitude;
+
+    @DecimalMin(value = "-180", message = "Kinh độ không hợp lệ")
+    @DecimalMax(value = "180", message = "Kinh độ không hợp lệ")
     private BigDecimal longitude;
 
-    public Integer getRemainingRooms() {
-        return remainingRooms;
+    private UUID managedById;
+
+    private List<UUID> amenityIds;
+
+    private Boolean isActive;
+
+    public UUID getDestinationId() {
+        return destinationId;
     }
 
-    public void setRemainingRooms(Integer remainingRooms) {
-        this.remainingRooms = remainingRooms;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
+    public void setDestinationId(UUID destinationId) {
+        this.destinationId = destinationId;
     }
 
     public String getName() {
@@ -156,100 +177,12 @@ public class HotelDTO {
         this.petFriendly = petFriendly;
     }
 
-    public String getGooglePlaceId() {
-        return googlePlaceId;
-    }
-
-    public void setGooglePlaceId(String googlePlaceId) {
-        this.googlePlaceId = googlePlaceId;
-    }
-
-    public Integer getTotalRooms() {
-        return totalRooms;
-    }
-
-    public void setTotalRooms(Integer totalRooms) {
-        this.totalRooms = totalRooms;
-    }
-
     public String getCoverImageUrl() {
         return coverImageUrl;
     }
 
     public void setCoverImageUrl(String coverImageUrl) {
         this.coverImageUrl = coverImageUrl;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public UUID getDestinationId() {
-        return destinationId;
-    }
-
-    public void setDestinationId(UUID destinationId) {
-        this.destinationId = destinationId;
-    }
-
-    public String getDestinationName() {
-        return destinationName;
-    }
-
-    public void setDestinationName(String destinationName) {
-        this.destinationName = destinationName;
-    }
-
-    public String getCountryName() {
-        return countryName;
-    }
-
-    public void setCountryName(String countryName) {
-        this.countryName = countryName;
-    }
-
-    public UUID getManagedById() {
-        return managedById;
-    }
-
-    public void setManagedById(UUID managedById) {
-        this.managedById = managedById;
-    }
-
-    public String getManagedByName() {
-        return managedByName;
-    }
-
-    public void setManagedByName(String managedByName) {
-        this.managedByName = managedByName;
-    }
-
-    public List<String> getAmenities() {
-        return amenities;
-    }
-
-    public void setAmenities(List<String> amenities) {
-        this.amenities = amenities;
     }
 
     public BigDecimal getLatitude() {
@@ -266,5 +199,29 @@ public class HotelDTO {
 
     public void setLongitude(BigDecimal longitude) {
         this.longitude = longitude;
+    }
+
+    public UUID getManagedById() {
+        return managedById;
+    }
+
+    public void setManagedById(UUID managedById) {
+        this.managedById = managedById;
+    }
+
+    public List<UUID> getAmenityIds() {
+        return amenityIds;
+    }
+
+    public void setAmenityIds(List<UUID> amenityIds) {
+        this.amenityIds = amenityIds;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 }

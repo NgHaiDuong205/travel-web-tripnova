@@ -13,8 +13,14 @@ import java.util.UUID;
 public interface DestinationRepository extends JpaRepository<DestinationEntity, UUID> {
     @Query("SELECT d FROM DestinationEntity d WHERE " +
            "d.isActive = true AND " +
-           "(:countryCode IS NULL OR :countryCode = '' OR LOWER(d.country.countryCode) = LOWER(:countryCode)) AND " +
-           "(:continentCode IS NULL OR :continentCode = '' OR LOWER(d.country.continent.code) = LOWER(:continentCode))")
-    List<DestinationEntity> findDestinations(@Param("countryCode") String countryCode, 
-                                             @Param("continentCode") String continentCode);
+           "(:countryCode = '' OR LOWER(d.country.countryCode) = LOWER(:countryCode)) AND " +
+           "(:continentCode = '' OR LOWER(d.country.continent.code) = LOWER(:continentCode))")
+    List<DestinationEntity> queryDestinations(@Param("countryCode") String countryCode,
+                                              @Param("continentCode") String continentCode);
+
+    // Tham số String không được dùng "IS NULL" (stringtype=unspecified → Postgres không suy ra kiểu) → null đổi thành ""
+    default List<DestinationEntity> findDestinations(String countryCode, String continentCode) {
+        return queryDestinations(countryCode == null ? "" : countryCode.trim(),
+                continentCode == null ? "" : continentCode.trim());
+    }
 }

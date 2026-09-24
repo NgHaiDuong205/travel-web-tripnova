@@ -13,15 +13,24 @@ import java.util.UUID;
 @Repository
 public interface LandmarkRepository extends JpaRepository<LandmarkEntity, UUID> {
     @Query("SELECT l FROM LandmarkEntity l WHERE l.destination.id = :destinationId AND l.isActive = true AND " +
-           "(:category IS NULL OR :category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
+           "(:category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
            "ORDER BY l.name ASC")
-    List<LandmarkEntity> findActiveLandmarksByDestinationId(@Param("destinationId") UUID destinationId, 
-                                                            @Param("category") String category);
+    List<LandmarkEntity> queryActiveLandmarksByDestinationId(@Param("destinationId") UUID destinationId,
+                                                             @Param("category") String category);
+
+    // Tham số String không được dùng "IS NULL" (stringtype=unspecified → Postgres không suy ra kiểu) → null đổi thành ""
+    default List<LandmarkEntity> findActiveLandmarksByDestinationId(UUID destinationId, String category) {
+        return queryActiveLandmarksByDestinationId(destinationId, category == null ? "" : category.trim());
+    }
 
     @Query("SELECT l FROM LandmarkEntity l WHERE l.isActive = true AND " +
-           "(:category IS NULL OR :category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
+           "(:category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
            "ORDER BY l.name ASC")
-    List<LandmarkEntity> findAllActiveLandmarks(@Param("category") String category);
+    List<LandmarkEntity> queryAllActiveLandmarks(@Param("category") String category);
+
+    default List<LandmarkEntity> findAllActiveLandmarks(String category) {
+        return queryAllActiveLandmarks(category == null ? "" : category.trim());
+    }
 
     @Query("SELECT l FROM LandmarkEntity l WHERE l.id = :landmarkId AND l.destination.id = :destinationId AND l.isActive = true AND l.destination.isActive = true")
     Optional<LandmarkEntity> findActiveLandmarkByIdAndDestinationId(@Param("landmarkId") UUID landmarkId, 

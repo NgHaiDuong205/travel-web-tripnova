@@ -1,6 +1,6 @@
 # HANDOFF — TripNova (BE + FE)
 
-Cập nhật: 2026-09-23 (cuối phiên 1). Người dùng yêu cầu **làm lần lượt cả FE + BE, không cần hỏi ý kiến**.
+Cập nhật: 2026-09-24. Người dùng yêu cầu **làm lần lượt cả FE + BE, không cần hỏi ý kiến**.
 
 ## 1. Mục tiêu tổng thể
 Làm hết các API trong spec `C:\Users\HPC\Desktop\1.pdf` cho:
@@ -16,6 +16,8 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Auth JWT | `bc41828` | `0ce057d` |
 | Hotel booking + payment (mock) | `340a434` | `38b096e` |
 | /api/me (profile, dashboard, bookings, payments) | `dd6b562` | `f8124e7` |
+| Lookup (continents/amenities/room-types), Favorites, Contact | `6b90f35` | `954f3d6` |
+| Admin đợt 1 (dashboard, bookings, users, payments, contact messages) | `8e3db96` | **đang làm, chưa commit** |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -23,6 +25,10 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 - Booking `[AUTH]`: `POST /api/hotel-bookings/`, `GET /api/hotel-bookings/{id}/`, `POST /api/hotel-bookings/{id}/cancel/`
 - Payment `[AUTH]`: `GET /api/payments/{id}/`, `POST /api/payments/{id}/mock-confirm/ {success}`
 - Me `[AUTH]`: `GET|PUT /api/me/profile/`, `PUT /api/me/change-password/`, `GET /api/me/dashboard/`, `GET /api/me/bookings/?status=all|upcoming|completed|cancelled|pending&page&limit`, `GET /api/me/bookings/{id}/`, `POST /api/me/bookings/{id}/cancel/`, `GET /api/me/payments/?status=all|pending|success|failed|refunded&page&limit`, `GET /api/me/payments/summary/`, `GET /api/me/payments/{id}/`
+- Lookup (public): `GET /api/continents/`, `/api/amenities/?category=`, `/api/room-types/?hotelId=`, `/api/hotels/{id}/room-types/`
+- Favorites `[AUTH]`: `GET /api/favorites/?type=`, `POST /api/favorites/ {itemType,itemId}` (idempotent, hiện chỉ `hotel`), `DELETE /api/favorites/{id}/`, `GET /api/favorites/check/?itemType&itemId`
+- Contact (public): `POST /api/contact/`, `GET /api/contact/info/` (lấy từ `app.contact.*`)
+- Admin `[ADMIN]` (`api/AdminAPI.java`): `GET /api/admin/dashboard/`; `GET /api/admin/hotel-bookings/?status&q&page&limit`, `GET …/{id}/`, `PUT …/{id}/status/ {status,reason}`; `GET /api/admin/users/?q&role&status=active|locked`, `GET …/{id}/`, `PUT …/{id}/status/ {isActive}`, `PUT …/{id}/roles/ {roles:[…]}`; `GET /api/admin/payments/?status`; `GET /api/admin/contact-messages/?status`, `PUT …/{id}/status/`
 - `POST/DELETE /api/countries/` và `/api/admin/**` yêu cầu ROLE_ADMIN.
 
 ### File BE chính
@@ -31,18 +37,24 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 ### File FE chính
 `config/axiosConfig.js` (gắn Bearer, refresh 1 lần khi 401, lỗi có `.status/.details`), `utils/tokenStorage.js`, `context/AuthContext.js` (`useAuth()`: user, isLoggedIn, initializing, login, register, logout, refreshUser, hasRole), `routes/PrivateRoute.js` (`role="ADMIN"`), services: `auth|booking|payment|me|hotel|room|country|destination`, pages mới: `auth/ForgotPassword`, `auth/ResetPassword`, `client/Checkout`, `client/Payment`, `client/BookingDetail`; đã nối API thật: Login, Register, Profile, BookingHistory, PaymentHistory, AccountSettings, RoomDetail. Components chung: `FormInput, FormAlert, StatusBadge, Pagination, UserAvatar`, `client/BookingListItem`. `utils/formatters.js` (formatMoney/Date, isoDateFromToday, nightsBetween).
 
-## 3. Đang dở
-Không có gì dở giữa chừng — vừa xong nhóm /api/me và commit cả 2 repo.
+## 3. Đang dở — FE Admin đợt 1 (`D:\fe-tripnova`, chưa commit)
+Đã viết (chưa build, chưa commit):
+- `src/services/adminService.js` — gọi toàn bộ API admin đợt 1 + `BOOKING_NEXT_STATUSES`, `ALL_ROLES`, `CONTACT_STATUS_LABELS`.
+- `src/components/layouts/AdminLayout.js` — sidebar (Dashboard, Bookings, Users, Payments, Messages), dùng `<Outlet/>`.
+- `src/components/admin/RevenueChart.js` — biểu đồ cột doanh thu 30 ngày (1 màu #003580, tooltip hover, bảng số liệu trong `<details>`).
 
-## 4. Bước tiếp theo (theo thứ tự)
-1. **Lookup public**: `GET /api/continents/`, `/api/amenities/?category=`, `/api/room-types/?hotelId=` (entity đã có). FE dùng cho filter Hotels.
-2. **Favorites** (bảng `favorites`) → trang FE `SavedTrips` (đang mockup): `GET/POST /api/favorites/`, `DELETE /api/favorites/{id}/`, `GET /api/favorites/check/`. Nút tim ở HotelDetail/HotelListCard.
-3. **Reviews** khách sạn (`reviews`): `GET/POST /api/hotels/{id}/reviews/` (chỉ user đã có booking completed/confirmed đã qua ngày).
-4. **Contact**: `POST /api/contact/` (bảng `contact_messages`), `GET /api/contact/info/`; FE menu có `/contacts` chưa có trang.
-5. **Admin** (FE `routes/AdminRoutes.js` mới là khung): dashboard thống kê, CRUD hotels/rooms/room-types, quản lý hotel-bookings (đổi status), users (status/roles), payments. Cần cách tạo admin đầu tiên (xem mục 6).
-6. Cars / Flights / Tours: **chưa có entity** — tạo từ `db_schema_guide.txt` (kiểm tra schema thật bằng psql trước).
-7. Cổng thanh toán thật (VNPay sandbox): `POST /api/payments/webhook/{provider}/` + `GET /api/payments/return/{provider}/` gọi `PaymentService.handleGatewayResult(...)` (đã có, idempotent). Tắt `app.payment.mock-enabled`.
-8. OAuth2 Google/Facebook (đã bỏ nút Google ở Login/Register vì chưa có backend).
+Còn phải làm, theo thứ tự:
+1. Pages trong `src/pages/admin/`: `Dashboard` (thẻ tổng, RevenueChart, số booking theo status, recent bookings), `Bookings` (bảng + lọc status + ô tìm `q` + nút chuyển trạng thái theo `BOOKING_NEXT_STATUSES`, huỷ thì hỏi lý do), `Users` (bảng + lọc q/role/status + khoá/mở + sửa roles bằng checkbox `ALL_ROLES`), `Payments` (bảng + lọc status), `Messages` (danh sách + đổi status).
+2. Thay `src/routes/AdminRoutes.js` (đang là khung đỏ tạm) bằng route lồng trong `AdminLayout`. `AppRouter` đã bọc `/admin/*` bằng `PrivateRoute role="ADMIN"`.
+3. `npx react-scripts build` → commit FE.
+
+## 4. Bước tiếp theo (sau khi xong mục 3)
+1. **Admin đợt 2 — CRUD khách sạn**: `GET/POST/PUT/DELETE /api/admin/hotels/` (xoá mềm `is_active=false`), room-types, rooms (+ FE form). Lưu ý bẫy ở mục 6: `hotels.total_rooms` do trigger, `check_in_time/check_out_time` là kiểu `time`, `cancellation_policy` ∈ free|partial|strict, `star_rating` 1–5, `destination_id` NOT NULL.
+2. Cars / Flights / Tours: **chưa có entity** — tạo từ `db_schema_guide.txt` (kiểm tra schema thật bằng psql trước). Sau đó mở Favorites cho tour/car/flight (`FavoriteServiceImpl.SUPPORTED_TYPES`).
+3. Cổng thanh toán thật (VNPay sandbox): `POST /api/payments/webhook/{provider}/` + `GET /api/payments/return/{provider}/` gọi `PaymentService.handleGatewayResult(...)` (đã có, idempotent). Tắt `app.payment.mock-enabled`.
+4. OAuth2 Google/Facebook (đã bỏ nút Google ở Login/Register vì chưa có backend).
+5. **Reviews: DB không có bảng `reviews`** → cần tạo bảng (ddl-auto=none, phải viết SQL migration) hoặc bỏ tính năng; hỏi người dùng trước khi tạo bảng.
+6. Cải tiến nhỏ: `FavoriteButton` gọi `/check/` cho từng card (10 request/trang) → có thể gom bằng 1 lần `GET /api/favorites/`.
 
 ## 5. Quyết định kỹ thuật & lý do
 - **Trailing slash** ở mọi endpoint (theo `.cursorrules`, FE cũng gọi có `/`).
@@ -69,7 +81,11 @@ Không có gì dở giữa chừng — vừa xong nhóm /api/me và commit cả 
 - `pdftotext` làm vỡ tiếng Việt của `1.pdf`.
 - `application-uat.properties` (user/pass DB) bị gitignore — không commit, không in ra.
 - Commit: **không thêm dòng Co-Authored-By Claude** (người dùng yêu cầu).
-- Chưa có admin nào: tạo bằng SQL: `insert into user_roles(user_id, role_id) select u.id, r.id from users u, roles r where u.email='<email>' and r.name='ADMIN';` rồi đăng nhập lại (roles nằm trong JWT).
+- Tạo admin đầu tiên: đăng ký tài khoản, rồi chạy app với biến môi trường `ADMIN_EMAIL=<email>` (`app.admin.bootstrap-email`, xử lý trong `config/RoleInitializer.java`) — hoặc SQL: `insert into user_roles(user_id, role_id) select u.id, r.id from users u, roles r where u.email='<email>' and r.name='ADMIN';`. Sau đó **đăng nhập lại** (roles nằm trong JWT). Đổi role/khoá user cũng thu hồi refresh token → user phải đăng nhập lại.
+- Spring Boot đọc `application.properties` theo **ISO-8859-1**: giá trị tiếng Việt có dấu sẽ lỗi font → dùng ASCII hoặc `\uXXXX`. Công cụ Edit tự đổi `\uXXXX` thành ký tự thật, nên đã để `app.contact.address=Ha Noi, Viet Nam`. Comment tiếng Việt thì không sao.
+- CRA/ESLint đôi khi dùng **cache cũ** (báo lỗi ở số dòng không khớp file hiện tại) → `rm -rf node_modules/.cache` rồi build lại.
+- Không có bảng `reviews` trong DB (dù `proposed_apis.txt` có nhắc).
+- Máy thiếu RAM: dev server FE chạy nền từng bị hệ thống tắt. Chạy FE + BE cùng lúc có thể không ổn định; kiểm tra FE bằng `npx react-scripts build` là đủ.
 
 ## 7. Lệnh chạy / test
 ```bash

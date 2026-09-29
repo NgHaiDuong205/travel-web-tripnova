@@ -1,0 +1,83 @@
+# travel-web-tripnova AI Coding Rules & Standards
+
+Chào mừng bạn đến với quy chuẩn lập trình dành cho dự án **travel-web-tripnova**. Tất cả các trợ lý AI và nhà phát triển làm việc trong dự án này phải tuyệt đối tuân thủ các quy tắc dưới đây để bảo đảm tính đồng nhất và chất lượng mã nguồn.
+
+---
+
+## 🚀 1. Tổng quan & Công nghệ sử dụng
+- **Ngôn ngữ:** Java 21
+- **Framework:** Spring Boot 4.0.3, Spring Data JPA
+- **Database:** PostgreSQL (Hành vi chính thức), H2 (Dùng cho kiểm thử)
+- **Công cụ ánh xạ:** ModelMapper 3.2.6
+- **Quản lý dependencies:** Maven
+- **Lưu ý Đặc biệt về Lombok:** Mặc dù dự án có Lombok trong `pom.xml`, **KHÔNG SỬ DỤNG** các annotation của Lombok (như `@Getter`, `@Setter`, `@Data`, `@RequiredArgsConstructor`) trong Entities, DTOs, hay Services. Hãy viết thủ công **getters, setters** và **explicit constructors** để đồng nhất với mã nguồn hiện tại.
+
+---
+
+## 📁 2. Cấu trúc Thư mục & Layered Architecture
+Mã nguồn Java nằm trong `com.duong.travelweb` và được tổ chức chặt chẽ theo các tầng:
+
+### A. Tầng API / Controllers (`com.duong.travelweb.api`)
+- Các class phải có annotation `@RestController`.
+- Đặt tên theo mẫu: `[EntityName]API.java` (Ví dụ: `DestinationAPI.java`, `HotelAPI.java`).
+- **Dependency Injection:** Sử dụng Constructor Injection thủ công (không dùng `@Autowired` trên field hoặc Lombok).
+- **Quy tắc Request/Response:**
+  - Luôn trả về `ResponseEntity<DTO>` hoặc `ResponseEntity<List<DTO>>`. **Tuyệt đối không trả về Entity trực tiếp**.
+  - Các endpoint URL phải kết thúc bằng dấu gạch chéo `/` (Ví dụ: `@GetMapping("/api/destinations/")`, `@GetMapping("/api/destinations/{id}/")`).
+  - Sử dụng `@PathVariable("paramName")` và `@RequestParam(required = false)` rõ ràng.
+
+### B. Tầng Nghiệp vụ / Services (`com.duong.travelweb.service`)
+- **Interfaces:** Nằm trực tiếp trong package `com.duong.travelweb.service` (Ví dụ: `DestinationService.java`).
+- **Implementations:** Nằm trong package `com.duong.travelweb.service.impl` và đặt tên hậu tố `ServiceImpl` (Ví dụ: `DestinationServiceImpl.java`).
+- Sử dụng annotation `@Service` ở lớp Implement.
+- Đánh dấu `@Transactional(readOnly = true)` cho các phương thức chỉ đọc dữ liệu.
+- Đánh dấu `@Transactional` cho các phương thức có thay đổi dữ liệu (insert/update/delete).
+
+### C. Tầng Dữ liệu / Repositories (`com.duong.travelweb.repository`)
+- Kế thừa `JpaRepository<Entity, UUID>`.
+- Các câu truy vấn tĩnh (static query) sử dụng JPQL `@Query` với cú pháp rõ ràng và parameter binding dùng `@Param`.
+- **Custom Dynamic Query (Truy vấn động phức tạp):**
+  - **Interface Custom:** Nằm trong `com.duong.travelweb.repository.custom` đặt tên là `[EntityName]RepositoryCustom.java`.
+  - **Implementation Custom:** Nằm trong `com.duong.travelweb.repository.custom.impl` đặt tên là `[EntityName]RepositoryImpl.java`.
+  - Sử dụng `EntityManager` và `@PersistenceContext` để xây dựng câu lệnh SQL Native an toàn (tránh SQL Injection) sử dụng parameter binding.
+
+---
+
+## 🧩 3. DTO, Entities & Converters
+
+### Entities (`com.duong.travelweb.model.entity`)
+- Đặt tên lớp kết thúc bằng `Entity` (Ví dụ: `DestinationEntity.java`).
+- Sử dụng các annotation JPA tiêu chuẩn: `@Entity`, `@Table`, `@Id`, `@Column`, `@ManyToOne`, `@OneToMany`.
+- Khóa chính luôn là `UUID`.
+- Viết getters/setters thủ công.
+
+### DTOs (`com.duong.travelweb.model.dto`)
+- Đặt tên lớp kết thúc bằng `DTO` hoặc `RequestDTO` (Ví dụ: `DestinationDTO.java`, `CountryRequestDTO.java`).
+- Không chứa logic nghiệp vụ, chỉ chứa các trường dữ liệu phẳng hóa (flattened) và getters/setters thủ công.
+
+### Converters (`com.duong.travelweb.converter`)
+- Đặt tên lớp kết thúc bằng `DTOConverter` hoặc `SearchBuilderConverter` (Ví dụ: `DestinationDTOConverter.java`).
+- Đánh dấu là `@Component`.
+- Sử dụng `ModelMapper` để ánh xạ tự động các thuộc tính phẳng, và thực hiện ánh xạ thủ công (manual override) các thuộc tính liên kết phức tạp (ví dụ: gán Code, Name của Country và Continent).
+
+---
+
+## 🔍 4. Search Builder Pattern
+Đối với các bộ lọc tìm kiếm nâng cao (như tìm kiếm Khách sạn, Phòng, Quốc gia):
+- Tạo lớp Builder trong `com.duong.travelweb.builder` (Ví dụ: `HotelSearchBuilder.java`).
+- Triển khai theo mẫu Classic Builder Pattern với lớp static lồng nhau `Builder`.
+- Dùng Builder này để gói gọn các tham số tìm kiếm, sau đó truyền vào Repository Custom.
+
+---
+
+## 🚨 5. Xử lý Lỗi & Exception Handling
+- Định nghĩa các Business Exception trong `com.duong.travelweb.exception` (Ví dụ: `FieldRequireException.java`).
+- Xử lý ngoại lệ tập trung (Global Exception Handling) tại `ControllerAdvisor.java` thuộc `com.duong.travelweb.advice` bằng cách kế thừa `ResponseEntityExceptionHandler` và sử dụng `@ExceptionHandler`.
+- Định dạng lỗi trả về thống nhất qua `ErrorResponseDTO`.
+
+---
+
+## 📝 6. Quy chuẩn viết Code (Formatting & Coding Style)
+- Sử dụng thụt lề (indentation) bằng **4 khoảng trắng (spaces)**.
+- Luôn kiểm tra kiểm tra điều kiện rỗng/null và trạng thái hoạt động (`isActive = true`) của các thực thể trước khi thực hiện logic tiếp theo.
+- Tránh viết mã lặp lại (DRY - Don't Repeat Yourself). Tận dụng tối đa các Converter và Service dùng chung.

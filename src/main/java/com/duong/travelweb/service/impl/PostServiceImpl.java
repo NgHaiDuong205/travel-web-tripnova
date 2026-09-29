@@ -15,6 +15,8 @@ import com.duong.travelweb.repository.UserRepository;
 import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.PostService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -49,6 +51,8 @@ public class PostServiceImpl implements PostService {
     private final PostReactionRepository postReactionRepository;
     private final CommentRepository commentRepository;
     private final HotelBookingRepository hotelBookingRepository;
+    @PersistenceContext
+    private EntityManager entityManager;
     private final UserRepository userRepository;
     private final EntityReferenceService entityReferenceService;
     private final ObjectMapper objectMapper;
@@ -74,8 +78,8 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional(readOnly = true)
     public Page<PostDTO> search(PostSearchBuilder criteria, UUID viewerId, int page, int limit) {
-        if (criteria.getEntityType() != null && !EntityReferenceService.LINKED_TYPES.contains(criteria.getEntityType())) {
-            throw ApiException.badRequest("entityType phải là một trong: " + String.join(", ", EntityReferenceService.LINKED_TYPES));
+        if (criteria.getEntityType() != null && !EntityReferenceService.REVIEWABLE_TYPES.contains(criteria.getEntityType())) {
+            throw ApiException.badRequest("entityType phải là một trong: " + String.join(", ", EntityReferenceService.REVIEWABLE_TYPES));
         }
         if (criteria.getStatus() != null && !STATUSES.contains(criteria.getStatus())) {
             throw ApiException.badRequest("Trạng thái không hợp lệ: " + criteria.getStatus());
@@ -127,8 +131,7 @@ public class PostServiceImpl implements PostService {
         post.setUser(user);
         post.setEntityType(entityType);
         post.setEntityId(request.getEntityId());
-        post.setIsVerifiedBooking("hotel".equals(entityType)
-                && hotelBookingRepository.existsCompletedStay(userId, request.getEntityId(), LocalDate.now()));
+        post.setIsVerifiedBooking(hasCompletedBooking(userId, entityType, request.getEntityId()));
         post.setUpvotes(0);
         post.setDownvotes(0);
         post.setCreatedAt(now);
@@ -212,6 +215,36 @@ public class PostServiceImpl implements PostService {
                     "/my-reviews", "post", post.getId());
         }
         return toDTO(post, null);
+    }
+
+    /**
+     * User đã thực sự dùng dịch vụ: đã trả phòng / trả xe / đi tour / bay xong, hoặc booking đã xác nhận mà thời điểm
+     * kết thúc đã qua (admin chưa kịp chuyển trạng thái). Điểm đến / địa danh không có booking -> false.
+     */
+    private boolean hasCompletedBooking(UUID userId, String entityType, UUID entityId) {
+        String sql = switch (entityType) {
+            case "hotel" -> null;
+            case "tour" -> "SELECT EXISTS (SELECT 1 FROM tour_bookings b JOIN tours t ON t.id = b.tour_id "
+                    + "WHERE b.user_id = :u AND b.tour_id = :e AND (b.status IN ('checked_in', 'completed') "
+                    + "OR (b.status = 'confirmed' AND b.departure_date + COALESCE(t.duration_days, 1) <= CURRENT_DATE)))";
+            case "car" -> "SELECT EXISTS (SELECT 1 FROM car_bookings b WHERE b.user_id = :u AND b.car_id = :e "
+                    + "AND (b.status IN ('checked_out', 'completed') "
+                    + "OR (b.status IN ('confirmed', 'checked_in') AND b.return_date <= now())))";
+            case "flight" -> "SELECT EXISTS (SELECT 1 FROM flight_bookings b JOIN flights f ON f.id = b.flight_id "
+                    + "WHERE b.user_id = :u AND b.flight_id = :e AND (b.status IN ('checked_in', 'completed') "
+                    + "OR (b.status = 'confirmed' AND f.arrival_time <= now())))";
+            default -> "";
+        };
+        if (sql == null) {
+            return hotelBookingRepository.existsCompletedStay(userId, entityId, LocalDate.now());
+        }
+        if (sql.isEmpty()) {
+            return false;
+        }
+        return (Boolean) entityManager.createNativeQuery(sql)
+                .setParameter("u", userId)
+                .setParameter("e", entityId)
+                .getSingleResult();
     }
 
     @Override

@@ -76,6 +76,18 @@ public class OrderFactory {
         return new PendingOrder(order, payment);
     }
 
+    /** Chốt tổng tiền khi order được tạo trước rồi mới thêm từng booking (đơn nhiều dòng từ giỏ hàng). */
+    public void applyTotal(PendingOrder pending, BigDecimal total) {
+        pending.order().setSubtotal(total);
+        pending.order().setTotalAmount(total);
+        pending.payment().setAmount(total);
+    }
+
+    /** Trang thanh toán chung cho xe / chuyến bay / tour. */
+    public String tripPaymentUrl(PaymentEntity payment) {
+        return frontendUrl + "/trip-payment/" + payment.getId();
+    }
+
     /** Giao dịch mới nhất của order (null nếu chưa có). */
     public PaymentEntity findLatestPayment(OrderEntity order) {
         List<PaymentEntity> payments = paymentRepository.findByOrderIds(List.of(order.getId()));

@@ -1,6 +1,7 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.FlightBookingDTO;
 import com.duong.travelweb.model.dto.FlightBookingRequestDTO;
 import com.duong.travelweb.model.dto.FlightOrderCreatedDTO;
@@ -79,6 +80,62 @@ public class FlightBookingServiceImpl implements FlightBookingService {
     @Override
     @Transactional
     public FlightOrderCreatedDTO create(UUID userId, FlightBookingRequestDTO request) {
+        Prepared prepared = prepare(request, true);
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, prepared.total(), request.getPaymentMethod());
+        List<FlightBookingEntity> bookings = persist(userId, prepared, pending.order());
+
+        FlightOrderCreatedDTO dto = new FlightOrderCreatedDTO();
+        dto.setOrderId(pending.order().getId());
+        dto.setOrderCode(pending.order().getOrderCode());
+        dto.setPaymentId(pending.payment().getId());
+        dto.setAmount(prepared.total());
+        dto.setCurrencyCode(orderFactory.currencyCode());
+        dto.setHoldExpiresAt(orderFactory.holdExpiresAt(pending.order().getCreatedAt()));
+        dto.setBookings(bookings.stream().map(b -> toDTO(b, pending.payment())).toList());
+        return dto;
+    }
+
+    @Override
+    // Không đánh dấu rollback transaction ngoài khi báo giá lỗi (giỏ hàng gọi trong transaction chỉ đọc của nó).
+    @Transactional(readOnly = true, noRollbackFor = ApiException.class)
+    public BigDecimal quote(UUID userId, FlightBookingRequestDTO request) {
+        return prepare(request, false).total();
+    }
+
+    @Override
+    @Transactional
+    public CartCheckoutDTO createOrder(UUID userId, List<FlightBookingRequestDTO> requests, String paymentMethod) {
+        if (requests.isEmpty()) {
+            throw ApiException.badRequest("Không có dòng nào để thanh toán");
+        }
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, BigDecimal.ZERO, paymentMethod);
+        CartCheckoutDTO dto = new CartCheckoutDTO();
+        BigDecimal total = BigDecimal.ZERO;
+        // Ghi lần lượt: dòng sau thấy chỗ đã giữ của dòng trước (cùng transaction, JPA flush trước khi truy vấn).
+        for (FlightBookingRequestDTO request : requests) {
+            for (FlightBookingEntity booking : persist(userId, prepare(request, true), pending.order())) {
+                dto.getBookingIds().add(booking.getId());
+                total = total.add(booking.getTotalPrice());
+            }
+        }
+        orderFactory.applyTotal(pending, total);
+        dto.setOrderId(pending.order().getId());
+        dto.setOrderCode(pending.order().getOrderCode());
+        dto.setPaymentId(pending.payment().getId());
+        dto.setAmount(total);
+        dto.setCurrencyCode(orderFactory.currencyCode());
+        dto.setPaymentUrl(orderFactory.tripPaymentUrl(pending.payment()));
+        dto.setHoldExpiresAt(orderFactory.holdExpiresAt(pending.order().getCreatedAt()));
+        dto.setBookingType("flight");
+        return dto;
+    }
+
+    private record Prepared(FlightBookingRequestDTO request, FlightEntity flight, Map<UUID, FlightSeatEntity> seats,
+                            BigDecimal total) {
+    }
+
+    /** Chuyến còn bán, mỗi hành khách một ghế còn trống của chuyến; lock = khoá các ghế (khi đặt thật). */
+    private Prepared prepare(FlightBookingRequestDTO request, boolean lock) {
         FlightEntity flight = flightRepository.findById(request.getFlightId())
                 .filter(f -> Boolean.TRUE.equals(f.getIsActive()))
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy chuyến bay"));
@@ -92,7 +149,7 @@ public class FlightBookingServiceImpl implements FlightBookingService {
         }
         // Khoá các ghế theo thứ tự id: hai người chọn cùng ghế sẽ xếp hàng, người sau thấy ghế đã held.
         Map<UUID, FlightSeatEntity> seats = new HashMap<>();
-        for (FlightSeatEntity seat : flightSeatRepository.lockByIds(seatIds)) {
+        for (FlightSeatEntity seat : lock ? flightSeatRepository.lockByIds(seatIds) : flightSeatRepository.findAllById(seatIds)) {
             seats.put(seat.getId(), seat);
         }
         BigDecimal total = BigDecimal.ZERO;
@@ -106,8 +163,13 @@ public class FlightBookingServiceImpl implements FlightBookingService {
             }
             total = total.add(seat.getPrice());
         }
+        return new Prepared(request, flight, seats, total);
+    }
 
-        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, total, request.getPaymentMethod());
+    private List<FlightBookingEntity> persist(UUID userId, Prepared prepared, OrderEntity order) {
+        FlightBookingRequestDTO request = prepared.request();
+        FlightEntity flight = prepared.flight();
+        Map<UUID, FlightSeatEntity> seats = prepared.seats();
         UserEntity user = userRepository.getReferenceById(userId);
         LocalDateTime now = LocalDateTime.now();
         List<FlightBookingEntity> bookings = new ArrayList<>();
@@ -115,7 +177,7 @@ public class FlightBookingServiceImpl implements FlightBookingService {
             FlightSeatEntity seat = seats.get(passenger.getSeatId());
             seat.setStatus("held");
             FlightBookingEntity booking = new FlightBookingEntity();
-            booking.setOrder(pending.order());
+            booking.setOrder(order);
             booking.setUser(user);
             booking.setFlight(flight);
             booking.setSeat(seat);
@@ -131,16 +193,7 @@ public class FlightBookingServiceImpl implements FlightBookingService {
             bookings.add(flightBookingRepository.save(booking));
         }
         flightRepository.syncSeatCounts(flight.getId());
-
-        FlightOrderCreatedDTO dto = new FlightOrderCreatedDTO();
-        dto.setOrderId(pending.order().getId());
-        dto.setOrderCode(pending.order().getOrderCode());
-        dto.setPaymentId(pending.payment().getId());
-        dto.setAmount(total);
-        dto.setCurrencyCode(orderFactory.currencyCode());
-        dto.setHoldExpiresAt(orderFactory.holdExpiresAt(pending.order().getCreatedAt()));
-        dto.setBookings(bookings.stream().map(b -> toDTO(b, pending.payment())).toList());
-        return dto;
+        return bookings;
     }
 
     @Override
@@ -381,6 +434,9 @@ public class FlightBookingServiceImpl implements FlightBookingService {
             orders.putIfAbsent(booking.getOrder().getId(), booking.getOrder());
         }
         orders.values().forEach(order -> cancelPendingOrder(order, EXPIRED_REASON));
+        orders.values().forEach(order -> notificationService.notifyOrder(order, "booking_expired",
+                "Booking hold expired - order " + order.getOrderCode(),
+                "The order was not paid in time, so the reservation was released. You can book again at any time."));
         if (!orders.isEmpty()) {
             log.info("Expired {} pending flight orders", orders.size());
         }

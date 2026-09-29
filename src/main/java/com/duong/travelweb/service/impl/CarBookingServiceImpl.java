@@ -1,6 +1,7 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.CarAvailabilityDTO;
 import com.duong.travelweb.model.dto.CarBookingDTO;
 import com.duong.travelweb.model.dto.CarBookingRequestDTO;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,23 +103,72 @@ public class CarBookingServiceImpl implements CarBookingService {
     @Override
     @Transactional
     public CarBookingDTO create(UUID userId, CarBookingRequestDTO request) {
+        Prepared prepared = prepare(request, true);
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, prepared.total(), request.getPaymentMethod());
+        return toDTO(persist(userId, prepared, pending.order()).get(0), pending.payment());
+    }
+
+    @Override
+    // Không đánh dấu rollback transaction ngoài khi báo giá lỗi (giỏ hàng gọi trong transaction chỉ đọc của nó).
+    @Transactional(readOnly = true, noRollbackFor = ApiException.class)
+    public BigDecimal quote(UUID userId, CarBookingRequestDTO request) {
+        return prepare(request, false).total();
+    }
+
+    @Override
+    @Transactional
+    public CartCheckoutDTO createOrder(UUID userId, List<CarBookingRequestDTO> requests, String paymentMethod) {
+        if (requests.isEmpty()) {
+            throw ApiException.badRequest("Không có dòng nào để thanh toán");
+        }
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, BigDecimal.ZERO, paymentMethod);
+        CartCheckoutDTO dto = new CartCheckoutDTO();
+        BigDecimal total = BigDecimal.ZERO;
+        // Ghi lần lượt: dòng sau thấy chỗ đã giữ của dòng trước (cùng transaction, JPA flush trước khi truy vấn).
+        for (CarBookingRequestDTO request : requests) {
+            for (CarBookingEntity booking : persist(userId, prepare(request, true), pending.order())) {
+                dto.getBookingIds().add(booking.getId());
+                total = total.add(booking.getTotalPrice());
+            }
+        }
+        orderFactory.applyTotal(pending, total);
+        dto.setOrderId(pending.order().getId());
+        dto.setOrderCode(pending.order().getOrderCode());
+        dto.setPaymentId(pending.payment().getId());
+        dto.setAmount(total);
+        dto.setCurrencyCode(orderFactory.currencyCode());
+        dto.setPaymentUrl(orderFactory.tripPaymentUrl(pending.payment()));
+        dto.setHoldExpiresAt(orderFactory.holdExpiresAt(pending.order().getCreatedAt()));
+        dto.setBookingType("car");
+        return dto;
+    }
+
+    /** Yêu cầu đã kiểm tra xong: xe (đã khoá nếu lock) + tổng tiền. */
+    private record Prepared(CarBookingRequestDTO request, CarEntity car, BigDecimal total) {
+    }
+
+    /** Kiểm tra thời gian, xe còn hoạt động / còn trống, GPLX; lock = khoá dòng cars (khi đặt thật). */
+    private Prepared prepare(CarBookingRequestDTO request, boolean lock) {
         LocalDateTime pickup = request.getPickupDate();
         LocalDateTime dropOff = request.getReturnDate();
         validatePeriod(pickup, dropOff);
         // Khoá xe: hai người đặt cùng lúc sẽ xếp hàng ở đây, người sau thấy booking pending của người trước.
-        CarEntity car = carRepository.lockById(request.getCarId())
+        CarEntity car = (lock ? carRepository.lockById(request.getCarId()) : carRepository.findById(request.getCarId()))
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy xe"));
-        String license = blankToNull(request.getDriverLicenseNo());
-        if (!Boolean.TRUE.equals(car.getWithDriver()) && license == null) {
+        if (!Boolean.TRUE.equals(car.getWithDriver()) && blankToNull(request.getDriverLicenseNo()) == null) {
             throw ApiException.badRequest("Xe tự lái: vui lòng nhập số giấy phép lái xe");
         }
         if (!carBookingRepository.findBlocking(car.getId(), null, pickup, dropOff, orderFactory.holdCutoff()).isEmpty()) {
             throw ApiException.conflict("Xe đã có người đặt trong khoảng thời gian này, hãy chọn thời gian khác");
         }
-
         BigDecimal total = car.getPricePerDay().multiply(BigDecimal.valueOf(rentalDays(pickup, dropOff)));
-        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, total, request.getPaymentMethod());
+        return new Prepared(request, car, total);
+    }
+
+    private List<CarBookingEntity> persist(UUID userId, Prepared prepared, OrderEntity order) {
+        CarBookingRequestDTO request = prepared.request();
+        CarEntity car = prepared.car();
         LocalDateTime now = LocalDateTime.now();
         String pickupLocation = blankToNull(request.getPickupLocation()) != null
                 ? request.getPickupLocation().trim() : car.getPickupLocation();
@@ -125,22 +176,21 @@ public class CarBookingServiceImpl implements CarBookingService {
                 ? request.getReturnLocation().trim() : pickupLocation;
 
         CarBookingEntity booking = new CarBookingEntity();
-        booking.setOrder(pending.order());
+        booking.setOrder(order);
         booking.setUser(userRepository.getReferenceById(userId));
         booking.setCar(car);
-        booking.setPickupDate(pickup);
-        booking.setReturnDate(dropOff);
+        booking.setPickupDate(request.getPickupDate());
+        booking.setReturnDate(request.getReturnDate());
         booking.setPickupLocation(pickupLocation);
         booking.setReturnLocation(returnLocation);
-        booking.setDriverLicenseNo(license);
-        booking.setTotalPrice(total);
+        booking.setDriverLicenseNo(blankToNull(request.getDriverLicenseNo()));
+        booking.setTotalPrice(prepared.total());
         booking.setDiscountAmount(BigDecimal.ZERO);
         booking.setSpecialRequests(blankToNull(request.getSpecialRequests()));
         booking.setStatus("pending");
         booking.setCreatedAt(now);
         booking.setUpdatedAt(now);
-        booking = carBookingRepository.save(booking);
-        return toDTO(booking, pending.payment());
+        return List.of(carBookingRepository.save(booking));
     }
 
     @Override
@@ -300,9 +350,15 @@ public class CarBookingServiceImpl implements CarBookingService {
     @Transactional
     public int expirePendingBookings() {
         List<CarBookingEntity> expired = carBookingRepository.findPendingCreatedBefore(orderFactory.holdCutoff());
+        // Order có thể gồm nhiều booking (đặt từ giỏ) -> huỷ + báo 1 lần mỗi order.
+        Map<UUID, OrderEntity> orders = new LinkedHashMap<>();
         for (CarBookingEntity booking : expired) {
-            cancelPendingOrder(booking.getOrder(), EXPIRED_REASON);
+            orders.putIfAbsent(booking.getOrder().getId(), booking.getOrder());
         }
+        orders.values().forEach(order -> cancelPendingOrder(order, EXPIRED_REASON));
+        orders.values().forEach(order -> notificationService.notifyOrder(order, "booking_expired",
+                "Booking hold expired - order " + order.getOrderCode(),
+                "The order was not paid in time, so the reservation was released. You can book again at any time."));
         if (!expired.isEmpty()) {
             log.info("Expired {} pending car bookings", expired.size());
         }

@@ -101,7 +101,13 @@ public class CommentServiceImpl implements CommentService {
         CommentEntity saved = commentRepository.save(comment);
         UserEntity recipient = parent != null ? parent.getUser() : post.getUser();
         if (!recipient.getId().equals(userId)) {
-            String link = "hotel".equals(post.getEntityType()) ? "/hotel/" + post.getEntityId() : "/my-reviews";
+            String link = switch (post.getEntityType()) {
+                case "hotel" -> "/hotel/" + post.getEntityId();
+                case "tour" -> "/tours/" + post.getEntityId();
+                case "car" -> "/cars/" + post.getEntityId();
+                case "flight" -> "/flights/" + post.getEntityId();
+                default -> "/my-reviews";
+            };
             String preview = saved.getContent().length() > 200 ? saved.getContent().substring(0, 200) + "…" : saved.getContent();
             notificationService.notify(recipient.getId(), parent != null ? "comment_reply" : "post_comment",
                     user.getFullName() + (parent != null ? " replied to your comment" : " commented on your review"),

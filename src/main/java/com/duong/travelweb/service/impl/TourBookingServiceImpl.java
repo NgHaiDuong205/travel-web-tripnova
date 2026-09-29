@@ -1,6 +1,7 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.InvoiceItemDTO;
 import com.duong.travelweb.model.dto.TourBookingDTO;
 import com.duong.travelweb.model.dto.TourBookingRequestDTO;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,8 +69,53 @@ public class TourBookingServiceImpl implements TourBookingService {
     @Override
     @Transactional
     public TourBookingDTO create(UUID userId, TourBookingRequestDTO request) {
+        Prepared prepared = prepare(request, true);
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, prepared.total(), request.getPaymentMethod());
+        return toDTO(persist(userId, prepared, pending.order()).get(0), pending.payment());
+    }
+
+    @Override
+    // Không đánh dấu rollback transaction ngoài khi báo giá lỗi (giỏ hàng gọi trong transaction chỉ đọc của nó).
+    @Transactional(readOnly = true, noRollbackFor = ApiException.class)
+    public BigDecimal quote(UUID userId, TourBookingRequestDTO request) {
+        return prepare(request, false).total();
+    }
+
+    @Override
+    @Transactional
+    public CartCheckoutDTO createOrder(UUID userId, List<TourBookingRequestDTO> requests, String paymentMethod) {
+        if (requests.isEmpty()) {
+            throw ApiException.badRequest("Không có dòng nào để thanh toán");
+        }
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, BigDecimal.ZERO, paymentMethod);
+        CartCheckoutDTO dto = new CartCheckoutDTO();
+        BigDecimal total = BigDecimal.ZERO;
+        // Ghi lần lượt: dòng sau thấy chỗ đã giữ của dòng trước (cùng transaction, JPA flush trước khi truy vấn).
+        for (TourBookingRequestDTO request : requests) {
+            for (TourBookingEntity booking : persist(userId, prepare(request, true), pending.order())) {
+                dto.getBookingIds().add(booking.getId());
+                total = total.add(booking.getTotalPrice());
+            }
+        }
+        orderFactory.applyTotal(pending, total);
+        dto.setOrderId(pending.order().getId());
+        dto.setOrderCode(pending.order().getOrderCode());
+        dto.setPaymentId(pending.payment().getId());
+        dto.setAmount(total);
+        dto.setCurrencyCode(orderFactory.currencyCode());
+        dto.setPaymentUrl(orderFactory.tripPaymentUrl(pending.payment()));
+        dto.setHoldExpiresAt(orderFactory.holdExpiresAt(pending.order().getCreatedAt()));
+        dto.setBookingType("tour");
+        return dto;
+    }
+
+    private record Prepared(TourBookingRequestDTO request, TourEntity tour, BigDecimal total) {
+    }
+
+    /** Kiểm tra ngày khởi hành + còn đủ chỗ, tính tiền; lock = khoá dòng tours (khi đặt thật). */
+    private Prepared prepare(TourBookingRequestDTO request, boolean lock) {
         // Khoá tour: hai người cùng đặt chỗ cuối sẽ xếp hàng, người sau thấy chỗ đã được giữ.
-        TourEntity tour = tourRepository.lockById(request.getTourId())
+        TourEntity tour = (lock ? tourRepository.lockById(request.getTourId()) : tourRepository.findById(request.getTourId()))
                 .filter(t -> Boolean.TRUE.equals(t.getIsActive()))
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy tour"));
         LocalDate departure = request.getDepartureDate();
@@ -98,25 +145,31 @@ public class TourBookingServiceImpl implements TourBookingService {
         BigDecimal childPrice = tour.getPriceChild() != null ? tour.getPriceChild() : tour.getPriceAdult();
         BigDecimal total = tour.getPriceAdult().multiply(BigDecimal.valueOf(adults))
                 .add(childPrice.multiply(BigDecimal.valueOf(children)));
-        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, total, request.getPaymentMethod());
+        return new Prepared(request, tour, total);
+    }
+
+    private List<TourBookingEntity> persist(UUID userId, Prepared prepared, OrderEntity order) {
+        TourBookingRequestDTO request = prepared.request();
+        int adults = request.getNumAdults();
+        int children = request.getNumChildren() == null ? 0 : request.getNumChildren();
         LocalDateTime now = LocalDateTime.now();
         TourBookingEntity booking = new TourBookingEntity();
-        booking.setOrder(pending.order());
+        booking.setOrder(order);
         booking.setUser(userRepository.getReferenceById(userId));
-        booking.setTour(tour);
+        booking.setTour(prepared.tour());
         booking.setNumAdults((short) adults);
         booking.setNumChildren((short) children);
-        booking.setDepartureDate(departure);
+        booking.setDepartureDate(request.getDepartureDate());
         booking.setContactName(request.getContactName().trim());
         booking.setContactPhone(blankToNull(request.getContactPhone()));
         booking.setContactEmail(blankToNull(request.getContactEmail()));
-        booking.setTotalPrice(total);
+        booking.setTotalPrice(prepared.total());
         booking.setDiscountAmount(BigDecimal.ZERO);
         booking.setSpecialRequests(blankToNull(request.getSpecialRequests()));
         booking.setStatus("pending");
         booking.setCreatedAt(now);
         booking.setUpdatedAt(now);
-        return toDTO(tourBookingRepository.save(booking), pending.payment());
+        return List.of(tourBookingRepository.save(booking));
     }
 
     @Override
@@ -270,9 +323,15 @@ public class TourBookingServiceImpl implements TourBookingService {
     @Transactional
     public int expirePendingBookings() {
         List<TourBookingEntity> expired = tourBookingRepository.findPendingCreatedBefore(orderFactory.holdCutoff());
+        // Order có thể gồm nhiều booking (đặt từ giỏ) -> huỷ + báo 1 lần mỗi order.
+        Map<UUID, OrderEntity> orders = new LinkedHashMap<>();
         for (TourBookingEntity booking : expired) {
-            cancelPendingOrder(booking.getOrder(), EXPIRED_REASON);
+            orders.putIfAbsent(booking.getOrder().getId(), booking.getOrder());
         }
+        orders.values().forEach(order -> cancelPendingOrder(order, EXPIRED_REASON));
+        orders.values().forEach(order -> notificationService.notifyOrder(order, "booking_expired",
+                "Booking hold expired - order " + order.getOrderCode(),
+                "The order was not paid in time, so the reservation was released. You can book again at any time."));
         if (!expired.isEmpty()) {
             log.info("Expired {} pending tour bookings", expired.size());
         }

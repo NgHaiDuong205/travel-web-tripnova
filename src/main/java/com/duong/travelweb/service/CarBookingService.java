@@ -1,5 +1,8 @@
 package com.duong.travelweb.service;
 
+import java.util.List;
+import java.math.BigDecimal;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.CarAvailabilityDTO;
 import com.duong.travelweb.model.dto.CarBookingDTO;
 import com.duong.travelweb.model.dto.CarBookingRequestDTO;
@@ -21,6 +24,12 @@ public interface CarBookingService extends OrderBookingHandler {
     CarAvailabilityDTO availability(UUID carId, LocalDateTime from, LocalDateTime to);
 
     CarBookingDTO create(UUID userId, CarBookingRequestDTO request);
+
+    /** Kiểm tra như khi đặt (không giữ chỗ) và trả tổng tiền hiện tại; không hợp lệ -> ApiException. */
+    BigDecimal quote(UUID userId, CarBookingRequestDTO request);
+
+    /** Nhiều dòng (từ giỏ hàng) trong 1 order + 1 payment; lỗi ở dòng nào thì rollback toàn bộ. */
+    CartCheckoutDTO createOrder(UUID userId, List<CarBookingRequestDTO> requests, String paymentMethod);
 
     /** Chủ booking hoặc admin, ngược lại 404. */
     CarBookingDTO get(UUID userId, boolean isAdmin, UUID bookingId);

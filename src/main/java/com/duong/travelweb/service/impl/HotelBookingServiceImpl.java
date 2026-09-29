@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -687,9 +688,15 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     public int expirePendingBookings() {
         List<HotelBookingEntity> expired = hotelBookingRepository.findPendingCreatedBefore(
                 LocalDateTime.now().minusMinutes(holdMinutes));
+        // Order có thể gồm nhiều booking (đặt từ giỏ) -> huỷ + báo 1 lần mỗi order.
+        Map<UUID, OrderEntity> orders = new LinkedHashMap<>();
         for (HotelBookingEntity booking : expired) {
-            cancelPendingOrder(booking.getOrder(), EXPIRED_REASON);
+            orders.putIfAbsent(booking.getOrder().getId(), booking.getOrder());
         }
+        orders.values().forEach(order -> cancelPendingOrder(order, EXPIRED_REASON));
+        orders.values().forEach(order -> notificationService.notifyOrder(order, "booking_expired",
+                "Booking hold expired - order " + order.getOrderCode(),
+                "The order was not paid in time, so the reservation was released. You can book again at any time."));
         if (!expired.isEmpty()) {
             log.info("Expired {} pending hotel bookings", expired.size());
         }

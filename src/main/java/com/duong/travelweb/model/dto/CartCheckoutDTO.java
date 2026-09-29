@@ -16,6 +16,16 @@ public class CartCheckoutDTO {
     private String currencyCode;
     private String paymentUrl;
     private LocalDateTime holdExpiresAt;
+    /** hotel | car | flight | tour — FE chọn trang thanh toán (/payment hoặc /trip-payment). */
+    private String bookingType;
+
+    public String getBookingType() {
+        return bookingType;
+    }
+
+    public void setBookingType(String bookingType) {
+        this.bookingType = bookingType;
+    }
 
     public UUID getOrderId() {
         return orderId;

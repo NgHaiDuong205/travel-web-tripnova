@@ -1,5 +1,8 @@
 package com.duong.travelweb.service;
 
+import java.util.List;
+import java.math.BigDecimal;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.TourBookingDTO;
 import com.duong.travelweb.model.dto.TourBookingRequestDTO;
 import org.springframework.data.domain.Page;
@@ -17,6 +20,12 @@ public interface TourBookingService extends OrderBookingHandler {
     int MIN_LEAD_DAYS = 3;
 
     TourBookingDTO create(UUID userId, TourBookingRequestDTO request);
+
+    /** Kiểm tra như khi đặt (không giữ chỗ) và trả tổng tiền hiện tại; không hợp lệ -> ApiException. */
+    BigDecimal quote(UUID userId, TourBookingRequestDTO request);
+
+    /** Nhiều dòng (từ giỏ hàng) trong 1 order + 1 payment; lỗi ở dòng nào thì rollback toàn bộ. */
+    CartCheckoutDTO createOrder(UUID userId, List<TourBookingRequestDTO> requests, String paymentMethod);
 
     TourBookingDTO get(UUID userId, boolean isAdmin, UUID bookingId);
 

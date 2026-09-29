@@ -11,6 +11,8 @@ public class PaymentDTO {
     private String orderStatus;
     private UUID bookingId;
     private int bookingCount;
+    private String bookingType;
+    private UUID primaryBookingId;
     private String paymentMethod;
     private BigDecimal amount;
     private String currencyCode;
@@ -130,5 +132,21 @@ public class PaymentDTO {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getBookingType() {
+        return bookingType;
+    }
+
+    public void setBookingType(String bookingType) {
+        this.bookingType = bookingType;
+    }
+
+    public UUID getPrimaryBookingId() {
+        return primaryBookingId;
+    }
+
+    public void setPrimaryBookingId(UUID primaryBookingId) {
+        this.primaryBookingId = primaryBookingId;
     }
 }

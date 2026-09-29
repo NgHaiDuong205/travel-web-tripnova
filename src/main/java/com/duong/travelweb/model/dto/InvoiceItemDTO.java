@@ -4,9 +4,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** Một dòng hoá đơn (một booking trong order). */
+/** Một dòng hoá đơn (một booking trong order). title/subtitle dùng chung mọi loại; hotelName/roomTypeName chỉ có với hotel. */
 public class InvoiceItemDTO {
+    private String itemType;
     private UUID bookingId;
+    private String title;
+    private String subtitle;
     private String hotelName;
     private String roomTypeName;
     private LocalDate checkInDate;
@@ -16,6 +19,30 @@ public class InvoiceItemDTO {
     private BigDecimal amount;
     private BigDecimal refundAmount;
     private String status;
+
+    public String getItemType() {
+        return itemType;
+    }
+
+    public void setItemType(String itemType) {
+        this.itemType = itemType;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getSubtitle() {
+        return subtitle;
+    }
+
+    public void setSubtitle(String subtitle) {
+        this.subtitle = subtitle;
+    }
 
     public UUID getBookingId() {
         return bookingId;

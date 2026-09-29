@@ -33,6 +33,9 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
            "AND b.status IN ('confirmed', 'checked_in', 'checked_out', 'completed')")
     BigDecimal sumSpentByUser(@Param("userId") UUID userId);
 
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.order.id = :orderId")
+    boolean existsByOrderId(@Param("orderId") UUID orderId);
+
     /** [orderId, tổng tiền đã hoàn] */
     @Query("SELECT b.order.id, COALESCE(SUM(b.refundAmount), 0) FROM HotelBookingEntity b " +
            "WHERE b.order.id IN :orderIds GROUP BY b.order.id")

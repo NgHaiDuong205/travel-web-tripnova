@@ -3,12 +3,10 @@ package com.duong.travelweb.service.impl;
 import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.InvoiceDTO;
 import com.duong.travelweb.model.dto.InvoiceItemDTO;
-import com.duong.travelweb.model.entity.HotelBookingEntity;
 import com.duong.travelweb.model.entity.InvoiceEntity;
 import com.duong.travelweb.model.entity.OrderEntity;
 import com.duong.travelweb.model.entity.PaymentEntity;
 import com.duong.travelweb.model.entity.UserEntity;
-import com.duong.travelweb.repository.HotelBookingRepository;
 import com.duong.travelweb.repository.InvoiceRepository;
 import com.duong.travelweb.repository.OrderRepository;
 import com.duong.travelweb.repository.PaymentRepository;
@@ -25,12 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -41,20 +36,20 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceRepository invoiceRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final HotelBookingRepository hotelBookingRepository;
+    private final OrderBookingRouter orderBookingRouter;
     private final InvoicePdfRenderer pdfRenderer;
     private final String frontendUrl;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               OrderRepository orderRepository,
                               PaymentRepository paymentRepository,
-                              HotelBookingRepository hotelBookingRepository,
+                              OrderBookingRouter orderBookingRouter,
                               InvoicePdfRenderer pdfRenderer,
                               @Value("${app.frontend-url}") String frontendUrl) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
-        this.hotelBookingRepository = hotelBookingRepository;
+        this.orderBookingRouter = orderBookingRouter;
         this.pdfRenderer = pdfRenderer;
         this.frontendUrl = frontendUrl;
     }
@@ -184,14 +179,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private Map<UUID, BigDecimal> refundsByOrder(List<InvoiceEntity> invoices) {
-        Map<UUID, BigDecimal> refunds = new HashMap<>();
-        List<UUID> orderIds = invoices.stream().map(i -> i.getOrder().getId()).toList();
-        if (!orderIds.isEmpty()) {
-            for (Object[] row : hotelBookingRepository.sumRefundByOrderIds(orderIds)) {
-                refunds.put((UUID) row[0], (BigDecimal) row[1]);
-            }
-        }
-        return refunds;
+        return orderBookingRouter.refundedAmounts(invoices.stream().map(i -> i.getOrder().getId()).distinct().toList());
     }
 
     private InvoiceDTO toDTO(InvoiceEntity invoice, BigDecimal refunded) {
@@ -227,27 +215,10 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private InvoiceDTO toDetailDTO(InvoiceEntity invoice) {
-        List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(invoice.getOrder().getId()).stream()
-                .sorted(Comparator.comparing(HotelBookingEntity::getCheckInDate)
-                        .thenComparing(b -> Objects.toString(b.getId())))
-                .toList();
-        BigDecimal refunded = BigDecimal.ZERO;
-        List<InvoiceItemDTO> items = new ArrayList<>();
-        for (HotelBookingEntity booking : bookings) {
-            InvoiceItemDTO item = new InvoiceItemDTO();
-            item.setBookingId(booking.getId());
-            item.setHotelName(booking.getHotel().getName());
-            item.setRoomTypeName(booking.getRoomType().getName());
-            item.setCheckInDate(booking.getCheckInDate());
-            item.setCheckOutDate(booking.getCheckOutDate());
-            item.setNights(booking.getNumNights());
-            item.setGuests(orZero(booking.getNumAdults()) + orZero(booking.getNumChildren()));
-            item.setAmount(booking.getTotalPrice());
-            item.setRefundAmount(orZero(booking.getRefundAmount()));
-            item.setStatus(booking.getStatus());
-            items.add(item);
-            refunded = refunded.add(orZero(booking.getRefundAmount()));
-        }
+        List<InvoiceItemDTO> items = orderBookingRouter.handlerFor(invoice.getOrder()).invoiceItems(invoice.getOrder().getId());
+        BigDecimal refunded = items.stream()
+                .map(item -> orZero(item.getRefundAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         InvoiceDTO dto = toDTO(invoice, refunded);
         dto.setItems(items);
         return dto;
@@ -255,9 +226,5 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private static BigDecimal orZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private static int orZero(Integer value) {
-        return value == null ? 0 : value;
     }
 }

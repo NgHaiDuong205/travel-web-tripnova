@@ -2,12 +2,10 @@ package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.PaymentDTO;
-import com.duong.travelweb.model.entity.HotelBookingEntity;
 import com.duong.travelweb.model.entity.OrderEntity;
 import com.duong.travelweb.model.entity.PaymentEntity;
-import com.duong.travelweb.repository.HotelBookingRepository;
 import com.duong.travelweb.repository.PaymentRepository;
-import com.duong.travelweb.service.HotelBookingService;
+import com.duong.travelweb.service.OrderBookingHandler;
 import com.duong.travelweb.service.InvoiceService;
 import com.duong.travelweb.service.PaymentService;
 import com.duong.travelweb.util.SecurityUtil;
@@ -28,21 +26,18 @@ import java.util.UUID;
 @Service
 public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
-    private final HotelBookingRepository hotelBookingRepository;
-    private final HotelBookingService hotelBookingService;
+    private final OrderBookingRouter orderBookingRouter;
     private final InvoiceService invoiceService;
     private final boolean mockEnabled;
     private final String currencyCode;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
-                              HotelBookingRepository hotelBookingRepository,
-                              HotelBookingService hotelBookingService,
+                              OrderBookingRouter orderBookingRouter,
                               InvoiceService invoiceService,
                               @Value("${app.payment.mock-enabled:false}") boolean mockEnabled,
                               @Value("${app.booking.currency:USD}") String currencyCode) {
         this.paymentRepository = paymentRepository;
-        this.hotelBookingRepository = hotelBookingRepository;
-        this.hotelBookingService = hotelBookingService;
+        this.orderBookingRouter = orderBookingRouter;
         this.invoiceService = invoiceService;
         this.mockEnabled = mockEnabled;
         this.currencyCode = currencyCode;
@@ -84,19 +79,13 @@ public class PaymentServiceImpl implements PaymentService {
         return filter;
     }
 
-    /** Map sang DTO, lấy bookingId theo lô. */
+    /** Map sang DTO, lấy loại booking + booking theo từng order. */
     private Page<PaymentDTO> toDTOPage(Page<PaymentEntity> payments) {
-        List<UUID> orderIds = payments.stream().map(p -> p.getOrder().getId()).distinct().toList();
-        Map<UUID, UUID> bookingIdByOrder = new HashMap<>();
-        Map<UUID, Integer> bookingCountByOrder = new HashMap<>();
-        if (!orderIds.isEmpty()) {
-            for (Object[] row : hotelBookingRepository.findBookingIdsByOrderIds(orderIds)) {
-                bookingIdByOrder.putIfAbsent((UUID) row[0], (UUID) row[1]);
-                bookingCountByOrder.merge((UUID) row[0], 1, Integer::sum);
-            }
+        Map<UUID, BookingRef> refs = new HashMap<>();
+        for (PaymentEntity payment : payments) {
+            refs.computeIfAbsent(payment.getOrder().getId(), this::bookingRef);
         }
-        return payments.map(p -> toDTO(p, bookingIdByOrder.get(p.getOrder().getId()),
-                bookingCountByOrder.getOrDefault(p.getOrder().getId(), 0)));
+        return payments.map(p -> toDTO(p, refs.get(p.getOrder().getId())));
     }
 
     @Override
@@ -146,14 +135,14 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setStatus("success");
             payment.setTransactionId(transactionId);
             payment.setPaidAt(LocalDateTime.now());
-            if (hotelBookingService.confirmOrder(order)) {
+            if (orderBookingRouter.handlerFor(order).confirmOrder(order)) {
                 invoiceService.issueForOrder(order, payment);
             } else {
                 payment.setStatus("refunded");
             }
         } else if ("pending".equals(payment.getStatus())) {
             payment.setStatus("failed");
-            hotelBookingService.cancelPendingOrder(order, "Thanh toán thất bại");
+            orderBookingRouter.handlerFor(order).cancelPendingOrder(order, "Thanh toán thất bại");
         }
         return toDTO(payment);
     }
@@ -181,7 +170,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (!"success".equals(payment.getStatus())) {
             throw ApiException.badRequest("Chỉ hoàn tiền được giao dịch đã thanh toán thành công");
         }
-        hotelBookingService.refundOrderByAdmin(payment.getOrder(), reason);
+        orderBookingRouter.handlerFor(payment.getOrder()).refundOrderByAdmin(payment.getOrder(), reason);
         return toDTO(payment);
     }
 
@@ -195,8 +184,32 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private PaymentDTO toDTO(PaymentEntity payment) {
-        List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(payment.getOrder().getId());
-        return toDTO(payment, bookings.isEmpty() ? null : bookings.get(0).getId(), bookings.size());
+        return toDTO(payment, bookingRef(payment.getOrder().getId()));
+    }
+
+    /** Loại booking và các booking của order (order luôn chỉ có một loại). */
+    private record BookingRef(String type, List<UUID> bookingIds) {
+    }
+
+    private BookingRef bookingRef(UUID orderId) {
+        for (OrderBookingHandler handler : orderBookingRouter.all()) {
+            if (handler.handles(orderId)) {
+                return new BookingRef(handler.bookingType(), handler.bookingIds(orderId));
+            }
+        }
+        return new BookingRef(null, List.of());
+    }
+
+    /**
+     * bookingType = hotel | car | tour | flight. bookingId chỉ điền với hotel (FE cũ chuyển tới /bookings/{id} là trang
+     * booking khách sạn), các loại khác dùng primaryBookingId. bookingCount > 1 với đơn đặt từ giỏ hàng.
+     */
+    private PaymentDTO toDTO(PaymentEntity payment, BookingRef ref) {
+        UUID first = ref.bookingIds().isEmpty() ? null : ref.bookingIds().get(0);
+        PaymentDTO dto = toDTO(payment, "hotel".equals(ref.type()) ? first : null, ref.bookingIds().size());
+        dto.setBookingType(ref.type());
+        dto.setPrimaryBookingId(first);
+        return dto;
     }
 
     /** bookingId = booking đầu tiên của order; bookingCount > 1 với đơn đặt từ giỏ hàng. */

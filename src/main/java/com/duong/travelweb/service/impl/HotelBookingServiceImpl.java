@@ -6,6 +6,7 @@ import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.HotelBookingCreatedDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.HotelBookingRequestDTO;
+import com.duong.travelweb.model.dto.InvoiceItemDTO;
 import com.duong.travelweb.model.dto.RoomAvailabilityCheckDTO;
 import com.duong.travelweb.model.entity.HotelBookingEntity;
 import com.duong.travelweb.model.entity.HotelEntity;
@@ -32,13 +33,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +53,6 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     private static final int MAX_NIGHTS = 30;
     private static final int DEFAULT_CANCELLATION_HOURS = 24;
     private static final LocalTime DEFAULT_CHECK_IN_TIME = LocalTime.of(14, 0);
-    private static final SecureRandom RANDOM = new SecureRandom();
     private static final List<String> ADMIN_REFUNDABLE_STATUSES = List.of("confirmed", "no_show", "checked_out", "completed");
 
     private final HotelBookingRepository hotelBookingRepository;
@@ -62,6 +63,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     private final RoomAvailabilityRepository roomAvailabilityRepository;
     private final UserRepository userRepository;
     private final HotelBookingDTOConverter hotelBookingDTOConverter;
+    private final OrderFactory orderFactory;
     private final long holdMinutes;
     private final String currencyCode;
     private final String frontendUrl;
@@ -74,6 +76,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
                                    RoomAvailabilityRepository roomAvailabilityRepository,
                                    UserRepository userRepository,
                                    HotelBookingDTOConverter hotelBookingDTOConverter,
+                                   OrderFactory orderFactory,
                                    @Value("${app.booking.hold-minutes:15}") long holdMinutes,
                                    @Value("${app.booking.currency:USD}") String currencyCode,
                                    @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
@@ -85,6 +88,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         this.roomAvailabilityRepository = roomAvailabilityRepository;
         this.userRepository = userRepository;
         this.hotelBookingDTOConverter = hotelBookingDTOConverter;
+        this.orderFactory = orderFactory;
         this.holdMinutes = holdMinutes;
         this.currencyCode = currencyCode;
         this.frontendUrl = frontendUrl;
@@ -235,20 +239,8 @@ public class HotelBookingServiceImpl implements HotelBookingService {
                 .map(p -> priceOf(p.roomType()).multiply(BigDecimal.valueOf(p.nights())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        OrderEntity order = new OrderEntity();
-        order.setUser(user);
-        order.setOrderCode(generateOrderCode());
-        order.setSubtotal(total);
-        order.setDiscountTotal(BigDecimal.ZERO);
-        order.setTaxAmount(BigDecimal.ZERO);
-        order.setTotalAmount(total);
-        order.setCurrencyCode(currencyCode);
-        order.setLoyaltyPointsUsed(0);
-        order.setLoyaltyPointsEarned(0);
-        order.setStatus("pending");
-        order.setCreatedAt(now);
-        order.setUpdatedAt(now);
-        order = orderRepository.save(order);
+        OrderFactory.PendingOrder pending = orderFactory.createPendingOrder(userId, total, paymentMethod);
+        OrderEntity order = pending.order();
 
         List<HotelBookingEntity> bookings = new ArrayList<>();
         for (PlannedBooking p : planned) {
@@ -273,15 +265,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             bookings.add(hotelBookingRepository.save(booking));
         }
 
-        PaymentEntity payment = new PaymentEntity();
-        payment.setOrder(order);
-        payment.setPaymentMethod(paymentMethod);
-        payment.setAmount(total);
-        payment.setCurrencyCode(currencyCode);
-        payment.setStatus("pending");
-        payment.setCreatedAt(now);
-        payment = paymentRepository.save(payment);
-        return new CreatedOrder(order, bookings, payment);
+        return new CreatedOrder(order, bookings, pending.payment());
     }
 
     private boolean overlapsTaken(List<LocalDate[]> ranges, LocalDate checkIn, LocalDate checkOut) {
@@ -492,7 +476,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         order.setStatus(full ? "refunded" : "partially_refunded");
         order.setUpdatedAt(now);
         if (full) {
-            PaymentEntity payment = findLatestPayment(order);
+            PaymentEntity payment = orderFactory.findLatestPayment(order);
             if (payment != null && "success".equals(payment.getStatus())) {
                 payment.setStatus("refunded");
             }
@@ -563,6 +547,67 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     }
 
     @Override
+    public String bookingType() {
+        return "hotel";
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean handles(UUID orderId) {
+        return hotelBookingRepository.existsByOrderId(orderId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> bookingIds(UUID orderId) {
+        return sortedBookings(orderId).stream().map(HotelBookingEntity::getId).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceItemDTO> invoiceItems(UUID orderId) {
+        List<InvoiceItemDTO> items = new ArrayList<>();
+        for (HotelBookingEntity booking : sortedBookings(orderId)) {
+            InvoiceItemDTO item = new InvoiceItemDTO();
+            item.setItemType("hotel");
+            item.setBookingId(booking.getId());
+            item.setTitle(booking.getHotel().getName());
+            item.setSubtitle(booking.getRoomType().getName());
+            item.setHotelName(booking.getHotel().getName());
+            item.setRoomTypeName(booking.getRoomType().getName());
+            item.setCheckInDate(booking.getCheckInDate());
+            item.setCheckOutDate(booking.getCheckOutDate());
+            item.setNights(booking.getNumNights());
+            item.setGuests((booking.getNumAdults() == null ? 0 : booking.getNumAdults())
+                    + (booking.getNumChildren() == null ? 0 : booking.getNumChildren()));
+            item.setAmount(booking.getTotalPrice());
+            item.setRefundAmount(booking.getRefundAmount() == null ? BigDecimal.ZERO : booking.getRefundAmount());
+            item.setStatus(booking.getStatus());
+            items.add(item);
+        }
+        return items;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, BigDecimal> refundedAmounts(Collection<UUID> orderIds) {
+        Map<UUID, BigDecimal> refunds = new HashMap<>();
+        if (!orderIds.isEmpty()) {
+            for (Object[] row : hotelBookingRepository.sumRefundByOrderIds(new ArrayList<>(orderIds))) {
+                refunds.put((UUID) row[0], (BigDecimal) row[1]);
+            }
+        }
+        return refunds;
+    }
+
+    private List<HotelBookingEntity> sortedBookings(UUID orderId) {
+        return hotelBookingRepository.findByOrderId(orderId).stream()
+                .sorted(Comparator.comparing(HotelBookingEntity::getCheckInDate)
+                        .thenComparing(b -> b.getId().toString()))
+                .toList();
+    }
+
+    @Override
     @Transactional
     public boolean confirmOrder(OrderEntity order) {
         LocalDateTime now = LocalDateTime.now();
@@ -623,7 +668,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         order.setCancelledAt(now);
         order.setCancelReason(reason);
         order.setUpdatedAt(now);
-        PaymentEntity payment = findLatestPayment(order);
+        PaymentEntity payment = orderFactory.findLatestPayment(order);
         if (payment != null && "pending".equals(payment.getStatus())) {
             payment.setStatus("failed");
         }
@@ -696,18 +741,13 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     }
 
     private HotelBookingDTO toDTO(HotelBookingEntity booking) {
-        return hotelBookingDTOConverter.toHotelBookingDTO(booking, findLatestPayment(booking.getOrder()),
+        return hotelBookingDTOConverter.toHotelBookingDTO(booking, orderFactory.findLatestPayment(booking.getOrder()),
                 isCancellable(booking, LocalDateTime.now()));
     }
 
     private boolean isCancellable(HotelBookingEntity booking, LocalDateTime now) {
         return "pending".equals(booking.getStatus())
                 || ("confirmed".equals(booking.getStatus()) && isFreeCancellation(booking, now));
-    }
-
-    private PaymentEntity findLatestPayment(OrderEntity order) {
-        List<PaymentEntity> payments = paymentRepository.findByOrderIds(List.of(order.getId()));
-        return payments.isEmpty() ? null : payments.get(0);
     }
 
     private RoomTypeEntity findActiveRoomType(UUID hotelId, UUID roomTypeId) {
@@ -738,14 +778,5 @@ public class HotelBookingServiceImpl implements HotelBookingService {
 
     private BigDecimal priceOf(RoomTypeEntity roomType) {
         return roomType.getPricePerNight() != null ? BigDecimal.valueOf(roomType.getPricePerNight()) : BigDecimal.ZERO;
-    }
-
-    private String generateOrderCode() {
-        String prefix = "TN" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmm"));
-        String code;
-        do {
-            code = prefix + String.format("%04d", RANDOM.nextInt(10_000));
-        } while (orderRepository.existsByOrderCode(code));
-        return code;
     }
 }

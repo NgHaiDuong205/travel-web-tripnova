@@ -5,14 +5,13 @@ import com.duong.travelweb.model.dto.HotelBookingCreatedDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.HotelBookingRequestDTO;
 import com.duong.travelweb.model.dto.RoomAvailabilityCheckDTO;
-import com.duong.travelweb.model.entity.OrderEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public interface HotelBookingService {
+public interface HotelBookingService extends OrderBookingHandler {
     RoomAvailabilityCheckDTO checkAvailability(UUID hotelId, UUID roomTypeId, UUID roomId, LocalDate checkIn, LocalDate checkOut);
     HotelBookingCreatedDTO createBooking(UUID userId, HotelBookingRequestDTO request);
 
@@ -52,24 +51,10 @@ public interface HotelBookingService {
      */
     HotelBookingDTO refundByAdmin(UUID bookingId, BigDecimal amount, String reason);
 
-    /** Hoàn toàn bộ các booking còn hoàn được của đơn (dùng cho hoàn tiền theo giao dịch). */
-    void refundOrderByAdmin(OrderEntity order, String reason);
 
     /** Xoá hẳn booking đã huỷ và chưa từng thanh toán (kèm order/payment nếu order không còn booking nào). */
     void deleteByAdmin(UUID bookingId);
 
     /** Chuyến sắp tới gần nhất đã xác nhận, null nếu không có. */
     HotelBookingDTO findNextUpcoming(UUID userId);
-
-    /**
-     * Gọi khi cổng thanh toán báo thành công. Booking nào không còn phòng thì hoàn tiền riêng booking đó
-     * (order -> partially_refunded). Trả về false nếu KHÔNG giữ được phòng nào (hoàn toàn bộ).
-     */
-    boolean confirmOrder(OrderEntity order);
-
-    /** Gọi khi thanh toán thất bại / hết hạn giữ phòng. */
-    void cancelPendingOrder(OrderEntity order, String reason);
-
-    /** Huỷ các booking pending quá hạn giữ phòng, trả về số booking đã huỷ. */
-    int expirePendingBookings();
 }

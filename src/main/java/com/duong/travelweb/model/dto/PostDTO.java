@@ -1,64 +1,30 @@
-package com.duong.travelweb.model.entity;
-
-import jakarta.persistence.*;
+package com.duong.travelweb.model.dto;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Entity
-@Table(name = "posts")
-public class PostEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
+/** Bài viết / đánh giá gắn với hotel, landmark hoặc destination. */
+public class PostDTO {
     private UUID id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private UserEntity user;
-
-    @Column(name = "entity_type")
     private String entityType;
-
-    @Column(name = "entity_id")
     private UUID entityId;
-
-    @Column(name = "title")
+    private String entityName;
     private String title;
-
-    @Column(name = "content")
     private String content;
-
-    @Column(name = "rating")
     private Integer rating;
-
-    @Column(name = "images")
-    private String images;
-
-    @Column(name = "is_verified_booking")
+    private List<String> images;
     private Boolean isVerifiedBooking;
-
-    @Column(name = "status")
     private String status;
-
-    @Column(name = "upvotes")
     private Integer upvotes;
-
-    @Column(name = "downvotes")
     private Integer downvotes;
-
-    @Column(name = "created_at")
+    private Long commentCount;
+    private String myReaction;
+    private UUID authorId;
+    private String authorName;
+    private String authorAvatar;
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
-    private List<CommentEntity> comments;
-
-    @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
-    private List<PostReactionEntity> postReactions;
 
     public UUID getId() {
         return id;
@@ -66,14 +32,6 @@ public class PostEntity {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public UserEntity getUser() {
-        return user;
-    }
-
-    public void setUser(UserEntity user) {
-        this.user = user;
     }
 
     public String getEntityType() {
@@ -90,6 +48,14 @@ public class PostEntity {
 
     public void setEntityId(UUID entityId) {
         this.entityId = entityId;
+    }
+
+    public String getEntityName() {
+        return entityName;
+    }
+
+    public void setEntityName(String entityName) {
+        this.entityName = entityName;
     }
 
     public String getTitle() {
@@ -116,11 +82,11 @@ public class PostEntity {
         this.rating = rating;
     }
 
-    public String getImages() {
+    public List<String> getImages() {
         return images;
     }
 
-    public void setImages(String images) {
+    public void setImages(List<String> images) {
         this.images = images;
     }
 
@@ -156,6 +122,46 @@ public class PostEntity {
         this.downvotes = downvotes;
     }
 
+    public Long getCommentCount() {
+        return commentCount;
+    }
+
+    public void setCommentCount(Long commentCount) {
+        this.commentCount = commentCount;
+    }
+
+    public String getMyReaction() {
+        return myReaction;
+    }
+
+    public void setMyReaction(String myReaction) {
+        this.myReaction = myReaction;
+    }
+
+    public UUID getAuthorId() {
+        return authorId;
+    }
+
+    public void setAuthorId(UUID authorId) {
+        this.authorId = authorId;
+    }
+
+    public String getAuthorName() {
+        return authorName;
+    }
+
+    public void setAuthorName(String authorName) {
+        this.authorName = authorName;
+    }
+
+    public String getAuthorAvatar() {
+        return authorAvatar;
+    }
+
+    public void setAuthorAvatar(String authorAvatar) {
+        this.authorAvatar = authorAvatar;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -170,21 +176,5 @@ public class PostEntity {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public List<CommentEntity> getComments() {
-        return comments;
-    }
-
-    public void setComments(List<CommentEntity> comments) {
-        this.comments = comments;
-    }
-
-    public List<PostReactionEntity> getPostReactions() {
-        return postReactions;
-    }
-
-    public void setPostReactions(List<PostReactionEntity> postReactions) {
-        this.postReactions = postReactions;
     }
 }

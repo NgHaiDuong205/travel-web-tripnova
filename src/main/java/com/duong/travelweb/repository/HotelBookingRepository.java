@@ -33,6 +33,13 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
            "AND b.status IN ('confirmed', 'checked_in', 'checked_out', 'completed')")
     BigDecimal sumSpentByUser(@Param("userId") UUID userId);
 
+    /** User đã thực sự ở khách sạn (đã trả phòng, hoặc booking đã xác nhận mà ngày trả phòng đã qua). */
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.user.id = :userId AND b.hotel.id = :hotelId " +
+           "AND (b.status IN ('checked_out', 'completed') " +
+           "OR (b.status IN ('confirmed', 'checked_in') AND b.checkOutDate <= :today))")
+    boolean existsCompletedStay(@Param("userId") UUID userId, @Param("hotelId") UUID hotelId,
+                                @Param("today") LocalDate today);
+
     /** Chuyến sắp tới gần nhất đã xác nhận. */
     @Query("SELECT b FROM HotelBookingEntity b JOIN FETCH b.order JOIN FETCH b.hotel JOIN FETCH b.roomType LEFT JOIN FETCH b.room " +
            "WHERE b.user.id = :userId AND b.status IN ('confirmed', 'checked_in') AND b.checkOutDate >= :today " +

@@ -6,15 +6,12 @@ import com.duong.travelweb.model.dto.ItineraryItemDTO;
 import com.duong.travelweb.model.dto.ItineraryItemRequestDTO;
 import com.duong.travelweb.model.dto.ItineraryRequestDTO;
 import com.duong.travelweb.model.entity.DestinationEntity;
-import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.model.entity.ItineraryEntity;
 import com.duong.travelweb.model.entity.ItineraryItemEntity;
-import com.duong.travelweb.model.entity.LandmarkEntity;
 import com.duong.travelweb.repository.DestinationRepository;
-import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.ItineraryItemRepository;
 import com.duong.travelweb.repository.ItineraryRepository;
-import com.duong.travelweb.repository.LandmarkRepository;
+import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.ItineraryService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,31 +26,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 
 @Service
 public class ItineraryServiceImpl implements ItineraryService {
     /** Độ dài tối đa của một chuyến (cũng là giới hạn dayNumber khi chưa chọn ngày). */
     private static final int MAX_DAYS = 60;
     /** entity_type có tham chiếu thật tới bảng khác -> kiểm tra entityId tồn tại. */
-    private static final List<String> LINKED_TYPES = List.of("hotel", "landmark", "destination");
+    private static final List<String> LINKED_TYPES = EntityReferenceService.LINKED_TYPES;
 
     private final ItineraryRepository itineraryRepository;
     private final ItineraryItemRepository itineraryItemRepository;
     private final DestinationRepository destinationRepository;
-    private final HotelRepository hotelRepository;
-    private final LandmarkRepository landmarkRepository;
+    private final EntityReferenceService entityReferenceService;
 
     public ItineraryServiceImpl(ItineraryRepository itineraryRepository,
                                 ItineraryItemRepository itineraryItemRepository,
                                 DestinationRepository destinationRepository,
-                                HotelRepository hotelRepository,
-                                LandmarkRepository landmarkRepository) {
+                                EntityReferenceService entityReferenceService) {
         this.itineraryRepository = itineraryRepository;
         this.itineraryItemRepository = itineraryItemRepository;
         this.destinationRepository = destinationRepository;
-        this.hotelRepository = hotelRepository;
-        this.landmarkRepository = landmarkRepository;
+        this.entityReferenceService = entityReferenceService;
     }
 
     @Override
@@ -220,17 +213,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (entityType == null || !LINKED_TYPES.contains(entityType)) {
             throw ApiException.badRequest("Chỉ hoạt động loại hotel, landmark, destination mới được gắn entityId");
         }
-        return switch (entityType) {
-            case "hotel" -> hotelRepository.findById(entityId)
-                    .filter(h -> Boolean.TRUE.equals(h.getIsActive()))
-                    .map(HotelEntity::getName)
-                    .orElseThrow(() -> ApiException.badRequest("Khách sạn không tồn tại"));
-            case "landmark" -> landmarkRepository.findById(entityId)
-                    .filter(l -> Boolean.TRUE.equals(l.getIsActive()))
-                    .map(LandmarkEntity::getName)
-                    .orElseThrow(() -> ApiException.badRequest("Địa danh không tồn tại"));
-            default -> findActiveDestination(entityId).getName();
-        };
+        return entityReferenceService.requireActiveName(entityType, entityId);
     }
 
     private DestinationEntity findActiveDestination(UUID destinationId) {
@@ -313,21 +296,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 idsByType.computeIfAbsent(item.getEntityType(), k -> new ArrayList<>()).add(item.getEntityId());
             }
         }
-        Map<String, Map<UUID, String>> names = new HashMap<>();
-        idsByType.forEach((type, ids) -> names.put(type, switch (type) {
-            case "hotel" -> toNameMap(hotelRepository.findAllById(ids), HotelEntity::getId, HotelEntity::getName);
-            case "landmark" -> toNameMap(landmarkRepository.findAllById(ids), LandmarkEntity::getId, LandmarkEntity::getName);
-            default -> toNameMap(destinationRepository.findAllById(ids), DestinationEntity::getId, DestinationEntity::getName);
-        }));
-        return names;
-    }
-
-    private <T> Map<UUID, String> toNameMap(List<T> entities, Function<T, UUID> id, Function<T, String> name) {
-        Map<UUID, String> map = new HashMap<>();
-        for (T entity : entities) {
-            map.put(id.apply(entity), name.apply(entity));
-        }
-        return map;
+        return entityReferenceService.resolveNames(idsByType);
     }
 
     private BigDecimal toBigDecimal(Object value) {

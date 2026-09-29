@@ -33,6 +33,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Cars (thuê xe) + admin | `a2fe123`, `45b8493` | `05545e9` |
 | Flights (ghế, nhiều hành khách) + admin | `ddb02bd` | `2326d9c` |
 | Tours + admin | `1c3c0c8` | `9e3f4d9` |
+| Notifications, audit logs, ảnh KS, upload/avatar, verify-email, đổi email/xoá TK, OAuth2, search | `3063728`, `553f5c5` | `bf1ba19` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -71,7 +72,10 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - Flights xong (2026-09-29): 50 chuyến demo (HAN/SGN/DAD/SIN/BKK, 4 hãng, 5 ngày tới, sơ đồ ghế business 1-3 ACDF + economy 4-20 ABCDEF). UI test `scratchpad/ui/ui_flights.js` pass (tìm kiếm, lọc giờ, khứ hồi, chọn 2 ghế, điền sẵn tên hành khách đầu, thanh toán, My Trips tab flights, huỷ 1 vé, admin sơ đồ ghế).
 - Tours xong (2026-09-29): 6 tour demo (Ha Long, Hoi An, Northern Vietnam [ngày cố định +21], Phu Quoc, Kyoto [cố định +35], Santorini) gắn 2 khách sạn cùng điểm đến + 1 xe (+ chuyến bay cho tour miền Bắc). UI test `scratchpad/ui/ui_tours.js` pass.
   Tour test `Hành trình Hạ Long …`, `Fixed Tour …` (đã tắt).
-- Tiếp theo: các mục còn lại trừ AI và cổng thanh toán thật (người dùng loại ra): verify-email, account (email/xoá), avatar + uploads, notifications (no table — hỏi), OAuth2 (cần client id/secret — hỏi), audit logs / search-queries (xem bảng), /api/search + suggest (không AI), hotel images (no table) → các mục còn lại (trừ AI và cổng thanh toán thật — người dùng loại ra) → … (xem "Thứ tự dự kiến" cuối mục 4).
+- 2026-09-30: xong notifications, audit logs, ảnh khách sạn, upload/avatar, verify-email, đổi email/xoá tài khoản, OAuth2 (Google/Facebook/GitHub), search (không AI). Migration `db/migrations/2026-09-30_notifications_audit_hotel_images.sql` (đã chạy trên DB local; DB khác phải chạy tay). E2E `scratchpad/t_infra.py`, `t_account.py`, `t_oauth.py` (cần BE chạy với env GitHub giả lập + `mock_github.py`) và UI `scratchpad/ui/ui_infra.js` đều pass.
+  FE: trang mới `/notifications`, `/account/security` (Login & Security), `/search`, `/verify-email`, `/oauth2/callback`, admin `/admin/{audit-logs,search-queries,hotel-images}`. Sửa tối thiểu trang cũ: chuông ở DashboardLayout thành link + số chưa đọc, thêm menu, Login chèn `<SocialLoginButtons/>` (tự ẩn khi BE chưa cấu hình key).
+  Lưu ý: `application.properties` bị gitignore → cấu hình mới đều có giá trị mặc định trong code.
+- Tiếp theo: chỉ còn AI (/api/ai/*, A13) và cổng thanh toán thật (VNPay/MoMo, webhook) — người dùng đã loại ra. Review cho tour cần sửa CHECK `posts.entity_type` (hỏi trước).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -84,18 +88,18 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **1. Auth & OAuth2**
 - [x] POST /api/auth/register · login · logout · refresh-token · forgot-password · reset-password · change-password
 - [x] GET /api/auth/me
-- [ ] POST /api/auth/verify-email · resend-verification (chưa có mail server → log link ra console như forgot-password)
-- [ ] OAuth2 Google / Facebook / GitHub (`/oauth2/authorization/*`, bảng `user_oauth_accounts`)
+- [x] POST /api/auth/verify-email {token} (public) · POST /api/auth/resend-verification (AUTH, chờ 60s) — token HMAC ký bằng app.jwt.secret (`security/SignedTokenService`, không lưu DB, hạn 24h, gắn email → đổi email là link cũ hết hiệu lực); link log ra console `Email verification link for ...` khi đăng ký / đổi email / gửi lại. FE `/verify-email?token=`
+- [x] OAuth2 Google / Facebook / GitHub — `config/OAuth2LoginConfig` (chain riêng cho /oauth2/** và /login/oauth2/**, có session), `security/OAuth2ProviderRegistry`: chỉ bật provider có env `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET` (redirect URI cần khai báo: `http://localhost:8080/login/oauth2/code/{provider}`); `GITHUB_WEB_URL`/`GITHUB_API_URL` cho GitHub Enterprise (test dùng provider giả lập `scratchpad/mock_github.py`). Kết quả redirect `{FE}/oauth2/callback?code=` → POST /api/auth/oauth2/exchange/ {code} (mã 1 lần, 2 phút, trong bộ nhớ) → JWT. GET /api/auth/oauth2/providers/ (rỗng → FE ẩn nút). Đăng nhập: theo liên kết → theo email ĐÃ XÁC THỰC bởi provider (tự liên kết) → tạo user mới (mật khẩu ngẫu nhiên; email chưa xác thực thì gửi link). Liên kết thêm: POST /api/me/oauth-accounts/link-token/ → `/oauth2/authorization/{p}?link=token`. Không lưu access token của provider. Enum `oauth_provider` đã thêm `github`.
 
 **2. Users / Me**
 - [x] GET /api/me/dashboard · GET|PUT /api/me/profile · PUT /api/me/change-password
-- [ ] PUT /api/me/avatar (multipart — cần hạ tầng upload, xem mục 19)
-- [ ] /api/me/notifications (GET, PATCH {id}/read, POST mark-all-read) (no table `notifications`)
-- [ ] GET /api/me/oauth-accounts · DELETE /api/me/oauth-accounts/{provider}
+- [x] PUT /api/me/avatar (multipart `file`) · DELETE /api/me/avatar (xoá file cũ sau commit)
+- [x] GET /api/me/notifications (?unread&page&limit; header X-Total-Count + X-Unread-Count) · GET /unread-count · PATCH /{id}/read · POST /mark-all-read · DELETE /{id} — `NotificationService`: phát khi thanh toán thành công/thất bại/không giữ được chỗ, admin đổi trạng thái booking (4 loại), admin hoàn tiền, duyệt/từ chối review, bình luận/trả lời, admin trả lời liên hệ. Link FE: hotel → /bookings/{id}, khác → /my-trips?tab=...&paid=. Chưa báo khi hết hạn giữ chỗ.
+- [x] GET /api/me/oauth-accounts · DELETE /api/me/oauth-accounts/{provider} · POST /link-token
 
 **3. Account settings**
 - [~] GET /api/account/settings · PUT /api/account/profile · PUT /api/account/password → đã phủ bởi /api/me/profile, /api/me/change-password (FE AccountSettings dùng /api/me)
-- [ ] PUT /api/account/email · DELETE /api/account (soft-delete)
+- [x] PUT /api/account/email {newEmail, currentPassword} (→ chưa xác thực + gửi link) · DELETE /api/account {password} (xoá mềm, 409 nếu còn booking pending/confirmed/checked_in ở bất kỳ loại nào, thu hồi refresh token, gỡ liên kết OAuth). User tạo bằng OAuth phải dùng Quên mật khẩu để đặt mật khẩu trước.
 
 **4. Lookup**
 - [x] GET /api/continents · /api/countries · /api/countries/{id} · /api/amenities?category · /api/room-types?hotelId
@@ -164,9 +168,9 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] POST /api/contact · GET /api/contact/info
 - [~] GET /api/about … → bỏ qua: FE đã có trang About tĩnh (Terms/Privacy nếu cần thì làm trang tĩnh ở FE)
 
-**18. Search & AI** — [ ] /api/search, /api/search/suggest, /api/ai/* (bảng `search_queries`, `chat_*`, `recommendations`, `price_predictions`…)
+**18. Search & AI** — [x] GET /api/search/?q&type=all|destination|hotel|tour|car|flight&page&limit (mọi từ phải khớp, xếp hạng pg_trgm `similarity` + ưu tiên tiền tố, bỏ dấu nếu DB có extension `unaccent`; trang 1 ghi `search_queries`, trả `searchId`) · GET /api/search/suggest/?q (≥2 ký tự; hotel/điểm đến/tour/thành phố có chuyến bay) · POST /api/search/click/ {searchId, entityType, entityId}. FE `/search` (menu "Search"). [ ] /api/ai/* — người dùng loại ra
 
-**19. Uploads** — [ ] POST|DELETE /api/uploads/images
+**19. Uploads** — [x] POST /api/uploads/images (multipart `file`, ≤5 MB, nhận diện JPEG/PNG/GIF/WEBP theo magic bytes, không nhận SVG) → {url tuyệt đối} · DELETE {url} (chủ file hoặc admin). Lưu `{app.upload.dir=uploads}/images/{userId}/{uuid}.ext`, phục vụ public tại /uploads/** (`app.upload.public-base-url`, mặc định http://localhost:8080). Thư mục `uploads/` đã gitignore.
 
 ### II. Admin (`/api/admin/**`, ROLE_ADMIN)
 **A1. Dashboard** — BE + FE xong
@@ -179,7 +183,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET|POST /api/admin/hotels/{hotelId}/rooms · GET|PUT|DELETE /{roomId}
 - [x] PUT /api/admin/hotels/{hotelId}/amenities {amenityIds}
 - [x] PUT /api/admin/rooms/{roomId}/availability {from,to (tính cả 2 đầu),status=blocked|available,reason} + GET ?from&to (chỉ trả ngày booked/blocked)
-- [ ] POST|DELETE /api/admin/hotels/{hotelId}/images (no table `hotel_images` — hiện chỉ có `cover_image_url`)
+- [x] GET /api/hotels/{id}/images (public) · GET|POST /api/admin/hotels/{id}/images {url, caption?, sortOrder?} · PUT|DELETE /{imageId} · POST /{imageId}/cover (ghi hotels.cover_image_url). URL phải http(s):// hoặc /uploads/, tối đa 30 ảnh/KS. FE `/admin/hotel-images?hotelId=` (menu "Hotel Images"; trang HotelEdit cũ không sửa). Trang HotelDetail cũ chưa hiển thị gallery.
 
 **A3. Hotel bookings**
 - [x] GET /api/admin/hotel-bookings · /{id} · PUT /{id}/status
@@ -215,7 +219,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [~] /api/admin/reviews → chính là /api/admin/posts
 **A12. Amenities** — [x] GET?category (kèm hotelCount/roomTypeCount) · POST · PUT · DELETE (409 nếu đang dùng, `?force=true` để xoá)
 **A13. AI / Knowledge base** — [ ] toàn bộ
-**A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
+**A14. Audit / Logs** — [x] GET /api/admin/audit-logs (?userId&action (chính xác hoặc tiền tố)&from&to) · /actions — ghi tự động bởi `config/AuditLogInterceptor` cho mọi POST/PUT/PATCH/DELETE vào /api/admin/** và /api/account/** (cả request lỗi; không ghi body; action = các đoạn path + create|update|delete, VD `hotel-bookings.refund.create`). [x] GET /api/admin/search-queries (?userId&q&from&to) · /top (?from&to&limit). FE `/admin/audit-logs`, `/admin/search-queries`.
 
 ### Thứ tự dự kiến
 ~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ → ~~Posts/Comments~~ → ~~Invoices~~ (xong) → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.

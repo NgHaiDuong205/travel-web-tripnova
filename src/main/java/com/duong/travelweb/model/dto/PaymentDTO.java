@@ -10,6 +10,7 @@ public class PaymentDTO {
     private String orderCode;
     private String orderStatus;
     private UUID bookingId;
+    private int bookingCount;
     private String paymentMethod;
     private BigDecimal amount;
     private String currencyCode;
@@ -57,6 +58,14 @@ public class PaymentDTO {
 
     public void setOrderStatus(String orderStatus) {
         this.orderStatus = orderStatus;
+    }
+
+    public int getBookingCount() {
+        return bookingCount;
+    }
+
+    public void setBookingCount(int bookingCount) {
+        this.bookingCount = bookingCount;
     }
 
     public UUID getBookingId() {

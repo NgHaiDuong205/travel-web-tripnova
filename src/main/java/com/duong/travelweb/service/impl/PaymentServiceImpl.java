@@ -84,12 +84,15 @@ public class PaymentServiceImpl implements PaymentService {
     private Page<PaymentDTO> toDTOPage(Page<PaymentEntity> payments) {
         List<UUID> orderIds = payments.stream().map(p -> p.getOrder().getId()).distinct().toList();
         Map<UUID, UUID> bookingIdByOrder = new HashMap<>();
+        Map<UUID, Integer> bookingCountByOrder = new HashMap<>();
         if (!orderIds.isEmpty()) {
             for (Object[] row : hotelBookingRepository.findBookingIdsByOrderIds(orderIds)) {
                 bookingIdByOrder.putIfAbsent((UUID) row[0], (UUID) row[1]);
+                bookingCountByOrder.merge((UUID) row[0], 1, Integer::sum);
             }
         }
-        return payments.map(p -> toDTO(p, bookingIdByOrder.get(p.getOrder().getId())));
+        return payments.map(p -> toDTO(p, bookingIdByOrder.get(p.getOrder().getId()),
+                bookingCountByOrder.getOrDefault(p.getOrder().getId(), 0)));
     }
 
     @Override
@@ -187,12 +190,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     private PaymentDTO toDTO(PaymentEntity payment) {
         List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(payment.getOrder().getId());
-        return toDTO(payment, bookings.isEmpty() ? null : bookings.get(0).getId());
+        return toDTO(payment, bookings.isEmpty() ? null : bookings.get(0).getId(), bookings.size());
     }
 
-    private PaymentDTO toDTO(PaymentEntity payment, UUID bookingId) {
+    /** bookingId = booking đầu tiên của order; bookingCount > 1 với đơn đặt từ giỏ hàng. */
+    private PaymentDTO toDTO(PaymentEntity payment, UUID bookingId, int bookingCount) {
         OrderEntity order = payment.getOrder();
         PaymentDTO dto = new PaymentDTO();
+        dto.setBookingCount(bookingCount);
         dto.setId(payment.getId());
         dto.setOrderId(order.getId());
         dto.setOrderCode(order.getOrderCode());

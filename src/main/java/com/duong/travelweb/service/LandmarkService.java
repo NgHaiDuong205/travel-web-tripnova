@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface LandmarkService {
-    List<LandmarkDTO> findAllActiveLandmarks(String category);
+    /** Tham số null = bỏ qua; limit null = trả toàn bộ. */
+    List<LandmarkDTO> findAllActiveLandmarks(String keyword, String category, Integer page, Integer limit);
+    long countActiveLandmarks(String keyword, String category);
     LandmarkDTO findLandmarkByIdAndDestinationId(UUID destinationId, UUID landmarkId);
 }

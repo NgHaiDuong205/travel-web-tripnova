@@ -32,6 +32,61 @@ public class DestinationRepositoryImpl implements DestinationRepositoryCustom {
         return query.getSingleResult();
     }
 
+    @Override
+    public List<DestinationEntity> findPublic(String keyword, String countryCode, String continentCode, Boolean popular,
+                                              Integer page, Integer limit) {
+        String jpql = "SELECT d FROM DestinationEntity d JOIN FETCH d.country c WHERE d.isActive = true"
+                + buildPublicCondition(keyword, countryCode, continentCode, popular) + " ORDER BY d.name";
+        TypedQuery<DestinationEntity> query = entityManager.createQuery(jpql, DestinationEntity.class);
+        bindPublicParams(query, keyword, countryCode, continentCode, popular);
+        if (limit != null) {
+            query.setFirstResult((Math.max(page == null ? 1 : page, 1) - 1) * limit);
+            query.setMaxResults(limit);
+        }
+        return query.getResultList();
+    }
+
+    @Override
+    public long countPublic(String keyword, String countryCode, String continentCode, Boolean popular) {
+        String jpql = "SELECT COUNT(d) FROM DestinationEntity d JOIN d.country c WHERE d.isActive = true"
+                + buildPublicCondition(keyword, countryCode, continentCode, popular);
+        TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
+        bindPublicParams(query, keyword, countryCode, continentCode, popular);
+        return query.getSingleResult();
+    }
+
+    private String buildPublicCondition(String keyword, String countryCode, String continentCode, Boolean popular) {
+        StringBuilder where = new StringBuilder();
+        if (keyword != null) {
+            where.append(" AND (LOWER(d.name) LIKE :keyword OR LOWER(c.name) LIKE :keyword)");
+        }
+        if (countryCode != null) {
+            where.append(" AND LOWER(c.countryCode) = :countryCode");
+        }
+        if (continentCode != null) {
+            where.append(" AND LOWER(c.continent.code) = :continentCode");
+        }
+        if (popular != null) {
+            where.append(" AND d.isPopular = :popular");
+        }
+        return where.toString();
+    }
+
+    private void bindPublicParams(TypedQuery<?> query, String keyword, String countryCode, String continentCode, Boolean popular) {
+        if (keyword != null) {
+            query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
+        }
+        if (countryCode != null) {
+            query.setParameter("countryCode", countryCode.toLowerCase());
+        }
+        if (continentCode != null) {
+            query.setParameter("continentCode", continentCode.toLowerCase());
+        }
+        if (popular != null) {
+            query.setParameter("popular", popular);
+        }
+    }
+
     private String buildCondition(String keyword, UUID countryId, Boolean active) {
         StringBuilder where = new StringBuilder();
         if (keyword != null) {

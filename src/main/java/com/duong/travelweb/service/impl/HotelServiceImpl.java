@@ -3,6 +3,7 @@ package com.duong.travelweb.service.impl;
 import com.duong.travelweb.builder.HotelSearchBuilder;
 import com.duong.travelweb.converter.HotelDTOConverter;
 import com.duong.travelweb.converter.HotelSearchBuilderConverter;
+import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.RoomRepository;
@@ -92,7 +93,7 @@ public class HotelServiceImpl implements HotelService {
     @Transactional(readOnly = true)
     public HotelDTO getHotelById(UUID id, Map<String, Object> params) {
         HotelEntity hotelEntity = hotelRepository.findById(id).orElse(null);
-        if (hotelEntity == null || !Boolean.TRUE.equals(hotelEntity.getIsActive())) return null;
+        if (hotelEntity == null || !Boolean.TRUE.equals(hotelEntity.getIsActive())) throw ApiException.notFound("Không tìm thấy khách sạn");
 
         HotelDTO hotel = hotelDTOConverter.toHotelDTO(hotelEntity);
 

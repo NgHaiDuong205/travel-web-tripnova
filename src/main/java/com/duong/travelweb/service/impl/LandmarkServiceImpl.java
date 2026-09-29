@@ -1,6 +1,7 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.converter.LandmarkDTOConverter;
+import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.LandmarkDTO;
 import com.duong.travelweb.model.entity.LandmarkEntity;
 import com.duong.travelweb.repository.LandmarkRepository;
@@ -26,8 +27,8 @@ public class LandmarkServiceImpl implements LandmarkService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<LandmarkDTO> findAllActiveLandmarks(String category) {
-        List<LandmarkEntity> entities = landmarkRepository.findAllActiveLandmarks(category);
+    public List<LandmarkDTO> findAllActiveLandmarks(String keyword, String category, Integer page, Integer limit) {
+        List<LandmarkEntity> entities = landmarkRepository.findPublic(blankToNull(keyword), blankToNull(category), page, limit);
         List<LandmarkDTO> result = new ArrayList<>();
         for (LandmarkEntity item : entities) {
             result.add(landmarkDTOConverter.toLandmarkDTO(item));
@@ -38,10 +39,18 @@ public class LandmarkServiceImpl implements LandmarkService {
     @Override
     @Transactional(readOnly = true)
     public LandmarkDTO findLandmarkByIdAndDestinationId(UUID destinationId, UUID landmarkId) {
-        LandmarkEntity landmarkEntity = landmarkRepository.findActiveLandmarkByIdAndDestinationId(landmarkId, destinationId).orElse(null);
-        if (landmarkEntity != null) {
-            return landmarkDTOConverter.toLandmarkDTO(landmarkEntity);
-        }
-        return null;
+        LandmarkEntity landmarkEntity = landmarkRepository.findActiveLandmarkByIdAndDestinationId(landmarkId, destinationId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy địa danh"));
+        return landmarkDTOConverter.toLandmarkDTO(landmarkEntity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countActiveLandmarks(String keyword, String category) {
+        return landmarkRepository.countPublic(blankToNull(keyword), blankToNull(category));
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

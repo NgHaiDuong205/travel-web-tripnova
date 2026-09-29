@@ -4,7 +4,6 @@ import com.duong.travelweb.model.dto.HotelDTO;
 import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.service.HotelService;
 import com.duong.travelweb.service.RoomService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +26,7 @@ public class HotelAPI {
 
     @GetMapping("/api/hotels/")
     public ResponseEntity<List<HotelDTO>> getHotel (@RequestParam Map<String,Object> params,
-                                                    @RequestParam(required = false) List<String> amenities){
+                                                    @RequestParam(value = "amenities", required = false) List<String> amenities){
         List<HotelDTO> results = hotelService.findHotel(params, amenities);
         long total = hotelService.countHotel(params, amenities);
         return ResponseEntity.ok()
@@ -36,30 +35,22 @@ public class HotelAPI {
     }
 
     @GetMapping("/api/hotels/{id}/")
-    public ResponseEntity<HotelDTO> getHotelById(@PathVariable UUID id,
+    public ResponseEntity<HotelDTO> getHotelById(@PathVariable("id") UUID id,
                                                  @RequestParam Map<String, Object> params) {
-        HotelDTO result = hotelService.getHotelById(id, params);
-        if (result != null && result.getId() != null) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        return ResponseEntity.ok(hotelService.getHotelById(id, params));
     }
 
     @GetMapping("/api/hotels/{hotelId}/rooms/")
-    public ResponseEntity<List<RoomDTO>> getRoomsByHotelId(@PathVariable UUID hotelId,
+    public ResponseEntity<List<RoomDTO>> getRoomsByHotelId(@PathVariable("hotelId") UUID hotelId,
                                                            @RequestParam Map<String, Object> params,
-                                                           @RequestParam(required = false) List<String> amenities) {
+                                                           @RequestParam(value = "amenities", required = false) List<String> amenities) {
         List<RoomDTO> results = roomService.findRoomsByHotelId(hotelId, params, amenities);
         return ResponseEntity.ok(results);
     }
 
     @GetMapping("/api/hotels/{hotelId}/rooms/{roomId}/")
-    public ResponseEntity<RoomDTO> getRoomByIdAndHotelId(@PathVariable UUID hotelId,
-                                                         @PathVariable UUID roomId) {
-        RoomDTO result = roomService.findRoomByIdAndHotelId(hotelId, roomId);
-        if (result != null) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    public ResponseEntity<RoomDTO> getRoomByIdAndHotelId(@PathVariable("hotelId") UUID hotelId,
+                                                         @PathVariable("roomId") UUID roomId) {
+        return ResponseEntity.ok(roomService.findRoomByIdAndHotelId(hotelId, roomId));
     }
 }

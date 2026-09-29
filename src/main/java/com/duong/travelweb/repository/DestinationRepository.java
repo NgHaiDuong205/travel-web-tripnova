@@ -24,17 +24,4 @@ public interface DestinationRepository extends JpaRepository<DestinationEntity, 
     /** [countryId, số điểm đến] */
     @Query("SELECT d.country.id, COUNT(d) FROM DestinationEntity d GROUP BY d.country.id")
     List<Object[]> countGroupByCountry();
-
-    @Query("SELECT d FROM DestinationEntity d WHERE " +
-           "d.isActive = true AND " +
-           "(:countryCode = '' OR LOWER(d.country.countryCode) = LOWER(:countryCode)) AND " +
-           "(:continentCode = '' OR LOWER(d.country.continent.code) = LOWER(:continentCode))")
-    List<DestinationEntity> queryDestinations(@Param("countryCode") String countryCode,
-                                              @Param("continentCode") String continentCode);
-
-    // Tham số String không được dùng "IS NULL" (stringtype=unspecified → Postgres không suy ra kiểu) → null đổi thành ""
-    default List<DestinationEntity> findDestinations(String countryCode, String continentCode) {
-        return queryDestinations(countryCode == null ? "" : countryCode.trim(),
-                continentCode == null ? "" : continentCode.trim());
-    }
 }

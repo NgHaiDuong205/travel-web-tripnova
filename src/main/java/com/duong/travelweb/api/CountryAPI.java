@@ -2,7 +2,6 @@ package com.duong.travelweb.api;
 
 import com.duong.travelweb.model.dto.CountryDTO;
 import com.duong.travelweb.service.CountryService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,17 +21,13 @@ public class CountryAPI {
 
     @GetMapping("/")
     public ResponseEntity<List<CountryDTO>> getCountry(@RequestParam Map<String,Object> params,
-                                        @RequestParam (required = false) List<String> typeCode) {
+                                        @RequestParam(value = "typeCode", required = false) List<String> typeCode) {
         List<CountryDTO> results = countryService.findCountry(params, typeCode);
         return ResponseEntity.ok(results);
     }
 
     @GetMapping("/{id}/")
-    public ResponseEntity<CountryDTO> getCountryById(@PathVariable UUID id) {
-        CountryDTO result = countryService.getCountryById(id);
-        if (result != null && result.getId() != null) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    public ResponseEntity<CountryDTO> getCountryById(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(countryService.getCountryById(id));
     }
     }

@@ -12,6 +12,7 @@ import java.util.UUID;
 
 @RestController
 public class DestinationAPI {
+    private static final int MAX_LIMIT = 100;
 
     private final DestinationService destinationService;
     private final LandmarkService landmarkService;
@@ -23,40 +24,35 @@ public class DestinationAPI {
 
     @GetMapping("/api/destinations/")
     public ResponseEntity<List<DestinationDTO>> getDestinations(
-            @RequestParam(required = false) String countryCode,
-            @RequestParam(required = false) String continentCode) {
-        List<DestinationDTO> results = destinationService.findDestinations(countryCode, continentCode);
-        return ResponseEntity.ok(results);
+            @RequestParam(value = "q", required = false) String keyword,
+            @RequestParam(value = "countryCode", required = false) String countryCode,
+            @RequestParam(value = "continentCode", required = false) String continentCode,
+            @RequestParam(value = "isPopular", required = false) Boolean popular,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "limit", required = false) Integer limit) {
+        // Không truyền limit -> trả toàn bộ (dropdown FE); luôn kèm X-Total-Count
+        Integer pageSize = limit == null ? null : Math.min(Math.max(limit, 1), MAX_LIMIT);
+        List<DestinationDTO> results = destinationService.findDestinations(keyword, countryCode, continentCode, popular, page, pageSize);
+        long total = destinationService.countDestinations(keyword, countryCode, continentCode, popular);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(total)).body(results);
     }
 
     @GetMapping("/api/destinations/{destinationId}/")
     public ResponseEntity<DestinationDTO> getDestinationById(@PathVariable("destinationId") UUID destinationId) {
-        DestinationDTO result = destinationService.findById(destinationId);
-        if (result != null) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(destinationService.findById(destinationId));
     }
 
     @GetMapping("/api/destinations/{destinationId}/landmarks/")
     public ResponseEntity<List<LandmarkDTO>> getLandmarksByDestinationId(
             @PathVariable("destinationId") UUID destinationId,
-            @RequestParam(required = false) String category) {
-        List<LandmarkDTO> results = destinationService.findLandmarksByDestinationId(destinationId, category);
-        if (results != null) {
-            return ResponseEntity.ok(results);
-        }
-        return ResponseEntity.notFound().build();
+            @RequestParam(value = "category", required = false) String category) {
+        return ResponseEntity.ok(destinationService.findLandmarksByDestinationId(destinationId, category));
     }
 
     @GetMapping("/api/destinations/{destinationId}/landmarks/{landmarkId}/")
     public ResponseEntity<LandmarkDTO> getLandmarkByIdAndDestinationId(
             @PathVariable("destinationId") UUID destinationId,
             @PathVariable("landmarkId") UUID landmarkId) {
-        LandmarkDTO result = landmarkService.findLandmarkByIdAndDestinationId(destinationId, landmarkId);
-        if (result != null) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(landmarkService.findLandmarkByIdAndDestinationId(destinationId, landmarkId));
     }
 }

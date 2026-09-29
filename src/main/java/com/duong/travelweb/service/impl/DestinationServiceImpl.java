@@ -2,6 +2,7 @@ package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.converter.DestinationDTOConverter;
 import com.duong.travelweb.converter.LandmarkDTOConverter;
+import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.DestinationDTO;
 import com.duong.travelweb.model.dto.LandmarkDTO;
 import com.duong.travelweb.model.entity.DestinationEntity;
@@ -36,8 +37,10 @@ public class DestinationServiceImpl implements DestinationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DestinationDTO> findDestinations(String countryCode, String continentCode) {
-        List<DestinationEntity> entities = destinationRepository.findDestinations(countryCode, continentCode);
+    public List<DestinationDTO> findDestinations(String keyword, String countryCode, String continentCode, Boolean popular,
+                                                 Integer page, Integer limit) {
+        List<DestinationEntity> entities = destinationRepository.findPublic(blankToNull(keyword), blankToNull(countryCode),
+                blankToNull(continentCode), popular, page, limit);
         List<DestinationDTO> result = new ArrayList<>();
         for (DestinationEntity item : entities) {
             result.add(destinationDTOConverter.toDestinationDTO(item));
@@ -48,17 +51,19 @@ public class DestinationServiceImpl implements DestinationService {
     @Override
     @Transactional(readOnly = true)
     public DestinationDTO findById(UUID destinationId) {
-        DestinationEntity entity = destinationRepository.findById(destinationId).orElse(null);
-        if (entity == null || Boolean.FALSE.equals(entity.getIsActive())) return null;
+        DestinationEntity entity = destinationRepository.findById(destinationId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy điểm đến"));
+        if (Boolean.FALSE.equals(entity.getIsActive())) throw ApiException.notFound("Không tìm thấy điểm đến");
         return destinationDTOConverter.toDestinationDTO(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<LandmarkDTO> findLandmarksByDestinationId(UUID destinationId, String category) {
-        DestinationEntity destination = destinationRepository.findById(destinationId).orElse(null);
-        if (destination == null || Boolean.FALSE.equals(destination.getIsActive())) {
-            return null;
+        DestinationEntity destination = destinationRepository.findById(destinationId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy điểm đến"));
+        if (Boolean.FALSE.equals(destination.getIsActive())) {
+            throw ApiException.notFound("Không tìm thấy điểm đến");
         }
         List<LandmarkEntity> landmarks = landmarkRepository.findActiveLandmarksByDestinationId(destinationId, category);
         List<LandmarkDTO> result = new ArrayList<>();
@@ -66,5 +71,15 @@ public class DestinationServiceImpl implements DestinationService {
             result.add(landmarkDTOConverter.toLandmarkDTO(item));
         }
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countDestinations(String keyword, String countryCode, String continentCode, Boolean popular) {
+        return destinationRepository.countPublic(blankToNull(keyword), blankToNull(countryCode), blankToNull(continentCode), popular);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

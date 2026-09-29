@@ -78,18 +78,18 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **4. Lookup**
 - [x] GET /api/continents · /api/countries · /api/countries/{id} · /api/amenities?category · /api/room-types?hotelId
-- [ ] GET /api/currencies (no table — có thể trả danh sách tĩnh từ config)
+- [~] GET /api/currencies → bỏ qua: hệ thống chỉ dùng 1 loại tiền (`app.booking.currency`)
 
 **5. Destinations & Landmarks**
-- [x] GET /api/destinations · /{id} · /{id}/landmarks · /{id}/landmarks/{landmarkId} · GET /api/landmarks
-- [ ] GET /api/landmarks/{landmarkId}
-- [ ] GET /api/destinations/{id}/hotels (hiện dùng /api/hotels?destinationId=)
+- [x] GET /api/destinations (?q&countryCode&continentCode&isPopular&page&limit — không truyền limit thì trả hết; luôn có X-Total-Count) · /{id} · /{id}/landmarks · /{id}/landmarks/{landmarkId} · GET /api/landmarks (?q&category&page&limit)
+- [~] GET /api/landmarks/{landmarkId} → dùng /api/destinations/{id}/landmarks/{landmarkId}
+- [~] GET /api/destinations/{id}/hotels → dùng /api/hotels?destinationId=
 - [ ] GET /api/destinations/{id}/tours
 
 **6. Hotels & Rooms**
 - [x] GET /api/hotels · /{hotelId} · /{hotelId}/rooms · /{hotelId}/rooms/{roomId} · /{hotelId}/room-types
-- [ ] GET /api/hotels/{hotelId}/availability?from&to
-- [ ] GET /api/hotels/suggest?q
+- [~] GET /api/hotels/{hotelId}/availability?from&to → dùng /api/hotel-bookings/check-availability + /api/hotels/{id}/rooms?checkIn&checkOut
+- [~] GET /api/hotels/suggest?q → dùng /api/hotels?name=&limit=
 - [ ] GET|POST /api/hotels/{hotelId}/reviews (no table `reviews`)
 
 **7. Hotel bookings**
@@ -133,7 +133,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **17. Contact / About**
 - [x] POST /api/contact · GET /api/contact/info
-- [ ] GET /api/about · /about/company-info · /about/terms · /about/privacy-policy (nội dung tĩnh từ config)
+- [~] GET /api/about … → bỏ qua: FE đã có trang About tĩnh (Terms/Privacy nếu cần thì làm trang tĩnh ở FE)
 
 **18. Search & AI** — [ ] /api/search, /api/search/suggest, /api/ai/* (bảng `search_queries`, `chat_*`, `recommendations`, `price_predictions`…)
 
@@ -184,7 +184,10 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 
 ### Thứ tự dự kiến
-~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → Landmark/Destination shortcuts, hotel availability/suggest, About/Currencies → Itineraries → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → Itineraries → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+
+Quy tắc (người dùng 2026-09-29): endpoint mà endpoint cũ đã đáp ứng thì **không làm lại** (đánh `[~]`); code cũ lệch quy chuẩn thì **được sửa**. Việc khó Claude tự làm, việc lặt vặt giao Codex.
+Đã chuẩn hoá API public cũ: service ném `ApiException.notFound` thay vì trả null (Destination/Landmark/Hotel/Room/Country), controller ghi rõ tên `@PathVariable/@RequestParam`.
 
 Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng card (10 request/trang) → gom bằng 1 lần `GET /api/favorites/`.
 

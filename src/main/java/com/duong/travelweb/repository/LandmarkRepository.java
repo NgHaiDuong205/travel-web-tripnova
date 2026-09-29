@@ -24,15 +24,6 @@ public interface LandmarkRepository extends JpaRepository<LandmarkEntity, UUID>,
         return queryActiveLandmarksByDestinationId(destinationId, category == null ? "" : category.trim());
     }
 
-    @Query("SELECT l FROM LandmarkEntity l WHERE l.isActive = true AND " +
-           "(:category = '' OR LOWER(CAST(l.category AS string)) = LOWER(:category)) " +
-           "ORDER BY l.name ASC")
-    List<LandmarkEntity> queryAllActiveLandmarks(@Param("category") String category);
-
-    default List<LandmarkEntity> findAllActiveLandmarks(String category) {
-        return queryAllActiveLandmarks(category == null ? "" : category.trim());
-    }
-
     @Query("SELECT l FROM LandmarkEntity l WHERE l.id = :landmarkId AND l.destination.id = :destinationId AND l.isActive = true AND l.destination.isActive = true")
     Optional<LandmarkEntity> findActiveLandmarkByIdAndDestinationId(@Param("landmarkId") UUID landmarkId, 
                                                                     @Param("destinationId") UUID destinationId);

@@ -1,6 +1,9 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.converter.RoomDTOConverter;
+import com.duong.travelweb.converter.RoomSearchBuilderConverter;
+import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.builder.RoomSearchBuilder;
 import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.model.entity.RoomEntity;
 import com.duong.travelweb.repository.RoomRepository;
@@ -9,8 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -18,9 +23,9 @@ import java.util.UUID;
 public class RoomServiceImpl implements RoomService {
     private final RoomRepository roomRepository;
     private final RoomDTOConverter roomDTOConverter;
-    private final com.duong.travelweb.converter.RoomSearchBuilderConverter roomSearchBuilderConverter;
+    private final RoomSearchBuilderConverter roomSearchBuilderConverter;
 
-    public RoomServiceImpl(RoomRepository roomRepository, RoomDTOConverter roomDTOConverter, com.duong.travelweb.converter.RoomSearchBuilderConverter roomSearchBuilderConverter) {
+    public RoomServiceImpl(RoomRepository roomRepository, RoomDTOConverter roomDTOConverter, RoomSearchBuilderConverter roomSearchBuilderConverter) {
         this.roomRepository = roomRepository;
         this.roomDTOConverter = roomDTOConverter;
         this.roomSearchBuilderConverter = roomSearchBuilderConverter;
@@ -39,11 +44,11 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RoomDTO> findRoomsByHotelId(UUID hotelId, java.util.Map<String, Object> params, List<String> amenities) {
-        com.duong.travelweb.builder.RoomSearchBuilder searchBuilder = roomSearchBuilderConverter.toRoomSearchBuilder(params, amenities);
+    public List<RoomDTO> findRoomsByHotelId(UUID hotelId, Map<String, Object> params, List<String> amenities) {
+        RoomSearchBuilder searchBuilder = roomSearchBuilderConverter.toRoomSearchBuilder(params, amenities);
         List<RoomEntity> roomEntities = roomRepository.searchRooms(hotelId, searchBuilder);
 
-        java.util.Map<UUID, String> roomStatusMap = new java.util.HashMap<>();
+        Map<UUID, String> roomStatusMap = new HashMap<>();
         if (searchBuilder.getCheckIn() != null && searchBuilder.getCheckOut() != null) {
             List<Object[]> occupiedRooms = roomRepository.findBookedOrBlockedRoomStatuses(
                 hotelId, searchBuilder.getCheckIn(), searchBuilder.getCheckOut()
@@ -63,7 +68,7 @@ public class RoomServiceImpl implements RoomService {
                 roomTypeIds.add(item.getRoomType().getId());
             }
         }
-        java.util.Map<UUID, List<String>> amenitiesByRoomType = new java.util.HashMap<>();
+        Map<UUID, List<String>> amenitiesByRoomType = new HashMap<>();
         if (!roomTypeIds.isEmpty()) {
             List<Object[]> amenityRows = roomRepository.findAmenityNamesByRoomTypeIds(new ArrayList<>(roomTypeIds));
             for (Object[] row : amenityRows) {
@@ -94,6 +99,6 @@ public class RoomServiceImpl implements RoomService {
         if (roomEntity != null) {
             return roomDTOConverter.toRoomDTO(roomEntity);
         }
-        return null;
+        throw ApiException.notFound("Không tìm thấy phòng");
     }
 }

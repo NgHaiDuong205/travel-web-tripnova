@@ -32,6 +32,48 @@ public class LandmarkRepositoryImpl implements LandmarkRepositoryCustom {
         return query.getSingleResult();
     }
 
+    @Override
+    public List<LandmarkEntity> findPublic(String keyword, String category, Integer page, Integer limit) {
+        String jpql = "SELECT l FROM LandmarkEntity l JOIN FETCH l.destination d WHERE l.isActive = true AND d.isActive = true"
+                + buildPublicCondition(keyword, category) + " ORDER BY l.name";
+        TypedQuery<LandmarkEntity> query = entityManager.createQuery(jpql, LandmarkEntity.class);
+        bindPublicParams(query, keyword, category);
+        if (limit != null) {
+            query.setFirstResult((Math.max(page == null ? 1 : page, 1) - 1) * limit);
+            query.setMaxResults(limit);
+        }
+        return query.getResultList();
+    }
+
+    @Override
+    public long countPublic(String keyword, String category) {
+        String jpql = "SELECT COUNT(l) FROM LandmarkEntity l JOIN l.destination d WHERE l.isActive = true AND d.isActive = true"
+                + buildPublicCondition(keyword, category);
+        TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
+        bindPublicParams(query, keyword, category);
+        return query.getSingleResult();
+    }
+
+    private String buildPublicCondition(String keyword, String category) {
+        StringBuilder where = new StringBuilder();
+        if (keyword != null) {
+            where.append(" AND (LOWER(l.name) LIKE :keyword OR LOWER(d.name) LIKE :keyword)");
+        }
+        if (category != null) {
+            where.append(" AND LOWER(CAST(l.category AS string)) = :category");
+        }
+        return where.toString();
+    }
+
+    private void bindPublicParams(TypedQuery<?> query, String keyword, String category) {
+        if (keyword != null) {
+            query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
+        }
+        if (category != null) {
+            query.setParameter("category", category.toLowerCase());
+        }
+    }
+
     private String buildCondition(String keyword, UUID destinationId, String category, Boolean active) {
         StringBuilder where = new StringBuilder();
         if (keyword != null) {

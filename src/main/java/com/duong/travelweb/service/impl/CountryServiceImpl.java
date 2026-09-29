@@ -3,6 +3,7 @@ package com.duong.travelweb.service.impl;
 import com.duong.travelweb.builder.CountrySearchBuilder;
 import com.duong.travelweb.converter.CountryDTOConverter;
 import com.duong.travelweb.converter.CountrySearchBuilderConverter;
+import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.model.dto.CountryDTO;
 import com.duong.travelweb.repository.CountryRepository;
 import com.duong.travelweb.model.entity.CountryEntity;
@@ -46,8 +47,8 @@ public class CountryServiceImpl implements CountryService {
     @Override
     @Transactional(readOnly = true)
     public CountryDTO getCountryById(UUID id) {
-        CountryEntity countryEntity = countryRepository.findById(id).orElse(null);
-        if(countryEntity == null) return new CountryDTO();
+        CountryEntity countryEntity = countryRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy quốc gia"));
         return countryDTOConverter.toCountryDTO(countryEntity);
     }
 }

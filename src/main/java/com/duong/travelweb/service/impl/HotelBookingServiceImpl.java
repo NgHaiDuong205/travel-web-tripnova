@@ -2,6 +2,7 @@ package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.converter.HotelBookingDTOConverter;
 import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.HotelBookingCreatedDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.HotelBookingRequestDTO;
@@ -37,6 +38,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -140,9 +142,98 @@ public class HotelBookingServiceImpl implements HotelBookingService {
                     .orElseThrow(() -> ApiException.conflict("Loại phòng này đã hết phòng trống trong khoảng thời gian đã chọn"));
         }
 
+        PlannedBooking planned = new PlannedBooking(roomType, room, request.getCheckIn(), request.getCheckOut(), nights,
+                request.getAdults(), children, request.getSpecialRequests());
+        CreatedOrder created = persistOrder(userId, List.of(planned), request.getPaymentMethod());
+
+        HotelBookingCreatedDTO dto = new HotelBookingCreatedDTO();
+        dto.setOrderId(created.order().getId());
+        dto.setOrderCode(created.order().getOrderCode());
+        dto.setBookingId(created.bookings().get(0).getId());
+        dto.setPaymentId(created.payment().getId());
+        dto.setAmount(created.payment().getAmount());
+        dto.setCurrencyCode(currencyCode);
+        dto.setPaymentUrl(frontendUrl + "/payment/" + created.payment().getId());
+        dto.setHoldExpiresAt(created.order().getCreatedAt().plusMinutes(holdMinutes));
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countBookableRooms(UUID roomTypeId, LocalDate checkIn, LocalDate checkOut) {
+        return findBookableRooms(roomTypeId, checkIn, checkOut, null).size();
+    }
+
+    @Override
+    @Transactional
+    public CartCheckoutDTO createOrder(UUID userId, List<HotelBookingLine> lines, String paymentMethod) {
+        if (lines.isEmpty()) {
+            throw ApiException.badRequest("Không có phòng nào để đặt");
+        }
+        // Phòng đã chọn trong lần đặt này (roomId -> các khoảng [checkIn, checkOut)) để 2 dòng không lấy trùng phòng.
+        Map<UUID, List<LocalDate[]>> taken = new HashMap<>();
+        List<PlannedBooking> planned = new ArrayList<>();
+        for (HotelBookingLine line : lines) {
+            int nights = validateDates(line.checkIn(), line.checkOut());
+            RoomTypeEntity roomType = findActiveRoomType(line.hotelId(), line.roomTypeId());
+            HotelEntity hotel = roomType.getHotel();
+            if (!Boolean.TRUE.equals(hotel.getIsActive())) {
+                throw ApiException.badRequest("Khách sạn " + hotel.getName() + " hiện không nhận đặt phòng");
+            }
+            if (line.adults() < line.quantity()) {
+                throw ApiException.badRequest("Mỗi phòng cần ít nhất 1 người lớn (" + roomType.getName() + ")");
+            }
+            int maxPerRoom = ceilDiv(line.adults(), line.quantity()) + ceilDiv(line.children(), line.quantity());
+            if (roomType.getMaxOccupancy() != null && maxPerRoom > roomType.getMaxOccupancy()) {
+                throw ApiException.badRequest("Số khách mỗi phòng vượt quá sức chứa " + roomType.getMaxOccupancy()
+                        + " người của " + roomType.getName() + ", hãy đặt thêm phòng");
+            }
+            List<RoomEntity> free = findBookableRooms(roomType.getId(), line.checkIn(), line.checkOut(), null).stream()
+                    .filter(r -> !overlapsTaken(taken.get(r.getId()), line.checkIn(), line.checkOut()))
+                    .toList();
+            if (free.size() < line.quantity()) {
+                throw ApiException.conflict(roomType.getName() + " - " + hotel.getName() + " chỉ còn " + free.size()
+                        + " phòng trống từ " + line.checkIn() + " đến " + line.checkOut());
+            }
+            for (int i = 0; i < line.quantity(); i++) {
+                RoomEntity room = free.get(i);
+                taken.computeIfAbsent(room.getId(), k -> new ArrayList<>()).add(new LocalDate[]{line.checkIn(), line.checkOut()});
+                // Chia đều khách: các phòng đầu nhận phần dư
+                int adults = line.adults() / line.quantity() + (i < line.adults() % line.quantity() ? 1 : 0);
+                int children = line.children() / line.quantity() + (i < line.children() % line.quantity() ? 1 : 0);
+                planned.add(new PlannedBooking(roomType, room, line.checkIn(), line.checkOut(), nights,
+                        adults, children, line.specialRequests()));
+            }
+        }
+        CreatedOrder created = persistOrder(userId, planned, paymentMethod);
+
+        CartCheckoutDTO dto = new CartCheckoutDTO();
+        dto.setOrderId(created.order().getId());
+        dto.setOrderCode(created.order().getOrderCode());
+        dto.setBookingIds(new ArrayList<>(created.bookings().stream().map(HotelBookingEntity::getId).toList()));
+        dto.setPaymentId(created.payment().getId());
+        dto.setAmount(created.payment().getAmount());
+        dto.setCurrencyCode(currencyCode);
+        dto.setPaymentUrl(frontendUrl + "/payment/" + created.payment().getId());
+        dto.setHoldExpiresAt(created.order().getCreatedAt().plusMinutes(holdMinutes));
+        return dto;
+    }
+
+    /** Booking đã chọn được phòng, chờ ghi DB. */
+    private record PlannedBooking(RoomTypeEntity roomType, RoomEntity room, LocalDate checkIn, LocalDate checkOut,
+                                  int nights, int adults, int children, String specialRequests) {
+    }
+
+    private record CreatedOrder(OrderEntity order, List<HotelBookingEntity> bookings, PaymentEntity payment) {
+    }
+
+    /** Ghi order (pending) + các booking (pending, giữ phòng theo hold-minutes) + payment (pending) cho tổng tiền. */
+    private CreatedOrder persistOrder(UUID userId, List<PlannedBooking> planned, String paymentMethod) {
         UserEntity user = userRepository.getReferenceById(userId);
         LocalDateTime now = LocalDateTime.now();
-        BigDecimal total = priceOf(roomType).multiply(BigDecimal.valueOf(nights));
+        BigDecimal total = planned.stream()
+                .map(p -> priceOf(p.roomType()).multiply(BigDecimal.valueOf(p.nights())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         OrderEntity order = new OrderEntity();
         order.setUser(user);
@@ -159,45 +250,46 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         order.setUpdatedAt(now);
         order = orderRepository.save(order);
 
-        HotelBookingEntity booking = new HotelBookingEntity();
-        booking.setOrder(order);
-        booking.setUser(user);
-        booking.setHotel(hotel);
-        booking.setRoomType(roomType);
-        booking.setRoom(room);
-        booking.setCheckInDate(request.getCheckIn());
-        booking.setCheckOutDate(request.getCheckOut());
-        booking.setNumNights(nights);
-        booking.setNumAdults(request.getAdults());
-        booking.setNumChildren(children);
-        booking.setTotalPrice(total);
-        booking.setDiscountAmount(BigDecimal.ZERO);
-        booking.setSpecialRequests(request.getSpecialRequests() != null && !request.getSpecialRequests().isBlank()
-                ? request.getSpecialRequests().trim() : null);
-        booking.setStatus("pending");
-        booking.setCreatedAt(now);
-        booking.setUpdatedAt(now);
-        booking = hotelBookingRepository.save(booking);
+        List<HotelBookingEntity> bookings = new ArrayList<>();
+        for (PlannedBooking p : planned) {
+            HotelBookingEntity booking = new HotelBookingEntity();
+            booking.setOrder(order);
+            booking.setUser(user);
+            booking.setHotel(p.roomType().getHotel());
+            booking.setRoomType(p.roomType());
+            booking.setRoom(p.room());
+            booking.setCheckInDate(p.checkIn());
+            booking.setCheckOutDate(p.checkOut());
+            booking.setNumNights(p.nights());
+            booking.setNumAdults(p.adults());
+            booking.setNumChildren(p.children());
+            booking.setTotalPrice(priceOf(p.roomType()).multiply(BigDecimal.valueOf(p.nights())));
+            booking.setDiscountAmount(BigDecimal.ZERO);
+            booking.setSpecialRequests(p.specialRequests() != null && !p.specialRequests().isBlank()
+                    ? p.specialRequests().trim() : null);
+            booking.setStatus("pending");
+            booking.setCreatedAt(now);
+            booking.setUpdatedAt(now);
+            bookings.add(hotelBookingRepository.save(booking));
+        }
 
         PaymentEntity payment = new PaymentEntity();
         payment.setOrder(order);
-        payment.setPaymentMethod(request.getPaymentMethod());
+        payment.setPaymentMethod(paymentMethod);
         payment.setAmount(total);
         payment.setCurrencyCode(currencyCode);
         payment.setStatus("pending");
         payment.setCreatedAt(now);
         payment = paymentRepository.save(payment);
+        return new CreatedOrder(order, bookings, payment);
+    }
 
-        HotelBookingCreatedDTO dto = new HotelBookingCreatedDTO();
-        dto.setOrderId(order.getId());
-        dto.setOrderCode(order.getOrderCode());
-        dto.setBookingId(booking.getId());
-        dto.setPaymentId(payment.getId());
-        dto.setAmount(total);
-        dto.setCurrencyCode(currencyCode);
-        dto.setPaymentUrl(frontendUrl + "/payment/" + payment.getId());
-        dto.setHoldExpiresAt(now.plusMinutes(holdMinutes));
-        return dto;
+    private boolean overlapsTaken(List<LocalDate[]> ranges, LocalDate checkIn, LocalDate checkOut) {
+        return ranges != null && ranges.stream().anyMatch(r -> r[0].isBefore(checkOut) && r[1].isAfter(checkIn));
+    }
+
+    private int ceilDiv(int a, int b) {
+        return (a + b - 1) / b;
     }
 
     @Override
@@ -240,13 +332,11 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         booking.setRefundReason(reason);
         booking.setRefundedAt(now);
         booking.setUpdatedAt(now);
-        order.setStatus("refunded");
-        order.setCancelledAt(now);
-        order.setCancelReason(reason);
-        order.setUpdatedAt(now);
-        PaymentEntity payment = findLatestPayment(order);
-        if (payment != null && "success".equals(payment.getStatus())) {
-            payment.setStatus("refunded");
+        // Order nhiều booking: chỉ hoàn đủ khi mọi booking đã hoàn (payment -> refunded trong sync)
+        syncOrderRefundStatus(order, now);
+        if ("refunded".equals(order.getStatus())) {
+            order.setCancelledAt(now);
+            order.setCancelReason(reason);
         }
     }
 
@@ -478,9 +568,11 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         LocalDateTime now = LocalDateTime.now();
         List<HotelBookingEntity> bookings = hotelBookingRepository.findByOrderId(order.getId());
         boolean allConfirmed = true;
+        boolean anyConfirmed = false;
 
         for (HotelBookingEntity booking : bookings) {
             if ("confirmed".equals(booking.getStatus())) {
+                anyConfirmed = true;
                 continue;
             }
             RoomEntity room = lockFreeRoom(booking);
@@ -501,10 +593,12 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             booking.setRoom(room);
             booking.setStatus("confirmed");
             booking.setUpdatedAt(now);
+            anyConfirmed = true;
         }
 
-        order.setStatus(allConfirmed ? "paid" : "refunded");
-        if (!allConfirmed) {
+        // Order nhiều booking: phòng nào mất thì chỉ hoàn booking đó (partially_refunded), payment vẫn success.
+        order.setStatus(allConfirmed ? "paid" : anyConfirmed ? "partially_refunded" : "refunded");
+        if (!anyConfirmed) {
             order.setCancelledAt(now);
             order.setCancelReason("Hết phòng, đã hoàn tiền");
         } else {
@@ -512,7 +606,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             order.setCancelReason(null);
         }
         order.setUpdatedAt(now);
-        return allConfirmed;
+        return anyConfirmed;
     }
 
     @Override

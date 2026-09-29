@@ -1,5 +1,6 @@
 package com.duong.travelweb.service;
 
+import com.duong.travelweb.model.dto.CartCheckoutDTO;
 import com.duong.travelweb.model.dto.HotelBookingCreatedDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.HotelBookingRequestDTO;
@@ -14,6 +15,23 @@ import java.util.UUID;
 public interface HotelBookingService {
     RoomAvailabilityCheckDTO checkAvailability(UUID hotelId, UUID roomTypeId, UUID roomId, LocalDate checkIn, LocalDate checkOut);
     HotelBookingCreatedDTO createBooking(UUID userId, HotelBookingRequestDTO request);
+
+    /** Số phòng đặt được của loại phòng trong [checkIn, checkOut) — không kiểm tra hợp lệ, không ném lỗi. */
+    int countBookableRooms(UUID roomTypeId, LocalDate checkIn, LocalDate checkOut);
+
+    /**
+     * Một dòng đặt nhiều phòng cùng loại, cùng ngày. adults/children là TỔNG cho cả dòng,
+     * được chia đều vào từng phòng (mỗi phòng ≥ 1 người lớn).
+     */
+    record HotelBookingLine(UUID hotelId, UUID roomTypeId, LocalDate checkIn, LocalDate checkOut,
+                            int quantity, int adults, int children, String specialRequests) {
+    }
+
+    /**
+     * Tạo 1 order (pending) gồm nhiều booking + 1 payment, giữ phòng như createBooking.
+     * Nguyên tử: thiếu phòng ở bất kỳ dòng nào -> 409, không tạo gì.
+     */
+    CartCheckoutDTO createOrder(UUID userId, List<HotelBookingLine> lines, String paymentMethod);
     HotelBookingDTO getBooking(UUID userId, UUID bookingId);
     HotelBookingDTO cancelBooking(UUID userId, UUID bookingId, String reason);
 
@@ -43,7 +61,10 @@ public interface HotelBookingService {
     /** Chuyến sắp tới gần nhất đã xác nhận, null nếu không có. */
     HotelBookingDTO findNextUpcoming(UUID userId);
 
-    /** Gọi khi cổng thanh toán báo thành công. Trả về false nếu phòng đã hết và đơn phải hoàn tiền. */
+    /**
+     * Gọi khi cổng thanh toán báo thành công. Booking nào không còn phòng thì hoàn tiền riêng booking đó
+     * (order -> partially_refunded). Trả về false nếu KHÔNG giữ được phòng nào (hoàn toàn bộ).
+     */
     boolean confirmOrder(OrderEntity order);
 
     /** Gọi khi thanh toán thất bại / hết hạn giữ phòng. */

@@ -32,6 +32,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Refactor order đa loại sản phẩm (`OrderBookingHandler`) | `b6977f8` | — |
 | Cars (thuê xe) + admin | `a2fe123`, `45b8493` | `05545e9` |
 | Flights (ghế, nhiều hành khách) + admin | `ddb02bd` | `2326d9c` |
+| Tours + admin | `1c3c0c8` | `9e3f4d9` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -68,7 +69,9 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - Dữ liệu demo: 6 xe `DEMO-01..06` (ảnh Unsplash, gắn điểm đến bất kỳ — ảnh chưa đúng mẫu xe). Xe test `Claude Test Car/Van` (đã tắt).
 - UI test Playwright + Edge headless: `scratchpad/ui/ui_cars.js` (danh sách, lọc, sort, tìm theo ngày, chi tiết, bắt đăng nhập, đặt → thanh toán → My Trips → huỷ, hoá đơn, admin) — pass.
 - Flights xong (2026-09-29): 50 chuyến demo (HAN/SGN/DAD/SIN/BKK, 4 hãng, 5 ngày tới, sơ đồ ghế business 1-3 ACDF + economy 4-20 ABCDEF). UI test `scratchpad/ui/ui_flights.js` pass (tìm kiếm, lọc giờ, khứ hồi, chọn 2 ghế, điền sẵn tên hành khách đầu, thanh toán, My Trips tab flights, huỷ 1 vé, admin sơ đồ ghế).
-- Tiếp theo: Tours → các mục còn lại (trừ AI và cổng thanh toán thật — người dùng loại ra) → … (xem "Thứ tự dự kiến" cuối mục 4).
+- Tours xong (2026-09-29): 6 tour demo (Ha Long, Hoi An, Northern Vietnam [ngày cố định +21], Phu Quoc, Kyoto [cố định +35], Santorini) gắn 2 khách sạn cùng điểm đến + 1 xe (+ chuyến bay cho tour miền Bắc). UI test `scratchpad/ui/ui_tours.js` pass.
+  Tour test `Hành trình Hạ Long …`, `Fixed Tour …` (đã tắt).
+- Tiếp theo: các mục còn lại trừ AI và cổng thanh toán thật (người dùng loại ra): verify-email, account (email/xoá), avatar + uploads, notifications (no table — hỏi), OAuth2 (cần client id/secret — hỏi), audit logs / search-queries (xem bảng), /api/search + suggest (không AI), hotel images (no table) → các mục còn lại (trừ AI và cổng thanh toán thật — người dùng loại ra) → … (xem "Thứ tự dự kiến" cuối mục 4).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -102,7 +105,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/destinations (?q&countryCode&continentCode&isPopular&page&limit — không truyền limit thì trả hết; luôn có X-Total-Count) · /{id} · /{id}/landmarks · /{id}/landmarks/{landmarkId} · GET /api/landmarks (?q&category&page&limit)
 - [~] GET /api/landmarks/{landmarkId} → dùng /api/destinations/{id}/landmarks/{landmarkId}
 - [~] GET /api/destinations/{id}/hotels → dùng /api/hotels?destinationId=
-- [ ] GET /api/destinations/{id}/tours
+- [x] GET /api/destinations/{id}/tours (khai báo trong `TourAPI`)
 
 **6. Hotels & Rooms**
 - [x] GET /api/hotels · /{hotelId} · /{hotelId}/rooms · /{hotelId}/rooms/{roomId} · /{hotelId}/room-types
@@ -124,10 +127,11 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/airports?q (distinct từ `flights` đang bán)
   Quy tắc: ghế available → held (khoá dòng `flight_seats` theo thứ tự id) → booked khi thanh toán; huỷ/hết hạn → available (nếu không vé khác giữ). DB có unique index một ghế chỉ 1 vé pending/confirmed/completed. `flights.total_seats/available_seats` đếm lại sau mỗi thay đổi. Đóng bán trước giờ bay 2h. Đổi ghế: pending → tính lại tiền vé/order/payment; đã thanh toán → chỉ cùng hạng cùng giá. Huỷ miễn phí tới 24h trước giờ bay, hoàn 100% từng vé (không có cột refund → status refunded; order partially_refunded / refunded). Huỷ vé pending = huỷ cả order. FK `flight_bookings.seat_id` là ON DELETE SET NULL → service tự chặn xoá ghế từng có vé (409).
 
-**10. Tours** (chưa có entity)
-- [ ] GET /api/tours · /{tourId} · /{tourId}/hotels · /cars · /flights · /itinerary
-- [ ] GET /api/tours/{tourId}/reviews (no table)
-- [ ] POST /api/tour-bookings · GET /{id} · POST /{id}/cancel
+**10. Tours** — BE + FE xong (`TourAPI`, `TourServiceImpl`, `TourBookingServiceImpl`)
+- [x] GET /api/tours (?q&destinationId&priceMin&priceMax&minDays&maxDays&sort&page&limit) · /{id} · /{id}/itinerary · /{id}/availability?date · /{id}/hotels · /cars · /flights
+- [~] GET /api/tours/{id}/reviews → không làm được: `posts.entity_type` có CHECK chỉ hotel|landmark|destination (muốn review tour phải sửa constraint — hỏi người dùng)
+- [x] POST /api/tour-bookings {tourId, departureDate, numAdults, numChildren, contactName, contactPhone?, contactEmail?, specialRequests?, paymentMethod} · GET /{id} · POST /{id}/cancel · GET /api/me/tour-bookings?status
+  Quy tắc: tour có `departure_date` → chỉ đặt đúng ngày đó; không có → khách chọn ngày ≥ hôm nay + 3. `max_participants` = số chỗ MỖI ngày khởi hành (tính confirmed/checked_in/completed + pending còn hạn), khoá dòng `tours` khi đặt/xác nhận. Giá = người lớn × price_adult + trẻ em × price_child (null → giá người lớn). Huỷ miễn phí tới 30 ngày trước khởi hành (theo thiết kế), hoàn 100% → refunded. `tours.itinerary` lưu JSON [{label,title,description}] (text cũ → 1 mục), `highlights` jsonb mảng chuỗi, `included/excluded` mỗi dòng một mục. Slug không dấu, unique (-2, -3…). Bảng `tour_hotels/cars/flights` ghi bằng native upsert (không entity).
 
 **11. Itineraries** (bảng `itineraries`, `itinerary_items`)
 - [x] GET|POST /api/me/itineraries · GET|PUT|DELETE /{id} · POST /{id}/items · DELETE /{id}/items/{itemId} — BE `api/ItineraryAPI.java` + FE `pages/client/{Itineraries,ItineraryDetail}` (menu "My Itineraries"). Tối đa 60 ngày, dayNumber phải trong khoảng ngày; item hotel/landmark/destination kiểm tra entityId tồn tại và tự lấy tên; rút ngắn chuyến mà còn hoạt động ở ngày bị cắt → 400. Chưa có sửa item (xoá + thêm lại).
@@ -183,7 +187,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **A4. Cars** — [x] GET|POST /api/admin/cars (?q&type&active&destinationId) · GET|PUT|DELETE /{id} (xoá mềm, biển số unique) · GET /api/admin/car-bookings (?status&q) · GET /{id} · PUT /{id}/status (pending→cancelled, confirmed→cancelled(hoàn 100%)|checked_in|no_show, checked_in→checked_out→completed). FE `/admin/cars` (tab Fleet / Rentals).
 **A5. Flights & Seats** — [x] GET|POST /api/admin/flights (?q) · GET|PUT|DELETE /{id} (xoá mềm) · GET /{id}/seats · POST /{id}/seats · POST /{id}/seats/generate {blocks:[{seatClass, fromRow, toRow, letters, price}]} (xoá ghế chưa từng có vé rồi sinh lại, giữ ghế đã có vé) · PUT|DELETE /{id}/seats/{seatId} (admin chỉ đặt available|blocked; không sửa ghế held/booked) · GET /api/admin/flight-bookings (?status&q) · GET /{id} · PUT /{id}/status (pending→cancelled, confirmed→cancelled|checked_in|no_show, checked_in→completed). FE `/admin/flights`.
-**A6. Tours** — [ ] toàn bộ
+**A6. Tours** — [x] GET|POST /api/admin/tours (?q&active&destinationId) · GET|PUT|DELETE /{id} (xoá mềm) · POST|DELETE /{id}/hotels/{hotelId} {checkInDay, nights} · /cars/{carId} {usageDay} · /flights/{flightId} {leg} · GET /api/admin/tour-bookings (?status&q) · GET /{id} · PUT /{id}/status. FE `/admin/tours` (Tours / Links / Bookings).
 
 **A7. Geography** — BE + FE xong (`AdminGeographyAPI`)
 - [x] GET|POST /api/admin/continents · PUT|DELETE /{id} (409 nếu còn quốc gia)

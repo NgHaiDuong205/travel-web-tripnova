@@ -34,6 +34,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Flights (ghế, nhiều hành khách) + admin | `ddb02bd` | `2326d9c` |
 | Tours + admin | `1c3c0c8` | `9e3f4d9` |
 | Notifications, audit logs, ảnh KS, upload/avatar, verify-email, đổi email/xoá TK, OAuth2, search | `3063728`, `553f5c5` | `bf1ba19` |
+| Review + yêu thích cho tour/xe/chuyến bay, Trip Cart (thanh toán theo loại), báo hết hạn giữ chỗ | `862fd8e` | `5af097f` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -75,7 +76,8 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - 2026-09-30: xong notifications, audit logs, ảnh khách sạn, upload/avatar, verify-email, đổi email/xoá tài khoản, OAuth2 (Google/Facebook/GitHub), search (không AI). Migration `db/migrations/2026-09-30_notifications_audit_hotel_images.sql` (đã chạy trên DB local; DB khác phải chạy tay). E2E `scratchpad/t_infra.py`, `t_account.py`, `t_oauth.py` (cần BE chạy với env GitHub giả lập + `mock_github.py`) và UI `scratchpad/ui/ui_infra.js` đều pass.
   FE: trang mới `/notifications`, `/account/security` (Login & Security), `/search`, `/verify-email`, `/oauth2/callback`, admin `/admin/{audit-logs,search-queries,hotel-images}`. Sửa tối thiểu trang cũ: chuông ở DashboardLayout thành link + số chưa đọc, thêm menu, Login chèn `<SocialLoginButtons/>` (tự ẩn khi BE chưa cấu hình key).
   Lưu ý: `application.properties` bị gitignore → cấu hình mới đều có giá trị mặc định trong code.
-- Tiếp theo: chỉ còn AI (/api/ai/*, A13) và cổng thanh toán thật (VNPay/MoMo, webhook) — người dùng đã loại ra. Review cho tour cần sửa CHECK `posts.entity_type` (hỏi trước).
+- 2026-09-30 (phiên sau): người dùng cho phép sửa CHECK `posts.entity_type` và trang Saved Trips. Xong review + yêu thích cho tour/car/flight, Trip Cart, thông báo hết hạn giữ chỗ. Migration `db/migrations/2026-09-30b_posts_review_tour_car_flight.sql` (đã chạy DB local). E2E `scratchpad/t_tripcart.py` + hồi quy `t_cars/t_flights/t_tours/t_posts/t_infra/t_invoices2` pass; UI `scratchpad/ui/ui_tripcart.js` pass (review/yêu thích trên 3 trang chi tiết, tab Saved Trips, thêm giỏ, checkout tour rồi xe (MoMo) → TripPayment → My Trips, xoá dòng).
+- Tiếp theo: chỉ còn AI (/api/ai/*, A13) và cổng thanh toán thật (VNPay/MoMo, webhook) — người dùng đã loại ra.
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -94,7 +96,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **2. Users / Me**
 - [x] GET /api/me/dashboard · GET|PUT /api/me/profile · PUT /api/me/change-password
 - [x] PUT /api/me/avatar (multipart `file`) · DELETE /api/me/avatar (xoá file cũ sau commit)
-- [x] GET /api/me/notifications (?unread&page&limit; header X-Total-Count + X-Unread-Count) · GET /unread-count · PATCH /{id}/read · POST /mark-all-read · DELETE /{id} — `NotificationService`: phát khi thanh toán thành công/thất bại/không giữ được chỗ, admin đổi trạng thái booking (4 loại), admin hoàn tiền, duyệt/từ chối review, bình luận/trả lời, admin trả lời liên hệ. Link FE: hotel → /bookings/{id}, khác → /my-trips?tab=...&paid=. Chưa báo khi hết hạn giữ chỗ.
+- [x] GET /api/me/notifications (?unread&page&limit; header X-Total-Count + X-Unread-Count) · GET /unread-count · PATCH /{id}/read · POST /mark-all-read · DELETE /{id} — `NotificationService`: phát khi thanh toán thành công/thất bại/không giữ được chỗ, admin đổi trạng thái booking (4 loại), admin hoàn tiền, duyệt/từ chối review, bình luận/trả lời, admin trả lời liên hệ. Link FE: hotel → /bookings/{id}, khác → /my-trips?tab=...&paid=. Hết hạn giữ chỗ → 1 thông báo `booking_expired` mỗi order (cả 4 loại).
 - [x] GET /api/me/oauth-accounts · DELETE /api/me/oauth-accounts/{provider} · POST /link-token
 
 **3. Account settings**
@@ -133,7 +135,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **10. Tours** — BE + FE xong (`TourAPI`, `TourServiceImpl`, `TourBookingServiceImpl`)
 - [x] GET /api/tours (?q&destinationId&priceMin&priceMax&minDays&maxDays&sort&page&limit) · /{id} · /{id}/itinerary · /{id}/availability?date · /{id}/hotels · /cars · /flights
-- [~] GET /api/tours/{id}/reviews → không làm được: `posts.entity_type` có CHECK chỉ hotel|landmark|destination (muốn review tour phải sửa constraint — hỏi người dùng)
+- [x] GET /api/tours/{id}/reviews → /api/posts/?entityType=tour&entityId= (CHECK `posts.entity_type` đã mở cho tour/car/flight — mục 16)
 - [x] POST /api/tour-bookings {tourId, departureDate, numAdults, numChildren, contactName, contactPhone?, contactEmail?, specialRequests?, paymentMethod} · GET /{id} · POST /{id}/cancel · GET /api/me/tour-bookings?status
   Quy tắc: tour có `departure_date` → chỉ đặt đúng ngày đó; không có → khách chọn ngày ≥ hôm nay + 3. `max_participants` = số chỗ MỖI ngày khởi hành (tính confirmed/checked_in/completed + pending còn hạn), khoá dòng `tours` khi đặt/xác nhận. Giá = người lớn × price_adult + trẻ em × price_child (null → giá người lớn). Huỷ miễn phí tới 30 ngày trước khởi hành (theo thiết kế), hoàn 100% → refunded. `tours.itinerary` lưu JSON [{label,title,description}] (text cũ → 1 mục), `highlights` jsonb mảng chuỗi, `included/excluded` mỗi dòng một mục. Slug không dấu, unique (-2, -3…). Bảng `tour_hotels/cars/flights` ghi bằng native upsert (không entity).
 
@@ -142,13 +144,15 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **12. Cart & Favorites**
 - [x] GET /api/cart · POST|PUT|DELETE /api/cart/items[/{itemId}] · DELETE /api/cart/clear · POST /api/cart/checkout {paymentMethod, itemIds?} — BE `api/CartAPI.java`, `CartServiceImpl`; FE `pages/client/Cart` + nút "Add to cart" ở Checkout + icon giỏ ở Header. Chỉ hotel; mỗi dòng = 1 loại phòng + ngày, `quantity` = số phòng (≤5), adults/children là TỔNG chia đều mỗi phòng; thêm trùng thì cộng dồn; GET tính lại giá/tình trạng (`priceChanged`, `issue`); checkout nguyên tử → 1 order + N booking + 1 payment (`HotelBookingService.createOrder`). Chưa hỗ trợ guest cart (session_token).
-- [x] GET|POST /api/favorites · DELETE /{id} · GET /check (hiện chỉ `hotel`; mở tour/car/flight khi có entity)
+- [x] GET|POST /api/favorites · DELETE /{id} · GET /check — `hotel|tour|car|flight` (mục không active → 404 khi thêm; `FavoriteDTO` có `hotel|tour|car|flight`, null nếu mục đã bị xoá/tắt). FE: `FavoriteButton` trên TourDetail/CarDetail/FlightDetail; Saved Trips có tab Hotels/Tours/Cars/Flights (`?tab=`).
+- [x] Trip Cart (mở rộng, không có trong proposed_apis): `GET /api/trip-cart/` · `POST /api/trip-cart/items/ {itemType: tour|car|flight, booking: <body như POST /api/{type}-bookings/, không cần paymentMethod>}` (201) · `DELETE /api/trip-cart/items/{id}/` · `POST /api/trip-cart/checkout/ {itemType, paymentMethod, itemIds?}` (201, trả `CartCheckoutDTO` + `bookingType`) — `TripCartServiceImpl`.
+  Quy tắc: dùng chung bảng `carts/cart_items` với giỏ khách sạn; truy vấn giỏ khách sạn cũ đã lọc `item_type='hotel'` nên trang `/cart` không thấy dòng trip. `item_snapshot` = JSON body đặt chỗ; thêm dòng → validate + `quote()` (tính giá, kiểm tra chỗ, không giữ chỗ); GET tính lại `currentPrice/priceChanged/issue`. Checkout 1 loại/lần (1 order chỉ 1 loại booking): `Car|Tour|FlightBookingService.createOrder(userId, reqs, method)` → order + N booking + 1 payment, nguyên tử (một dòng lỗi → rollback cả đơn, VD 2 dòng xe trùng lịch → 409). `quote` là `readOnly + noRollbackFor=ApiException` để lỗi báo giá không làm hỏng transaction ngoài. FE `/trip-cart` (`pages/client/TripCart`, menu "Trip Cart" ở DashboardLayout + icon túi ở Header), nút `components/catalog/AddToTripCartButton` trên 3 trang chi tiết → checkout chuyển `/trip-payment/{paymentId}`.
 
 **13. Payments**
 - [~] POST /api/payments/create → payment được tạo cùng booking (POST /api/hotel-bookings)
 - [x] GET /api/payments/{paymentId} (+ POST /{id}/mock-confirm khi `app.payment.mock-enabled`)
 - [ ] POST /api/payments/webhook/{provider} · GET /api/payments/return/{provider} (VNPay sandbox; gọi `PaymentService.handleGatewayResult`)
-- [ ] POST /api/payments/{paymentId}/refund [ADMIN]
+- [~] POST /api/payments/{paymentId}/refund [ADMIN] → đã có `POST /api/admin/payments/{id}/refund/` (A9)
 
 **14. Booking history & Invoices**
 - [x] GET /api/me/bookings · /{id} · POST /{id}/cancel · GET /api/me/payments · /{id} (+ /summary) — hiện chỉ booking khách sạn
@@ -161,7 +165,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **16. Posts / Comments** (bảng `posts`, `post_reactions`, `comments`)
 - [x] GET|POST /api/posts (?entityType&entityId&userId&q&rating&sort=newest|oldest|top|rating_high|rating_low&page&limit — public chỉ `approved`) · GET|PUT|DELETE /{id} · POST|DELETE /{id}/reactions {type: like|dislike} (trả PostDTO) · GET|POST /{id}/comments (danh sách phẳng, FE dựng cây theo parentId) · PUT|DELETE /api/comments/{id} — BE `api/PostAPI.java`, `PostServiceImpl`, `CommentServiceImpl`.
   Thêm: `GET /api/posts/rating-summary/?entityType&entityId` (điểm TB + phân bố), `GET /api/me/posts/?status` (bài của mình mọi trạng thái).
-  Quy tắc: `posts` là review gắn hotel|landmark|destination (DB bắt buộc entity_type/entity_id). Bài mới/vừa sửa → `pending` (admin viết → `approved`); không đổi đối tượng khi sửa. `isVerifiedBooking` = có booking khách sạn đó đã checked_out/completed (hoặc confirmed/checked_in đã qua ngày trả phòng). Không tự vote bài mình; reaction upsert (ON CONFLICT) rồi **đếm lại** upvotes/downvotes. Bình luận chỉ ở bài approved; user xoá = `deleted` (xoá mềm), admin ẩn = `flagged`; bình luận không active bị che nội dung và bị lược bỏ nếu không còn trả lời hiển thị bên dưới.
+  Quy tắc: `posts` là review gắn hotel|landmark|destination|tour|car|flight (DB bắt buộc entity_type/entity_id; `EntityReferenceService.REVIEWABLE_TYPES`). Bài mới/vừa sửa → `pending` (admin viết → `approved`); không đổi đối tượng khi sửa. `isVerifiedBooking` = đã dùng dịch vụ: khách sạn checked_out/completed (hoặc confirmed/checked_in đã qua ngày trả phòng); tour/chuyến bay checked_in|completed hoặc confirmed đã kết thúc (khởi hành + số ngày tour / giờ hạ cánh), xe checked_out|completed hoặc confirmed|checked_in đã qua giờ trả xe (`PostServiceImpl.hasCompletedBooking`). Link thông báo bình luận: /tours|/cars|/flights/{id}. FE: ReviewSection trên TourDetail ("Traveller Reviews"), CarDetail ("Renter Reviews"), FlightDetail ("Passenger Reviews"). Không tự vote bài mình; reaction upsert (ON CONFLICT) rồi **đếm lại** upvotes/downvotes. Bình luận chỉ ở bài approved; user xoá = `deleted` (xoá mềm), admin ẩn = `flagged`; bình luận không active bị che nội dung và bị lược bỏ nếu không còn trả lời hiển thị bên dưới.
   FE: `components/client/{ReviewSection,PostCard,PostForm,CommentThread}.js`, `common/StarRating.js`; HotelDetail thay "Guest Chronicles" giả bằng review thật; trang `/my-reviews` (menu "My Reviews"); admin `/admin/posts` (menu "Reviews"). **DestinationDetail FE vẫn là dữ liệu tĩnh** (id không phải UUID) nên chưa gắn review.
 
 **17. Contact / About**

@@ -17,6 +17,15 @@ public interface PaymentService {
     /** Admin: tất cả giao dịch, lọc theo trạng thái. */
     Page<PaymentDTO> findAllForAdmin(String status, int page, int limit);
 
+    /**
+     * Admin đổi trạng thái thủ công: pending→success (xác nhận chuyển khoản/tiền mặt), pending→failed,
+     * success→refunded (= hoàn toàn bộ đơn).
+     */
+    PaymentDTO updateStatusByAdmin(UUID adminId, UUID paymentId, String status, String reason);
+
+    /** Admin hoàn toàn bộ số tiền còn lại của đơn gắn với giao dịch. */
+    PaymentDTO refundByAdmin(UUID paymentId, String reason);
+
     /** Giả lập cổng thanh toán trả kết quả (chỉ dùng khi chưa tích hợp VNPay/MoMo thật). */
     PaymentDTO mockPayment(UUID userId, UUID paymentId, boolean success);
 

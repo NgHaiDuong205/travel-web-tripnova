@@ -11,4 +11,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
     @Query("SELECT COUNT(o) > 0 FROM OrderEntity o WHERE o.orderCode = :orderCode")
     boolean existsByOrderCode(@Param("orderCode") String orderCode);
+
+    // Chưa có InvoiceEntity -> đếm bằng native query (invoices.order_id là FK RESTRICT).
+    @Query(value = "SELECT COUNT(*) FROM invoices WHERE order_id = :orderId", nativeQuery = true)
+    long countInvoices(@Param("orderId") UUID orderId);
 }

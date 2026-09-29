@@ -6,6 +6,7 @@ import com.duong.travelweb.model.dto.HotelBookingRequestDTO;
 import com.duong.travelweb.model.dto.RoomAvailabilityCheckDTO;
 import com.duong.travelweb.model.entity.OrderEntity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +27,18 @@ public interface HotelBookingService {
 
     /** Chuyển trạng thái: confirmed→checked_in→checked_out→completed, confirmed→no_show, pending|confirmed→cancelled. */
     HotelBookingDTO updateStatusByAdmin(UUID bookingId, String newStatus, String reason);
+
+    /**
+     * Admin hoàn tiền (bỏ qua hạn huỷ miễn phí). Áp dụng cho confirmed | no_show | checked_out | completed.
+     * @param amount null = hoàn toàn bộ; 0 < amount <= totalPrice
+     */
+    HotelBookingDTO refundByAdmin(UUID bookingId, BigDecimal amount, String reason);
+
+    /** Hoàn toàn bộ các booking còn hoàn được của đơn (dùng cho hoàn tiền theo giao dịch). */
+    void refundOrderByAdmin(OrderEntity order, String reason);
+
+    /** Xoá hẳn booking đã huỷ và chưa từng thanh toán (kèm order/payment nếu order không còn booking nào). */
+    void deleteByAdmin(UUID bookingId);
 
     /** Chuyến sắp tới gần nhất đã xác nhận, null nếu không có. */
     HotelBookingDTO findNextUpcoming(UUID userId);

@@ -18,4 +18,11 @@ public interface ContactService {
 
     /** status: new | in_progress | resolved | spam | closed */
     ContactMessageDTO updateStatus(UUID messageId, String status);
+
+    ContactMessageDTO getMessage(UUID messageId);
+
+    void deleteMessage(UUID messageId);
+
+    /** Lưu nội dung trả lời, chuyển trạng thái resolved. Chưa có mail server -> gửi mail được log ra console. */
+    ContactMessageDTO reply(UUID adminId, UUID messageId, String content);
 }

@@ -2,6 +2,8 @@ package com.duong.travelweb.api;
 
 import com.duong.travelweb.model.dto.AdminDashboardDTO;
 import com.duong.travelweb.model.dto.ContactMessageDTO;
+import com.duong.travelweb.model.dto.ContactReplyRequestDTO;
+import com.duong.travelweb.model.dto.RefundRequestDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.PaymentDTO;
 import com.duong.travelweb.model.dto.StatusUpdateRequestDTO;
@@ -73,6 +75,19 @@ public class AdminAPI {
         return ResponseEntity.ok(hotelBookingService.updateStatusByAdmin(bookingId, request.getStatus(), request.getReason()));
     }
 
+    @PostMapping("/api/admin/hotel-bookings/{bookingId}/refund/")
+    public ResponseEntity<HotelBookingDTO> refundBooking(@PathVariable("bookingId") UUID bookingId,
+                                                         @Valid @RequestBody(required = false) RefundRequestDTO request) {
+        RefundRequestDTO body = request != null ? request : new RefundRequestDTO();
+        return ResponseEntity.ok(hotelBookingService.refundByAdmin(bookingId, body.getAmount(), body.getReason()));
+    }
+
+    @DeleteMapping("/api/admin/hotel-bookings/{bookingId}/")
+    public ResponseEntity<Void> deleteBooking(@PathVariable("bookingId") UUID bookingId) {
+        hotelBookingService.deleteByAdmin(bookingId);
+        return ResponseEntity.noContent().build();
+    }
+
     // ---- Users ----
 
     @GetMapping("/api/admin/users/")
@@ -121,6 +136,24 @@ public class AdminAPI {
                 .body(results.getContent());
     }
 
+    @GetMapping("/api/admin/payments/{paymentId}/")
+    public ResponseEntity<PaymentDTO> getPayment(@PathVariable("paymentId") UUID paymentId) {
+        return ResponseEntity.ok(paymentService.getPayment(SecurityUtil.getCurrentUserId(), paymentId));
+    }
+
+    @PutMapping("/api/admin/payments/{paymentId}/status/")
+    public ResponseEntity<PaymentDTO> updatePaymentStatus(@PathVariable("paymentId") UUID paymentId,
+                                                          @Valid @RequestBody StatusUpdateRequestDTO request) {
+        return ResponseEntity.ok(paymentService.updateStatusByAdmin(SecurityUtil.getCurrentUserId(), paymentId,
+                request.getStatus(), request.getReason()));
+    }
+
+    @PostMapping("/api/admin/payments/{paymentId}/refund/")
+    public ResponseEntity<PaymentDTO> refundPayment(@PathVariable("paymentId") UUID paymentId,
+                                                    @Valid @RequestBody(required = false) RefundRequestDTO request) {
+        return ResponseEntity.ok(paymentService.refundByAdmin(paymentId, request != null ? request.getReason() : null));
+    }
+
     // ---- Contact messages ----
 
     @GetMapping("/api/admin/contact-messages/")
@@ -137,6 +170,23 @@ public class AdminAPI {
     public ResponseEntity<ContactMessageDTO> updateContactStatus(@PathVariable("messageId") UUID messageId,
                                                                  @Valid @RequestBody StatusUpdateRequestDTO request) {
         return ResponseEntity.ok(contactService.updateStatus(messageId, request.getStatus()));
+    }
+
+    @GetMapping("/api/admin/contact-messages/{messageId}/")
+    public ResponseEntity<ContactMessageDTO> getContactMessage(@PathVariable("messageId") UUID messageId) {
+        return ResponseEntity.ok(contactService.getMessage(messageId));
+    }
+
+    @DeleteMapping("/api/admin/contact-messages/{messageId}/")
+    public ResponseEntity<Void> deleteContactMessage(@PathVariable("messageId") UUID messageId) {
+        contactService.deleteMessage(messageId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/admin/contact-messages/{messageId}/reply/")
+    public ResponseEntity<ContactMessageDTO> replyContactMessage(@PathVariable("messageId") UUID messageId,
+                                                                 @Valid @RequestBody ContactReplyRequestDTO request) {
+        return ResponseEntity.ok(contactService.reply(SecurityUtil.getCurrentUserId(), messageId, request.getContent()));
     }
 
     private int clamp(int limit) {

@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,6 +50,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     private static final int DEFAULT_CANCELLATION_HOURS = 24;
     private static final LocalTime DEFAULT_CHECK_IN_TIME = LocalTime.of(14, 0);
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final List<String> ADMIN_REFUNDABLE_STATUSES = List.of("confirmed", "no_show", "checked_out", "completed");
 
     private final HotelBookingRepository hotelBookingRepository;
     private final OrderRepository orderRepository;
@@ -289,6 +291,132 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         }
         booking.setUpdatedAt(now);
         return toDTO(booking);
+    }
+
+    @Override
+    @Transactional
+    public HotelBookingDTO refundByAdmin(UUID bookingId, BigDecimal amount, String reason) {
+        HotelBookingEntity booking = hotelBookingRepository.findDetailById(bookingId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy đặt phòng"));
+        OrderEntity order = booking.getOrder();
+        requirePaidOrder(order);
+        if (!ADMIN_REFUNDABLE_STATUSES.contains(booking.getStatus())) {
+            throw ApiException.badRequest("Không thể hoàn tiền đặt phòng ở trạng thái " + booking.getStatus());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        applyAdminRefund(booking, amount, adminRefundNote(reason), now);
+        syncOrderRefundStatus(order, now);
+        return toDTO(booking);
+    }
+
+    @Override
+    @Transactional
+    public void refundOrderByAdmin(OrderEntity order, String reason) {
+        requirePaidOrder(order);
+        LocalDateTime now = LocalDateTime.now();
+        String note = adminRefundNote(reason);
+        boolean refunded = false;
+        for (HotelBookingEntity booking : hotelBookingRepository.findByOrderId(order.getId())) {
+            if (ADMIN_REFUNDABLE_STATUSES.contains(booking.getStatus()) && remainingRefundable(booking).signum() > 0) {
+                applyAdminRefund(booking, null, note, now);
+                refunded = true;
+            }
+        }
+        if (!refunded) {
+            throw ApiException.badRequest("Đơn hàng không còn đặt phòng nào có thể hoàn tiền");
+        }
+        syncOrderRefundStatus(order, now);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByAdmin(UUID bookingId) {
+        HotelBookingEntity booking = hotelBookingRepository.findDetailById(bookingId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy đặt phòng"));
+        if (!"cancelled".equals(booking.getStatus())) {
+            throw ApiException.conflict("Chỉ được xoá đặt phòng đã huỷ");
+        }
+        OrderEntity order = booking.getOrder();
+        List<PaymentEntity> payments = paymentRepository.findByOrderIds(List.of(order.getId()));
+        boolean everPaid = payments.stream().anyMatch(p -> "success".equals(p.getStatus()) || "refunded".equals(p.getStatus()));
+        if (everPaid || booking.getRefundedAt() != null) {
+            throw ApiException.conflict("Đặt phòng đã phát sinh thanh toán, không thể xoá (cần giữ lịch sử giao dịch)");
+        }
+        hotelBookingRepository.delete(booking);
+        hotelBookingRepository.flush();
+        if (hotelBookingRepository.findByOrderId(order.getId()).isEmpty()) {
+            if (orderRepository.countInvoices(order.getId()) > 0) {
+                return; // đơn đã có hoá đơn -> giữ lại order/payment
+            }
+            paymentRepository.deleteAll(payments);
+            orderRepository.delete(order);
+        }
+    }
+
+    /**
+     * Hoàn thêm tiền cho booking (cộng dồn vào refund_amount). Hoàn đủ -> status refunded và trả phòng nếu chưa ở;
+     * hoàn một phần (bồi thường) -> giữ nguyên trạng thái.
+     */
+    private void applyAdminRefund(HotelBookingEntity booking, BigDecimal amount, String reason, LocalDateTime now) {
+        BigDecimal remaining = remainingRefundable(booking);
+        if (remaining.signum() <= 0) {
+            throw ApiException.badRequest("Đặt phòng đã được hoàn đủ tiền");
+        }
+        BigDecimal refund = amount != null ? amount.setScale(2, RoundingMode.HALF_UP) : remaining;
+        if (refund.signum() <= 0) {
+            throw ApiException.badRequest("Số tiền hoàn phải lớn hơn 0");
+        }
+        if (refund.compareTo(remaining) > 0) {
+            throw ApiException.badRequest("Số tiền hoàn vượt quá số còn có thể hoàn (" + remaining + ")");
+        }
+        BigDecimal already = booking.getRefundAmount() != null ? booking.getRefundAmount() : BigDecimal.ZERO;
+        booking.setRefundAmount(already.add(refund));
+        booking.setRefundReason(reason);
+        booking.setRefundedAt(now);
+        booking.setUpdatedAt(now);
+        if (refund.compareTo(remaining) == 0) {
+            if (booking.getRoom() != null && ("confirmed".equals(booking.getStatus()) || "no_show".equals(booking.getStatus()))) {
+                roomAvailabilityRepository.releaseDays(booking.getRoom().getId(),
+                        booking.getCheckInDate(), booking.getCheckOutDate());
+            }
+            booking.setStatus("refunded");
+        }
+    }
+
+    private BigDecimal remainingRefundable(HotelBookingEntity booking) {
+        BigDecimal already = booking.getRefundAmount() != null ? booking.getRefundAmount() : BigDecimal.ZERO;
+        return booking.getTotalPrice().subtract(already);
+    }
+
+    /** Order hoàn đủ -> refunded (payment cũng refunded); hoàn một phần -> partially_refunded. */
+    private void syncOrderRefundStatus(OrderEntity order, LocalDateTime now) {
+        BigDecimal refunded = BigDecimal.ZERO;
+        BigDecimal total = BigDecimal.ZERO;
+        for (HotelBookingEntity booking : hotelBookingRepository.findByOrderId(order.getId())) {
+            total = total.add(booking.getTotalPrice());
+            if (booking.getRefundAmount() != null) {
+                refunded = refunded.add(booking.getRefundAmount());
+            }
+        }
+        boolean full = refunded.compareTo(total) >= 0;
+        order.setStatus(full ? "refunded" : "partially_refunded");
+        order.setUpdatedAt(now);
+        if (full) {
+            PaymentEntity payment = findLatestPayment(order);
+            if (payment != null && "success".equals(payment.getStatus())) {
+                payment.setStatus("refunded");
+            }
+        }
+    }
+
+    private void requirePaidOrder(OrderEntity order) {
+        if (!"paid".equals(order.getStatus()) && !"partially_refunded".equals(order.getStatus())) {
+            throw ApiException.badRequest("Đơn hàng chưa thanh toán hoặc đã hoàn tiền, không thể hoàn tiền");
+        }
+    }
+
+    private String adminRefundNote(String reason) {
+        return reason != null && !reason.isBlank() ? reason.trim() : "Quản trị viên hoàn tiền";
     }
 
     private String blankToNull(String value) {

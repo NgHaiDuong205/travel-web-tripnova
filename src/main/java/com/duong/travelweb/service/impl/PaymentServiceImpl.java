@@ -149,6 +149,33 @@ public class PaymentServiceImpl implements PaymentService {
         return toDTO(payment);
     }
 
+    @Override
+    @Transactional
+    public PaymentDTO updateStatusByAdmin(UUID adminId, UUID paymentId, String status, String reason) {
+        PaymentEntity payment = paymentRepository.findDetailById(paymentId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy giao dịch thanh toán"));
+        String gatewayResponse = "{\"provider\":\"manual\",\"adminId\":\"" + adminId + "\"}";
+        return switch (payment.getStatus() + "->" + status) {
+            case "pending->success" -> handleGatewayResult(paymentId, true, "MANUAL-" + UUID.randomUUID(), gatewayResponse);
+            case "pending->failed" -> handleGatewayResult(paymentId, false, null, gatewayResponse);
+            case "success->refunded" -> refundByAdmin(paymentId, reason);
+            default -> throw ApiException.badRequest(
+                    "Không thể chuyển giao dịch từ " + payment.getStatus() + " sang " + status);
+        };
+    }
+
+    @Override
+    @Transactional
+    public PaymentDTO refundByAdmin(UUID paymentId, String reason) {
+        PaymentEntity payment = paymentRepository.lockById(paymentId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy giao dịch thanh toán"));
+        if (!"success".equals(payment.getStatus())) {
+            throw ApiException.badRequest("Chỉ hoàn tiền được giao dịch đã thanh toán thành công");
+        }
+        hotelBookingService.refundOrderByAdmin(payment.getOrder(), reason);
+        return toDTO(payment);
+    }
+
     private PaymentEntity findOwnedPayment(UUID userId, UUID paymentId) {
         PaymentEntity payment = paymentRepository.findDetailById(paymentId)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy giao dịch thanh toán"));

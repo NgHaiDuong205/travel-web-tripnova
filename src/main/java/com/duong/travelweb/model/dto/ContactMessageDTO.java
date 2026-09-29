@@ -14,6 +14,33 @@ public class ContactMessageDTO {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private UUID repliedBy;
+    private String replyContent;
+    private LocalDateTime repliedAt;
+
+    public UUID getRepliedBy() {
+        return repliedBy;
+    }
+
+    public void setRepliedBy(UUID repliedBy) {
+        this.repliedBy = repliedBy;
+    }
+
+    public String getReplyContent() {
+        return replyContent;
+    }
+
+    public void setReplyContent(String replyContent) {
+        this.replyContent = replyContent;
+    }
+
+    public LocalDateTime getRepliedAt() {
+        return repliedAt;
+    }
+
+    public void setRepliedAt(LocalDateTime repliedAt) {
+        this.repliedAt = repliedAt;
+    }
 
     public UUID getId() {
         return id;

@@ -1,13 +1,13 @@
 # HANDOFF — TripNova (BE + FE)
 
-Cập nhật: 2026-09-24. Người dùng yêu cầu **làm lần lượt cả FE + BE theo checklist mục 4, không cần hỏi ý kiến**.
+Cập nhật: 2026-09-29. Người dùng yêu cầu **làm lần lượt cả FE + BE theo checklist mục 4, không cần hỏi ý kiến**.
 
 ## 1. Mục tiêu tổng thể
 Làm hết các API trong spec `C:\Users\HPC\Desktop\1.pdf` cho:
 - **BE**: `D:\travel-web-tripnova` — Spring Boot 4.0.3, **Java 21**, JPA, PostgreSQL `travel-web-project`, Spring Security 7 + JWT (oauth2-resource-server/Nimbus).
 - **FE**: `D:\fe-tripnova` — React 19 CRA, react-router 7, axios, Tailwind 3.
 
-Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_schema_guide.txt` (59 bảng), `.cursorrules` (quy chuẩn BẮT BUỘC), FE `STRUCTURE.md`.
+Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_schema_guide.txt` (59 bảng), `.cursorrules` (quy chuẩn BẮT BUỘC — file đã bị xoá khỏi working tree nhưng vẫn còn trong git: `git show HEAD:.cursorrules`), `Claude.md` (phân công: Claude thiết kế/logic khó + review; **Codex MCP** làm boilerplate như entity/DTO — luôn review lại), FE `STRUCTURE.md`.
 
 ## 2. Đã hoàn thành (đều đã commit, test E2E bằng curl với DB thật)
 | Nhóm | BE commit | FE commit |
@@ -21,6 +21,9 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Admin A2: hotels / room types / rooms / lịch khoá phòng (+ fix destinations, landmarks 500) | `de0aaa5`, `24e418e` | `7f7e7a4` |
 | Admin A12: amenities | `04c0107` | `ab6890a` |
 | Admin A7: continents / countries / destinations / landmarks | `d8d97c7` | `2f708ce` |
+| Admin A3/A9/A10: hoàn tiền + xoá booking, payment chi tiết/đổi trạng thái/hoàn tiền, contact chi tiết/xoá/trả lời | `5b98c8a` | `83eabe8` |
+| Admin A8: sửa/xoá mềm user, roles CRUD, permissions (seed danh mục) | `20e5742` | `3306e88` |
+| Admin A1: dashboard statistics/revenue/recent/top | `609a94e` | `9a4ed08` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -32,6 +35,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 - Favorites `[AUTH]`: `GET /api/favorites/?type=`, `POST /api/favorites/ {itemType,itemId}` (idempotent, hiện chỉ `hotel`), `DELETE /api/favorites/{id}/`, `GET /api/favorites/check/?itemType&itemId`
 - Contact (public): `POST /api/contact/`, `GET /api/contact/info/` (lấy từ `app.contact.*`)
 - Admin `[ADMIN]` (`api/AdminAPI.java`): `GET /api/admin/dashboard/`; `GET /api/admin/hotel-bookings/?status&q&page&limit`, `GET …/{id}/`, `PUT …/{id}/status/ {status,reason}`; `GET /api/admin/users/?q&role&status=active|locked`, `GET …/{id}/`, `PUT …/{id}/status/ {isActive}`, `PUT …/{id}/roles/ {roles:[…]}`; `GET /api/admin/payments/?status`; `GET /api/admin/contact-messages/?status`, `PUT …/{id}/status/`
+- Admin (mới 2026-09-29): `GET /api/admin/dashboard/statistics/?from&to&granularity=day|week|month`, `…/revenue/?from&to&groupBy`, `…/recent-bookings/?limit`, `…/recent-payments/?limit`, `…/top-hotels/?from&to&limit`, `…/top-destinations/…` (from/to mặc định 30 ngày gần nhất, tính cả 2 đầu); `POST /api/admin/hotel-bookings/{id}/refund/ {amount?,reason}`, `DELETE …/{id}/`; `GET /api/admin/payments/{id}/`, `PUT …/{id}/status/ {status,reason}`, `POST …/{id}/refund/ {reason}`; `GET|DELETE /api/admin/contact-messages/{id}/`, `POST …/{id}/reply/ {content}`; `PUT|DELETE /api/admin/users/{id}/`; `api/AdminRoleAPI.java`: `GET|POST /api/admin/roles/`, `PUT|DELETE …/{id}/`, `PUT …/{id}/permissions/ {permissionIds}`, `GET /api/admin/permissions/`
 - `POST/DELETE /api/countries/` và `/api/admin/**` yêu cầu ROLE_ADMIN.
 
 ### File BE chính
@@ -45,8 +49,9 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - A2 xong cả BE + FE (FE: `pages/admin/{Hotels,HotelEdit}`, `components/admin/{HotelForm,RoomTypeManager,RoomManager,RoomAvailabilityPanel}.js`, `services/adminHotelService.js`; build sạch, chưa bấm thử trên trình duyệt).
 - A12 xong (BE `api/AdminAmenityAPI.java`, FE `pages/admin/Amenities`).
 - A7 xong (BE `api/AdminGeographyAPI.java`; FE `pages/admin/Geography/*`). POST/DELETE `/api/countries/` cũ đã bỏ, dùng `/api/admin/countries/`.
-- Tiếp theo: phần còn lại A1/A3/A8/A9/A10.
-- **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (+ order/payment/booking), khách sạn `Claude Test Hotel%`, điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
+- 2026-09-29: xong A1, A3, A8, A10 và A9 (trừ invoices) cả BE + FE (FE mới: `pages/admin/Roles`; Dashboard có chọn kỳ 7d/30d/90d/12m). Build FE sạch, **chưa bấm thử trên trình duyệt**.
+- Tiếp theo (theo thứ tự dự kiến): Landmark/Destination shortcuts (`GET /api/landmarks/{id}`, `/api/destinations/{id}/hotels`), hotel availability/suggest, About/Currencies → Itineraries → Cart → Posts/Comments → Invoices (+ `/api/admin/invoices`) → …
+- **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
 
@@ -135,9 +140,9 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **19. Uploads** — [ ] POST|DELETE /api/uploads/images
 
 ### II. Admin (`/api/admin/**`, ROLE_ADMIN)
-**A1. Dashboard**
+**A1. Dashboard** — BE + FE xong
 - [x] GET /api/admin/dashboard (đã gồm tổng số, booking theo trạng thái, doanh thu 30 ngày, booking gần đây)
-- [ ] GET /dashboard/statistics · /revenue?from&to&groupBy · /recent-bookings · /recent-payments · /top-hotels · /top-destinations
+- [x] GET /dashboard/statistics (kèm so với kỳ trước + chuỗi theo granularity) · /revenue?from&to&groupBy=day|week|month · /recent-bookings · /recent-payments · /top-hotels · /top-destinations
 
 **A2. Hotels & Rooms** — BE + FE xong (`AdminHotelAPI`)
 - [x] GET|POST /api/admin/hotels · GET|PUT|DELETE /{hotelId} (xoá mềm)
@@ -149,7 +154,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **A3. Hotel bookings**
 - [x] GET /api/admin/hotel-bookings · /{id} · PUT /{id}/status
-- [ ] DELETE /{id} · POST /{id}/refund
+- [x] DELETE /{id} (chỉ booking `cancelled` chưa từng thanh toán; xoá kèm order/payment nếu order không còn booking và chưa có hoá đơn) · POST /{id}/refund (hoàn một phần/cộng dồn; hoàn đủ → `refunded` + trả phòng)
 
 **A4. Cars** — [ ] toàn bộ · **A5. Flights & Seats** — [ ] toàn bộ · **A6. Tours** — [ ] toàn bộ
 
@@ -161,16 +166,17 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **A8. Users / Roles**
 - [x] GET /api/admin/users · /{id} · PUT /{id}/status · PUT /{id}/roles
-- [ ] PUT /{id} · DELETE /{id}
-- [ ] /api/admin/roles CRUD · GET /api/admin/permissions · PUT /roles/{id}/permissions
+- [x] PUT /{id} (body như /api/me/profile, ghi đè toàn bộ) · DELETE /{id} (xoá mềm, 409 nếu còn booking mở, email vẫn bị chiếm)
+- [x] /api/admin/roles CRUD · GET /api/admin/permissions · PUT /roles/{id}/permissions
 
 **A9. Payments & Invoices**
 - [x] GET /api/admin/payments?status
-- [ ] GET /{id} · PUT /{id}/status · POST /{id}/refund · /api/admin/invoices (GET, GET {id}, POST {id}/resend)
+- [x] GET /{id} · PUT /{id}/status (pending→success|failed, success→refunded) · POST /{id}/refund
+- [ ] /api/admin/invoices (GET, GET {id}, POST {id}/resend) — làm cùng mục 14 Invoices
 
 **A10. Contact messages**
 - [x] GET /api/admin/contact-messages · PUT /{id}/status
-- [ ] GET /{id} · DELETE /{id} · POST /{id}/reply
+- [x] GET /{id} · DELETE /{id} (xoá hẳn) · POST /{id}/reply (lưu reply_content/replied_by/at, status → resolved, mail log ra console; không trả lời tin spam)
 
 **A11. Reviews / Posts moderation** — [ ] toàn bộ (reviews: no table)
 **A12. Amenities** — [x] GET?category (kèm hotelCount/roomTypeCount) · POST · PUT · DELETE (409 nếu đang dùng, `?force=true` để xoá)
@@ -178,7 +184,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 
 ### Thứ tự dự kiến
-A2 Hotels/Rooms → A12 Amenities → A7 Geography → phần còn lại A1/A3/A8/A9/A10 → Landmark/Destination shortcuts, hotel availability/suggest, About/Currencies → Itineraries → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → Landmark/Destination shortcuts, hotel availability/suggest, About/Currencies → Itineraries → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
 
 Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng card (10 request/trang) → gom bằng 1 lần `GET /api/favorites/`.
 
@@ -192,6 +198,9 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - **Đặt phòng**: giai đoạn 1 giữ phòng 15 phút bằng booking `pending` (không ghi `room_availability`); giai đoạn 2 (thanh toán OK) khoá dòng `rooms` (`PESSIMISTIC_WRITE`), kiểm tra lại, upsert `room_availability` = `booked` từng ngày `[checkIn, checkOut)`. Phòng bị lấy mất → tự chuyển phòng khác cùng hạng, hết phòng → booking/order/payment `refunded`. Callback trùng → idempotent.
 - Huỷ miễn phí nếu trước `checkIn + hotels.check_in_time − hotels.cancellation_hours` (mặc định 14:00 và 24h) → hoàn 100%, xoá dòng `booked`.
 - Không tính thuế (tax=0); FE đã bỏ "8% tax" giả. Đơn vị tiền `app.booking.currency=USD` (giá trong DB 60–2000 nên không phải VND).
+- **Hoàn tiền admin**: cộng dồn vào `hotel_bookings.refund_amount` (không vượt `total_price`); booking chỉ chuyển `refunded` khi hoàn đủ (hoàn một phần = bồi thường, giữ trạng thái). Order: hoàn đủ tất cả booking → `refunded` (+ payment `refunded`), ngược lại `partially_refunded` (payment giữ `success`). Chỉ áp dụng cho booking `confirmed|no_show|checked_out|completed` của order `paid|partially_refunded`; `checked_in` phải check-out trước.
+- **Doanh thu dashboard** = tổng payment `success` theo `paid_at` (payment hoàn đủ bị loại, hoàn một phần KHÔNG bị trừ — xem `refundedAmount` riêng). Top hotels/destinations dùng doanh thu ròng `total_price - refund_amount` của booking tạo trong kỳ.
+- **Permissions** chỉ là danh mục (seed 8 mã trong `RoleInitializer`, quyền mới tự gán cho ADMIN); phân quyền API vẫn theo role. Role hệ thống USER/ADMIN/HOTEL_MANAGER không đổi tên/xoá được.
 - Mock payment: `app.payment.mock-enabled=true` → trang FE `/payment/:id` có nút Pay / Simulate failed.
 
 ## 6. Bẫy đã gặp
@@ -216,6 +225,9 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - `HotelDTO` (public) ẩn nhiều trường bằng `@JsonIgnore` (phone, isActive, destinationId…) → admin dùng `AdminHotelDTO` + `AdminHotelDTOConverter` (map tay, không ModelMapper vì Hotel/Destination trùng tên trường như `latitude`).
 - `HotelAmenityEntity` (map sai: bảng `hotel_amenities` không có cột `id`) đã **xoá**; `HotelEntity.hotelAmenities` là `@ManyToMany` trực tiếp. `room_type_amenities` (entity `@IdClass`) ghi bằng native insert `RoomTypeAmenityRepository.insertLink` — `saveAll/merge` sinh SQL lỗi.
 - Một số file `.java` dùng CRLF (vd `AmenityEntity.java`) → sửa bằng perl/sed với `\n` sẽ **không khớp**; dùng công cụ Edit.
+- `role_permissions` không có entity → thao tác bằng native query trong `PermissionRepository` (như `room_type_amenities`).
+- `date_trunc` với tham số: phải `CAST(:unit AS text)` (stringtype=unspecified). Tuần của Postgres bắt đầu thứ Hai → FE/BE điền kỳ trống phải khớp (`AdminDashboardServiceImpl.buckets`).
+- Để test đặt phòng: bật tạm `Claude Test Hotel B` (`update hotels set is_active=true where name='Claude Test Hotel B'`), room type `a40ba716-…`, xong tắt lại. Script test Python (urllib) tiện hơn curl trên Git Bash.
 - **Test E2E: chỉ thao tác trên dữ liệu tự tạo**, không dùng phòng/khách sạn seed (từng xoá nhầm phòng 403 seed, đã khôi phục). `room_availability` từng có dòng `booked` mồ côi (không có booking).
 - Public: `/api/hotels/` và `/api/hotels/{id}/` giờ **chỉ trả khách sạn `is_active=true`** (xoá mềm từ admin).
 

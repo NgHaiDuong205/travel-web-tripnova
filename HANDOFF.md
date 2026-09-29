@@ -57,6 +57,9 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - 2026-09-29: xong A1, A3, A8, A10 và A9 (trừ invoices) cả BE + FE (FE mới: `pages/admin/Roles`; Dashboard có chọn kỳ 7d/30d/90d/12m). Build FE sạch, **chưa bấm thử trên trình duyệt**.
 - 2026-09-29 (phiên sau): xong Posts/Comments/Reviews BE + FE (E2E curl/Python OK, FE build sạch, chưa bấm thử trình duyệt). Đã `git push` BE lên GitHub (trước đó 28 commit chỉ nằm local). **FE `D:\fe-tripnova` chưa có remote GitHub** — chờ người dùng cho URL repo.
 - Xong Invoices BE + FE (E2E Python OK: phát hành khi thanh toán, idempotent, PDF, hoàn tiền, admin lọc/gửi lại; FE build sạch).
+- **Đã chạy thử UI thật** (2026-09-29) cho Posts/Reviews + Invoices: BE :8080 + FE `npm start` :3000, điều khiển Edge headless bằng Playwright (`npm i playwright-core` trong scratchpad, `chromium.launch({ channel: "msedge" })` — dùng Edge có sẵn, không tải browser; người dùng KHÔNG dùng extension Claude in Chrome). Luồng đã thử: viết review → My Reviews (pending) → admin duyệt → user khác like/bình luận/trả lời → tổng điểm cập nhật → xoá review; Invoices xem chi tiết + tải PDF; admin lọc/xem/gửi lại hoá đơn. Không lỗi console, không 5xx.
+  Người dùng yêu cầu: **xong mỗi module phải chạy thử cả BE lẫn FE** như trên.
+  Lỗi có sẵn (chưa sửa): trang khách sạn hiển thị giá phòng bằng "€" trong khi hệ thống dùng USD; thanh "Search Rooms" cố định dưới đáy trang che một phần khối review.
 - Tiếp theo: Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 

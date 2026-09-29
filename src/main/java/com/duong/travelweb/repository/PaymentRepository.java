@@ -50,11 +50,16 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM PaymentEntity p WHERE p.status = 'success'")
     BigDecimal sumSuccessfulAmount();
 
-    /** Doanh thu theo ngày: [ngày (java.sql.Date), tổng tiền, số giao dịch]. */
-    @Query(value = "SELECT CAST(paid_at AS date) AS day, SUM(amount), COUNT(*) FROM payments " +
-                   "WHERE status = 'success' AND paid_at >= :from GROUP BY CAST(paid_at AS date) ORDER BY day",
+    /** Doanh thu theo kỳ: [ngày đầu kỳ, tổng tiền, số giao dịch]; unit = day | week | month (date_trunc). */
+    @Query(value = "SELECT CAST(date_trunc(CAST(:unit AS text), paid_at) AS date) AS bucket, SUM(amount), COUNT(*) FROM payments " +
+                   "WHERE status = 'success' AND paid_at >= :from AND paid_at < :to GROUP BY 1 ORDER BY 1",
            nativeQuery = true)
-    List<Object[]> revenueByDaySince(@Param("from") LocalDateTime from);
+    List<Object[]> revenueByBucket(@Param("unit") String unit, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** [tổng tiền, số giao dịch] thành công trong [from, to). */
+    @Query("SELECT COALESCE(SUM(p.amount), 0), COUNT(p) FROM PaymentEntity p " +
+           "WHERE p.status = 'success' AND p.paidAt >= :from AND p.paidAt < :to")
+    List<Object[]> summarizeSuccessBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("SELECT COUNT(p), " +
            "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0), " +

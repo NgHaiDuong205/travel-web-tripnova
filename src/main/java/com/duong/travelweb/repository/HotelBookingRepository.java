@@ -52,6 +52,49 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
     @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId")
     boolean existsByRoomId(@Param("roomId") UUID roomId);
 
+    // ---- Thống kê dashboard (theo created_at trong [from, to)) ----
+
+    @Query("SELECT b.status, COUNT(b) FROM HotelBookingEntity b WHERE b.createdAt >= :from AND b.createdAt < :to GROUP BY b.status")
+    List<Object[]> countGroupByStatusBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** Giá trị trung bình của booking đã được thanh toán (kể cả đã hoàn một phần). */
+    @Query("SELECT COALESCE(AVG(b.totalPrice), 0) FROM HotelBookingEntity b WHERE b.createdAt >= :from AND b.createdAt < :to " +
+           "AND b.status IN ('confirmed', 'checked_in', 'checked_out', 'completed', 'no_show', 'refunded')")
+    BigDecimal averagePaidBookingValueBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT COALESCE(SUM(b.refundAmount), 0) FROM HotelBookingEntity b WHERE b.refundedAt >= :from AND b.refundedAt < :to")
+    BigDecimal sumRefundedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** [ngày đầu kỳ, số booking]; unit = day | week | month. */
+    @Query(value = "SELECT CAST(date_trunc(CAST(:unit AS text), created_at) AS date) AS bucket, COUNT(*) FROM hotel_bookings " +
+                   "WHERE created_at >= :from AND created_at < :to GROUP BY 1 ORDER BY 1",
+           nativeQuery = true)
+    List<Object[]> countByBucket(@Param("unit") String unit, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /**
+     * Top khách sạn theo doanh thu ròng (total_price - refund_amount) của booking đã thanh toán và chưa hoàn đủ.
+     * [hotel_id, tên, tên điểm đến, số booking, số đêm, doanh thu]
+     */
+    @Query(value = "SELECT h.id, h.name, d.name AS destination, COUNT(b.id), COALESCE(SUM(b.num_nights), 0), " +
+                   "SUM(b.total_price - COALESCE(b.refund_amount, 0)) AS revenue " +
+                   "FROM hotel_bookings b JOIN hotels h ON h.id = b.hotel_id LEFT JOIN destinations d ON d.id = h.destination_id " +
+                   "WHERE b.status IN ('confirmed', 'checked_in', 'checked_out', 'completed', 'no_show') " +
+                   "AND b.created_at >= :from AND b.created_at < :to " +
+                   "GROUP BY h.id, h.name, d.name ORDER BY revenue DESC, COUNT(b.id) DESC LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> topHotels(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("limit") int limit);
+
+    /** Như topHotels nhưng gom theo điểm đến: [destination_id, tên, tên quốc gia, số booking, số đêm, doanh thu]. */
+    @Query(value = "SELECT d.id, d.name, c.name AS country, COUNT(b.id), COALESCE(SUM(b.num_nights), 0), " +
+                   "SUM(b.total_price - COALESCE(b.refund_amount, 0)) AS revenue " +
+                   "FROM hotel_bookings b JOIN hotels h ON h.id = b.hotel_id JOIN destinations d ON d.id = h.destination_id " +
+                   "LEFT JOIN countries c ON c.id = d.country_id " +
+                   "WHERE b.status IN ('confirmed', 'checked_in', 'checked_out', 'completed', 'no_show') " +
+                   "AND b.created_at >= :from AND b.created_at < :to " +
+                   "GROUP BY d.id, d.name, c.name ORDER BY revenue DESC, COUNT(b.id) DESC LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> topDestinations(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("limit") int limit);
+
     /** User còn booking chưa kết thúc (pending, hoặc confirmed/checked_in chưa qua ngày trả phòng). */
     @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.user.id = :userId " +
            "AND (b.status = 'pending' OR (b.status IN ('confirmed', 'checked_in') AND b.checkOutDate >= :today))")

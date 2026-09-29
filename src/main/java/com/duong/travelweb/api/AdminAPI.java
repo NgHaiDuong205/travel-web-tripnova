@@ -5,9 +5,12 @@ import com.duong.travelweb.model.dto.ContactMessageDTO;
 import com.duong.travelweb.model.dto.ContactReplyRequestDTO;
 import com.duong.travelweb.model.dto.ProfileUpdateRequestDTO;
 import com.duong.travelweb.model.dto.RefundRequestDTO;
+import com.duong.travelweb.model.dto.DashboardStatisticsDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.PaymentDTO;
+import com.duong.travelweb.model.dto.RevenuePointDTO;
 import com.duong.travelweb.model.dto.StatusUpdateRequestDTO;
+import com.duong.travelweb.model.dto.TopItemDTO;
 import com.duong.travelweb.model.dto.UserDTO;
 import com.duong.travelweb.model.dto.UserRolesRequestDTO;
 import com.duong.travelweb.model.dto.UserStatusRequestDTO;
@@ -22,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +55,45 @@ public class AdminAPI {
     @GetMapping("/api/admin/dashboard/")
     public ResponseEntity<AdminDashboardDTO> getDashboard() {
         return ResponseEntity.ok(adminDashboardService.getDashboard());
+    }
+
+    @GetMapping("/api/admin/dashboard/statistics/")
+    public ResponseEntity<DashboardStatisticsDTO> getStatistics(
+            @RequestParam(value = "from", required = false) LocalDate from,
+            @RequestParam(value = "to", required = false) LocalDate to,
+            @RequestParam(value = "granularity", required = false) String granularity) {
+        return ResponseEntity.ok(adminDashboardService.getStatistics(from, to, granularity));
+    }
+
+    @GetMapping("/api/admin/dashboard/revenue/")
+    public ResponseEntity<List<RevenuePointDTO>> getRevenue(@RequestParam(value = "from", required = false) LocalDate from,
+                                                            @RequestParam(value = "to", required = false) LocalDate to,
+                                                            @RequestParam(value = "groupBy", required = false) String groupBy) {
+        return ResponseEntity.ok(adminDashboardService.getRevenue(from, to, groupBy));
+    }
+
+    @GetMapping("/api/admin/dashboard/recent-bookings/")
+    public ResponseEntity<List<HotelBookingDTO>> getRecentBookings(@RequestParam(value = "limit", defaultValue = "10") int limit) {
+        return ResponseEntity.ok(hotelBookingService.findForAdmin(null, null, 1, clamp(limit)));
+    }
+
+    @GetMapping("/api/admin/dashboard/recent-payments/")
+    public ResponseEntity<List<PaymentDTO>> getRecentPayments(@RequestParam(value = "limit", defaultValue = "10") int limit) {
+        return ResponseEntity.ok(paymentService.findAllForAdmin(null, 1, clamp(limit)).getContent());
+    }
+
+    @GetMapping("/api/admin/dashboard/top-hotels/")
+    public ResponseEntity<List<TopItemDTO>> getTopHotels(@RequestParam(value = "from", required = false) LocalDate from,
+                                                         @RequestParam(value = "to", required = false) LocalDate to,
+                                                         @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        return ResponseEntity.ok(adminDashboardService.getTopHotels(from, to, clamp(limit)));
+    }
+
+    @GetMapping("/api/admin/dashboard/top-destinations/")
+    public ResponseEntity<List<TopItemDTO>> getTopDestinations(@RequestParam(value = "from", required = false) LocalDate from,
+                                                               @RequestParam(value = "to", required = false) LocalDate to,
+                                                               @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        return ResponseEntity.ok(adminDashboardService.getTopDestinations(from, to, clamp(limit)));
     }
 
     // ---- Hotel bookings ----

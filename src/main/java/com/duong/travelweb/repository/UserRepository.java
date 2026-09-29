@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,4 +28,14 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID>, UserRep
 
     @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.deletedAt IS NULL")
     long countActiveAccounts();
+
+    /** Số tài khoản đăng ký trong [from, to) (kể cả đã xoá sau đó). */
+    @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.createdAt >= :from AND u.createdAt < :to")
+    long countCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** [ngày đầu kỳ, số user mới]; unit = day | week | month. */
+    @Query(value = "SELECT CAST(date_trunc(CAST(:unit AS text), created_at) AS date) AS bucket, COUNT(*) FROM users " +
+                   "WHERE created_at >= :from AND created_at < :to GROUP BY 1 ORDER BY 1",
+           nativeQuery = true)
+    List<Object[]> countCreatedByBucket(@Param("unit") String unit, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

@@ -28,6 +28,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Itineraries | `fb937e0` | (xem git log FE) |
 | Cart + order nhiều booking | `2a8027f` + bookingCount | `dee65b9` |
 | Posts/Reviews + Comments + admin kiểm duyệt | `db01499` | `38f37a5` |
+| Invoices (hoá đơn + PDF) + admin | (xem git log, 2026-09-29) | `f9ad5d9` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -55,7 +56,8 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - A7 xong (BE `api/AdminGeographyAPI.java`; FE `pages/admin/Geography/*`). POST/DELETE `/api/countries/` cũ đã bỏ, dùng `/api/admin/countries/`.
 - 2026-09-29: xong A1, A3, A8, A10 và A9 (trừ invoices) cả BE + FE (FE mới: `pages/admin/Roles`; Dashboard có chọn kỳ 7d/30d/90d/12m). Build FE sạch, **chưa bấm thử trên trình duyệt**.
 - 2026-09-29 (phiên sau): xong Posts/Comments/Reviews BE + FE (E2E curl/Python OK, FE build sạch, chưa bấm thử trình duyệt). Đã `git push` BE lên GitHub (trước đó 28 commit chỉ nằm local). **FE `D:\fe-tripnova` chưa có remote GitHub** — chờ người dùng cho URL repo.
-- Tiếp theo: Invoices (+ `/api/admin/invoices`) → Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
+- Xong Invoices BE + FE (E2E Python OK: phát hành khi thanh toán, idempotent, PDF, hoàn tiền, admin lọc/gửi lại; FE build sạch).
+- Tiếp theo: Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -129,7 +131,9 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 
 **14. Booking history & Invoices**
 - [x] GET /api/me/bookings · /{id} · POST /{id}/cancel · GET /api/me/payments · /{id} (+ /summary) — hiện chỉ booking khách sạn
-- [ ] GET /api/me/invoices · /{invoiceId} · /{invoiceId}/download (bảng `invoices`)
+- [x] GET /api/me/invoices (?page&limit) · /{invoiceId} (kèm items = các booking của order) · /{invoiceId}/download (PDF) — BE `api/InvoiceAPI.java`, `InvoiceServiceImpl`, `InvoicePdfRenderer`; FE trang `/invoices` (menu "Invoices").
+  Quy tắc: 1 order = 1 hoá đơn (UNIQUE order_id), số `INV-<orderCode>`; phát hành trong transaction thanh toán (`PaymentServiceImpl.handleGatewayResult`) khi `confirmOrder` giữ được ≥1 phòng; gọi lặp lại không tạo thêm. `InvoiceBackfillRunner` lúc khởi động bổ sung hoá đơn cho order `paid|partially_refunded` chưa có (order `refunded` cũ bị bỏ qua vì không phân biệt được "hết phòng ngay khi thanh toán"). Số tiền lấy từ order; hoàn tiền không sửa hoá đơn mà hiện `refundedAmount` (tổng `hotel_bookings.refund_amount`) + dòng "Net amount" trong PDF. `billing_address/tax_code` chưa có API để user nhập.
+  PDF: OpenPDF 3.0.5 (package `org.openpdf.text`), nhúng font `resources/fonts/DejaVuSans*.ttf` để có dấu tiếng Việt. CORS đã expose `Content-Disposition` (FE `utils/download.js` lấy tên file).
 
 **15. Reviews** — [~] phủ bởi Posts (mục 16): GET /api/reviews → /api/posts/?entityType&entityId; POST/PUT/DELETE → /api/posts/…; helpful → POST /api/posts/{id}/reactions/ {type:like}. Không có bảng `reviews`/`review_ai_analysis` chưa dùng.
 
@@ -180,7 +184,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **A9. Payments & Invoices**
 - [x] GET /api/admin/payments?status
 - [x] GET /{id} · PUT /{id}/status (pending→success|failed, success→refunded) · POST /{id}/refund
-- [ ] /api/admin/invoices (GET, GET {id}, POST {id}/resend) — làm cùng mục 14 Invoices
+- [x] GET /api/admin/invoices (?q=số HĐ/mã order/email/tên&from&to=ngày phát hành, tính cả 2 đầu&page&limit) · GET /{id} · GET /{id}/download · POST /{id}/resend (log ra console như mail khác) — FE `/admin/invoices`
 
 **A10. Contact messages**
 - [x] GET /api/admin/contact-messages · PUT /{id}/status
@@ -195,7 +199,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 
 ### Thứ tự dự kiến
-~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ → ~~Posts/Comments~~ (xong) → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ → ~~Posts/Comments~~ → ~~Invoices~~ (xong) → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
 
 Quy tắc (người dùng 2026-09-29): endpoint mà endpoint cũ đã đáp ứng thì **không làm lại** (đánh `[~]`); code cũ lệch quy chuẩn thì **được sửa**. Việc khó Claude tự làm, việc lặt vặt giao Codex.
 Đã chuẩn hoá API public cũ: service ném `ApiException.notFound` thay vì trả null (Destination/Landmark/Hotel/Room/Country), controller ghi rõ tên `@PathVariable/@RequestParam`.
@@ -246,6 +250,7 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - Bảng `posts` có trigger `set_updated_at` → mọi UPDATE (kể cả đồng bộ upvotes) đều đổi `updated_at`, nên không dùng `updated_at` để suy ra "đã sửa" cho post.
 - `EntityReferenceService` (tên + kiểm tra tồn tại hotel/landmark/destination) dùng chung cho itinerary và posts.
 - User test posts: `claude.test+p1@tripnova.local`, `claude.test+p2@tripnova.local` (mật khẩu `secret123`, không còn post nào).
+- Order test `TN26092916177352` (user `claude.test+p1`, `Claude Test Hotel B`, đã hoàn tiền đủ) có hoá đơn → không xoá được booking/order này (FK RESTRICT).
 - `role_permissions` không có entity → thao tác bằng native query trong `PermissionRepository` (như `room_type_amenities`).
 - `date_trunc` với tham số: phải `CAST(:unit AS text)` (stringtype=unspecified). Tuần của Postgres bắt đầu thứ Hai → FE/BE điền kỳ trống phải khớp (`AdminDashboardServiceImpl.buckets`).
 - Để test đặt phòng: bật tạm `Claude Test Hotel B` (`update hotels set is_active=true where name='Claude Test Hotel B'`), room type `a40ba716-…`, xong tắt lại. Script test Python (urllib) tiện hơn curl trên Git Bash.

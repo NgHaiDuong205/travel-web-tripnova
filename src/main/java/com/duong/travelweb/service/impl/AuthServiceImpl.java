@@ -96,8 +96,12 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public UUID registerOAuthUser(String email, String fullName, String avatarUrl, boolean emailVerified) {
         // Mật khẩu ngẫu nhiên không ai biết: muốn đăng nhập bằng mật khẩu thì dùng "Quên mật khẩu" để đặt.
-        return createUser(email.trim().toLowerCase(), fullName, passwordEncoder.encode(TokenUtil.randomToken()), null,
-                avatarUrl, emailVerified).getId();
+        UserEntity user = createUser(email.trim().toLowerCase(), fullName, passwordEncoder.encode(TokenUtil.randomToken()), null,
+                avatarUrl, emailVerified);
+        if (!emailVerified) {
+            accountService.issueVerificationLink(user);
+        }
+        return user.getId();
     }
 
     @Override

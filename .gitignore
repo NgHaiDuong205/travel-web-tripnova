@@ -32,3 +32,6 @@ src/main/resources/application-uat.properties
 src/main/resources/application.properties
 ### VS Code ###
 .vscode/
+
+### Uploads (ảnh người dùng tải lên) ###
+/uploads/

@@ -48,6 +48,9 @@ public class SecurityConfig {
             "/api/about/**",
             "/api/payments/return/**",
             "/api/hotel-bookings/check-availability/",
+            "/api/search/**",
+            "/api/auth/oauth2/providers/",
+            "/uploads/**",
     };
 
     /** Endpoint POST công khai. */
@@ -58,6 +61,9 @@ public class SecurityConfig {
             "/api/auth/refresh-token/",
             "/api/auth/forgot-password/",
             "/api/auth/reset-password/",
+            "/api/auth/verify-email/",
+            "/api/auth/oauth2/exchange/",
+            "/api/search/click/",
             "/api/contact/",
             "/api/payments/webhook/**",
     };

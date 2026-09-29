@@ -19,6 +19,7 @@ import com.duong.travelweb.repository.RoleRepository;
 import com.duong.travelweb.repository.UserRepository;
 import com.duong.travelweb.repository.UserRoleRepository;
 import com.duong.travelweb.security.JwtService;
+import com.duong.travelweb.service.AccountService;
 import com.duong.travelweb.service.AuthService;
 import com.duong.travelweb.util.TokenUtil;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AccountService accountService;
     private final JwtService jwtService;
     private final UserDTOConverter userDTOConverter;
     private final long refreshTokenTtlDays;
@@ -56,6 +58,7 @@ public class AuthServiceImpl implements AuthService {
                            RefreshTokenRepository refreshTokenRepository,
                            PasswordResetTokenRepository passwordResetTokenRepository,
                            PasswordEncoder passwordEncoder,
+                           AccountService accountService,
                            JwtService jwtService,
                            UserDTOConverter userDTOConverter,
                            @Value("${app.jwt.refresh-token-ttl-days:7}") long refreshTokenTtlDays,
@@ -67,6 +70,7 @@ public class AuthServiceImpl implements AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.accountService = accountService;
         this.jwtService = jwtService;
         this.userDTOConverter = userDTOConverter;
         this.refreshTokenTtlDays = refreshTokenTtlDays;
@@ -81,15 +85,41 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw ApiException.conflict("Email đã được sử dụng");
         }
-        LocalDateTime now = LocalDateTime.now();
+        String phone = request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null;
+        UserEntity user = createUser(email, request.getFullName().trim(), passwordEncoder.encode(request.getPassword()), phone,
+                null, false);
+        accountService.issueVerificationLink(user);
+        return issueTokens(user, List.of(DEFAULT_ROLE), deviceInfo, ipAddress);
+    }
 
+    @Override
+    @Transactional
+    public UUID registerOAuthUser(String email, String fullName, String avatarUrl, boolean emailVerified) {
+        // Mật khẩu ngẫu nhiên không ai biết: muốn đăng nhập bằng mật khẩu thì dùng "Quên mật khẩu" để đặt.
+        return createUser(email.trim().toLowerCase(), fullName, passwordEncoder.encode(TokenUtil.randomToken()), null,
+                avatarUrl, emailVerified).getId();
+    }
+
+    @Override
+    @Transactional
+    public AuthResponseDTO issueTokensForUser(UUID userId, String deviceInfo, String ipAddress) {
+        UserEntity user = findUser(userId);
+        ensureActive(user);
+        user.setLastLoginAt(LocalDateTime.now());
+        return issueTokens(user, userRepository.findRoleNamesByUserId(userId), deviceInfo, ipAddress);
+    }
+
+    private UserEntity createUser(String email, String fullName, String passwordHash, String phone, String avatarUrl,
+                                  boolean verified) {
+        LocalDateTime now = LocalDateTime.now();
         UserEntity user = new UserEntity();
         user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setFullName(request.getFullName().trim());
-        user.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null);
+        user.setPasswordHash(passwordHash);
+        user.setFullName(fullName);
+        user.setPhone(phone);
+        user.setAvatarUrl(avatarUrl);
         user.setLoyaltyPoints(0);
-        user.setIsVerified(false);
+        user.setIsVerified(verified);
         user.setIsActive(true);
         user.setLastLoginAt(now);
         user.setCreatedAt(now);
@@ -103,8 +133,7 @@ public class AuthServiceImpl implements AuthService {
         userRole.setRole(role);
         userRole.setAssignedAt(now);
         userRoleRepository.save(userRole);
-
-        return issueTokens(user, List.of(DEFAULT_ROLE), deviceInfo, ipAddress);
+        return user;
     }
 
     @Override

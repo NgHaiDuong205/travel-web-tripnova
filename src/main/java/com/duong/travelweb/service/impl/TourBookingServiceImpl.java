@@ -13,6 +13,7 @@ import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.repository.TourBookingRepository;
 import com.duong.travelweb.repository.TourRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.TourBookingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ public class TourBookingServiceImpl implements TourBookingService {
     private static final String FULL_REASON = "Tour đã hết chỗ trước khi thanh toán hoàn tất";
     private static final List<String> ADMIN_REFUNDABLE = List.of("confirmed", "no_show", "checked_in", "completed");
 
+    private final NotificationService notificationService;
     private final TourBookingRepository tourBookingRepository;
     private final TourRepository tourRepository;
     private final PaymentRepository paymentRepository;
@@ -50,12 +52,14 @@ public class TourBookingServiceImpl implements TourBookingService {
                                   TourRepository tourRepository,
                                   PaymentRepository paymentRepository,
                                   UserRepository userRepository,
-                                  OrderFactory orderFactory) {
+                                  OrderFactory orderFactory,
+                                  NotificationService notificationService) {
         this.tourBookingRepository = tourBookingRepository;
         this.tourRepository = tourRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.orderFactory = orderFactory;
+        this.notificationService = notificationService;
     }
 
     // ================= Khách =================
@@ -177,6 +181,7 @@ public class TourBookingServiceImpl implements TourBookingService {
             }
             default -> throw ApiException.badRequest("Không thể chuyển trạng thái từ " + booking.getStatus() + " sang " + next);
         }
+        notificationService.notifyBookingStatus(booking.getUser().getId(), "tour", booking.getId(), booking.getStatus(), reason);
         return toDTO(booking, orderFactory.findLatestPayment(booking.getOrder()));
     }
 

@@ -22,6 +22,7 @@ import com.duong.travelweb.repository.RoomAvailabilityRepository;
 import com.duong.travelweb.repository.RoomRepository;
 import com.duong.travelweb.repository.RoomTypeRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.HotelBookingService;
 import com.duong.travelweb.util.SecurityUtil;
 import org.slf4j.Logger;
@@ -55,6 +56,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
     private static final LocalTime DEFAULT_CHECK_IN_TIME = LocalTime.of(14, 0);
     private static final List<String> ADMIN_REFUNDABLE_STATUSES = List.of("confirmed", "no_show", "checked_out", "completed");
 
+    private final NotificationService notificationService;
     private final HotelBookingRepository hotelBookingRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -77,6 +79,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
                                    UserRepository userRepository,
                                    HotelBookingDTOConverter hotelBookingDTOConverter,
                                    OrderFactory orderFactory,
+                                   NotificationService notificationService,
                                    @Value("${app.booking.hold-minutes:15}") long holdMinutes,
                                    @Value("${app.booking.currency:USD}") String currencyCode,
                                    @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
@@ -89,6 +92,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         this.userRepository = userRepository;
         this.hotelBookingDTOConverter = hotelBookingDTOConverter;
         this.orderFactory = orderFactory;
+        this.notificationService = notificationService;
         this.holdMinutes = holdMinutes;
         this.currencyCode = currencyCode;
         this.frontendUrl = frontendUrl;
@@ -364,6 +368,7 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             default -> throw ApiException.badRequest("Không thể chuyển trạng thái từ " + current + " sang " + newStatus);
         }
         booking.setUpdatedAt(now);
+        notificationService.notifyBookingStatus(booking.getUser().getId(), "hotel", booking.getId(), booking.getStatus(), reason);
         return toDTO(booking);
     }
 
@@ -380,6 +385,9 @@ public class HotelBookingServiceImpl implements HotelBookingService {
         LocalDateTime now = LocalDateTime.now();
         applyAdminRefund(booking, amount, adminRefundNote(reason), now);
         syncOrderRefundStatus(order, now);
+        notificationService.notify(booking.getUser().getId(), "refund", "A refund was issued for your hotel booking",
+                reason != null && !reason.isBlank() ? reason.trim() : null, "/bookings/" + booking.getId(), "hotel_booking",
+                booking.getId());
         return toDTO(booking);
     }
 

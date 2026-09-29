@@ -6,6 +6,7 @@ import com.duong.travelweb.model.dto.ContactMessageDTO;
 import com.duong.travelweb.model.dto.ContactRequestDTO;
 import com.duong.travelweb.model.entity.ContactMessageEntity;
 import com.duong.travelweb.repository.ContactMessageRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.ContactService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,15 +25,18 @@ public class ContactServiceImpl implements ContactService {
     private static final Logger log = LoggerFactory.getLogger(ContactServiceImpl.class);
     private static final List<String> STATUSES = List.of("new", "in_progress", "resolved", "spam", "closed");
 
+    private final NotificationService notificationService;
     private final ContactMessageRepository contactMessageRepository;
     private final ContactInfoDTO contactInfo;
 
     public ContactServiceImpl(ContactMessageRepository contactMessageRepository,
+                              NotificationService notificationService,
                               @Value("${app.contact.email:support@tripnova.local}") String email,
                               @Value("${app.contact.phone:}") String phone,
                               @Value("${app.contact.address:}") String address,
                               @Value("${app.contact.working-hours:}") String workingHours) {
         this.contactMessageRepository = contactMessageRepository;
+        this.notificationService = notificationService;
         this.contactInfo = new ContactInfoDTO();
         this.contactInfo.setEmail(email);
         this.contactInfo.setPhone(phone);
@@ -111,6 +115,9 @@ public class ContactServiceImpl implements ContactService {
         message.setUpdatedAt(now);
         log.info("[MAIL] To: {} | Subject: Re: {}\n{}", message.getEmail(),
                 message.getSubject() != null ? message.getSubject() : "Liên hệ TripNova", message.getReplyContent());
+        notificationService.notify(message.getUserId(), "contact_reply",
+                "Support replied" + (message.getSubject() != null ? ": " + message.getSubject() : ""),
+                message.getReplyContent(), "/contacts", "contact_message", message.getId());
         return toDTO(message);
     }
 

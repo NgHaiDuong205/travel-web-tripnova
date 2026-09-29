@@ -18,4 +18,10 @@ public interface AuthService {
     void forgotPassword(String email, String ipAddress);
     void resetPassword(ResetPasswordRequestDTO request);
     void changePassword(UUID userId, ChangePasswordRequestDTO request);
+
+    /** Tạo user mới (role USER) từ tài khoản mạng xã hội; email phải chưa tồn tại. */
+    UUID registerOAuthUser(String email, String fullName, String avatarUrl, boolean emailVerified);
+
+    /** Cấp access + refresh token cho user đã xác định danh tính bằng cách khác (VD OAuth2). */
+    AuthResponseDTO issueTokensForUser(UUID userId, String deviceInfo, String ipAddress);
 }

@@ -8,6 +8,7 @@ import com.duong.travelweb.model.entity.PostEntity;
 import com.duong.travelweb.model.entity.UserEntity;
 import com.duong.travelweb.repository.CommentRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.CommentService;
 import com.duong.travelweb.service.PostService;
 import org.springframework.data.domain.Page;
@@ -27,16 +28,19 @@ import java.util.UUID;
 public class CommentServiceImpl implements CommentService {
     public static final List<String> STATUSES = List.of("active", "flagged", "deleted");
 
+    private final NotificationService notificationService;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final PostService postService;
 
     public CommentServiceImpl(CommentRepository commentRepository,
                               UserRepository userRepository,
-                              PostService postService) {
+                              PostService postService,
+                              NotificationService notificationService) {
         this.commentRepository = commentRepository;
         this.userRepository = userRepository;
         this.postService = postService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -94,7 +98,16 @@ public class CommentServiceImpl implements CommentService {
         comment.setStatus("active");
         comment.setCreatedAt(now);
         comment.setUpdatedAt(now);
-        return toDTO(commentRepository.save(comment), false);
+        CommentEntity saved = commentRepository.save(comment);
+        UserEntity recipient = parent != null ? parent.getUser() : post.getUser();
+        if (!recipient.getId().equals(userId)) {
+            String link = "hotel".equals(post.getEntityType()) ? "/hotel/" + post.getEntityId() : "/my-reviews";
+            String preview = saved.getContent().length() > 200 ? saved.getContent().substring(0, 200) + "…" : saved.getContent();
+            notificationService.notify(recipient.getId(), parent != null ? "comment_reply" : "post_comment",
+                    user.getFullName() + (parent != null ? " replied to your comment" : " commented on your review"),
+                    preview, link, "post", post.getId());
+        }
+        return toDTO(saved, false);
     }
 
     @Override

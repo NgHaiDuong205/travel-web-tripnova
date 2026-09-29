@@ -15,6 +15,7 @@ import com.duong.travelweb.repository.CarBookingRepository;
 import com.duong.travelweb.repository.CarRepository;
 import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.CarBookingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public class CarBookingServiceImpl implements CarBookingService {
     private static final Duration MIN_LEAD_TIME = Duration.ofHours(1);
     private static final List<String> ADMIN_REFUNDABLE = List.of("confirmed", "no_show", "checked_out", "completed");
 
+    private final NotificationService notificationService;
     private final CarBookingRepository carBookingRepository;
     private final CarRepository carRepository;
     private final PaymentRepository paymentRepository;
@@ -54,12 +56,14 @@ public class CarBookingServiceImpl implements CarBookingService {
                                  CarRepository carRepository,
                                  PaymentRepository paymentRepository,
                                  UserRepository userRepository,
-                                 OrderFactory orderFactory) {
+                                 OrderFactory orderFactory,
+                                 NotificationService notificationService) {
         this.carBookingRepository = carBookingRepository;
         this.carRepository = carRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.orderFactory = orderFactory;
+        this.notificationService = notificationService;
     }
 
     // ================= Public / khách =================
@@ -207,6 +211,7 @@ public class CarBookingServiceImpl implements CarBookingService {
             }
             default -> throw ApiException.badRequest("Không thể chuyển trạng thái từ " + booking.getStatus() + " sang " + next);
         }
+        notificationService.notifyBookingStatus(booking.getUser().getId(), "car", booking.getId(), booking.getStatus(), reason);
         return toDTO(booking, orderFactory.findLatestPayment(booking.getOrder()));
     }
 

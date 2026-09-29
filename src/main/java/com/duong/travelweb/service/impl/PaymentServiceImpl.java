@@ -5,6 +5,7 @@ import com.duong.travelweb.model.dto.PaymentDTO;
 import com.duong.travelweb.model.entity.OrderEntity;
 import com.duong.travelweb.model.entity.PaymentEntity;
 import com.duong.travelweb.repository.PaymentRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.OrderBookingHandler;
 import com.duong.travelweb.service.InvoiceService;
 import com.duong.travelweb.service.PaymentService;
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
+    private final NotificationService notificationService;
     private final PaymentRepository paymentRepository;
     private final OrderBookingRouter orderBookingRouter;
     private final InvoiceService invoiceService;
@@ -34,11 +36,13 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               OrderBookingRouter orderBookingRouter,
                               InvoiceService invoiceService,
+                              NotificationService notificationService,
                               @Value("${app.payment.mock-enabled:false}") boolean mockEnabled,
                               @Value("${app.booking.currency:USD}") String currencyCode) {
         this.paymentRepository = paymentRepository;
         this.orderBookingRouter = orderBookingRouter;
         this.invoiceService = invoiceService;
+        this.notificationService = notificationService;
         this.mockEnabled = mockEnabled;
         this.currencyCode = currencyCode;
     }
@@ -137,12 +141,18 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setPaidAt(LocalDateTime.now());
             if (orderBookingRouter.handlerFor(order).confirmOrder(order)) {
                 invoiceService.issueForOrder(order, payment);
+                notificationService.notifyOrder(order, "payment_success", "Payment received - order " + order.getOrderCode(),
+                        "Your booking is confirmed. The invoice is available in Invoices.");
             } else {
                 payment.setStatus("refunded");
+                notificationService.notifyOrder(order, "payment_refunded", "Order " + order.getOrderCode() + " could not be confirmed",
+                        "The items were no longer available when your payment arrived, so the full amount was refunded.");
             }
         } else if ("pending".equals(payment.getStatus())) {
             payment.setStatus("failed");
             orderBookingRouter.handlerFor(order).cancelPendingOrder(order, "Thanh toán thất bại");
+            notificationService.notifyOrder(order, "payment_failed", "Payment failed - order " + order.getOrderCode(),
+                    "The payment did not go through and the booking was released. You can book again at any time.");
         }
         return toDTO(payment);
     }
@@ -171,6 +181,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw ApiException.badRequest("Chỉ hoàn tiền được giao dịch đã thanh toán thành công");
         }
         orderBookingRouter.handlerFor(payment.getOrder()).refundOrderByAdmin(payment.getOrder(), reason);
+        notificationService.notifyOrder(payment.getOrder(), "refund", "Order " + payment.getOrder().getOrderCode() + " was refunded",
+                reason != null && !reason.isBlank() ? reason.trim() : null);
         return toDTO(payment);
     }
 

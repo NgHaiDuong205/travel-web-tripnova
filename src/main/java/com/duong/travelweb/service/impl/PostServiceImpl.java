@@ -12,6 +12,7 @@ import com.duong.travelweb.repository.HotelBookingRepository;
 import com.duong.travelweb.repository.PostReactionRepository;
 import com.duong.travelweb.repository.PostRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.PostService;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ public class PostServiceImpl implements PostService {
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
     };
 
+    private final NotificationService notificationService;
     private final PostRepository postRepository;
     private final PostReactionRepository postReactionRepository;
     private final CommentRepository commentRepository;
@@ -57,7 +59,8 @@ public class PostServiceImpl implements PostService {
                            HotelBookingRepository hotelBookingRepository,
                            UserRepository userRepository,
                            EntityReferenceService entityReferenceService,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           NotificationService notificationService) {
         this.postRepository = postRepository;
         this.postReactionRepository = postReactionRepository;
         this.commentRepository = commentRepository;
@@ -65,6 +68,7 @@ public class PostServiceImpl implements PostService {
         this.userRepository = userRepository;
         this.entityReferenceService = entityReferenceService;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -196,8 +200,17 @@ public class PostServiceImpl implements PostService {
             throw ApiException.badRequest("Trạng thái phải là một trong: " + String.join(", ", STATUSES));
         }
         PostEntity post = findPost(postId);
+        boolean changed = !newStatus.equals(post.getStatus());
         post.setStatus(newStatus);
         post.setUpdatedAt(LocalDateTime.now());
+        if (changed && !"pending".equals(newStatus)) {
+            String label = post.getTitle() != null && !post.getTitle().isBlank() ? "\"" + post.getTitle() + "\"" : "Your review";
+            boolean approved = "approved".equals(newStatus);
+            notificationService.notify(post.getUser().getId(), "post_" + newStatus,
+                    label + (approved ? " is now published" : " was not approved"),
+                    approved ? null : "It did not meet our community guidelines. You can edit it and submit again.",
+                    "/my-reviews", "post", post.getId());
+        }
         return toDTO(post, null);
     }
 

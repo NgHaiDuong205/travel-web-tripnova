@@ -17,6 +17,7 @@ import com.duong.travelweb.repository.FlightRepository;
 import com.duong.travelweb.repository.FlightSeatRepository;
 import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.FlightBookingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +50,7 @@ public class FlightBookingServiceImpl implements FlightBookingService {
     private static final Duration SALES_CLOSE_BEFORE = Duration.ofHours(2);
     private static final List<String> ADMIN_REFUNDABLE = List.of("confirmed", "no_show", "checked_in", "completed");
 
+    private final NotificationService notificationService;
     private final FlightBookingRepository flightBookingRepository;
     private final FlightRepository flightRepository;
     private final FlightSeatRepository flightSeatRepository;
@@ -61,13 +63,15 @@ public class FlightBookingServiceImpl implements FlightBookingService {
                                     FlightSeatRepository flightSeatRepository,
                                     PaymentRepository paymentRepository,
                                     UserRepository userRepository,
-                                    OrderFactory orderFactory) {
+                                    OrderFactory orderFactory,
+                                    NotificationService notificationService) {
         this.flightBookingRepository = flightBookingRepository;
         this.flightRepository = flightRepository;
         this.flightSeatRepository = flightSeatRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.orderFactory = orderFactory;
+        this.notificationService = notificationService;
     }
 
     // ================= Khách =================
@@ -262,6 +266,7 @@ public class FlightBookingServiceImpl implements FlightBookingService {
             }
             default -> throw ApiException.badRequest("Không thể chuyển trạng thái từ " + booking.getStatus() + " sang " + next);
         }
+        notificationService.notifyBookingStatus(booking.getUser().getId(), "flight", booking.getId(), booking.getStatus(), reason);
         return toDTO(booking, orderFactory.findLatestPayment(booking.getOrder()));
     }
 

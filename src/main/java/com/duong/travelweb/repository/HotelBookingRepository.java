@@ -52,6 +52,11 @@ public interface HotelBookingRepository extends JpaRepository<HotelBookingEntity
     @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId")
     boolean existsByRoomId(@Param("roomId") UUID roomId);
 
+    /** User còn booking chưa kết thúc (pending, hoặc confirmed/checked_in chưa qua ngày trả phòng). */
+    @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.user.id = :userId " +
+           "AND (b.status = 'pending' OR (b.status IN ('confirmed', 'checked_in') AND b.checkOutDate >= :today))")
+    boolean existsOpenBookingForUser(@Param("userId") UUID userId, @Param("today") LocalDate today);
+
     /** Phòng còn booking chưa kết thúc (pending/confirmed/checked_in, chưa tới ngày trả phòng). */
     @Query("SELECT COUNT(b) > 0 FROM HotelBookingEntity b WHERE b.room.id = :roomId " +
            "AND b.status IN ('pending', 'confirmed', 'checked_in') AND b.checkOutDate > :today")

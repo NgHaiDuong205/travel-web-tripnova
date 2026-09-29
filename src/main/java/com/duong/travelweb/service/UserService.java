@@ -22,4 +22,10 @@ public interface UserService {
 
     /** Đặt lại toàn bộ role của user. */
     UserDTO updateRoles(UUID adminId, UUID userId, List<String> roles);
+
+    /**
+     * Xoá mềm (deleted_at) + khoá + thu hồi phiên. Giữ nguyên email và lịch sử đơn hàng.
+     * 409 nếu user còn đặt phòng chưa kết thúc.
+     */
+    void deleteByAdmin(UUID adminId, UUID userId);
 }

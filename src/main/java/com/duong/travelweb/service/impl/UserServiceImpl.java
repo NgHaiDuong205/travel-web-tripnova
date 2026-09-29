@@ -177,6 +177,23 @@ public class UserServiceImpl implements UserService {
         return userDTOConverter.toUserDTO(user, distinctRoles);
     }
 
+    @Override
+    @Transactional
+    public void deleteByAdmin(UUID adminId, UUID userId) {
+        if (adminId.equals(userId)) {
+            throw ApiException.badRequest("Không thể tự xoá tài khoản của chính mình");
+        }
+        UserEntity user = findUser(userId);
+        if (hotelBookingRepository.existsOpenBookingForUser(userId, LocalDate.now())) {
+            throw ApiException.conflict("Người dùng còn đặt phòng chưa kết thúc, hãy huỷ hoặc hoàn tất trước khi xoá");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        user.setDeletedAt(now);
+        user.setIsActive(false);
+        user.setUpdatedAt(now);
+        refreshTokenRepository.revokeAllByUserId(userId, now);
+    }
+
     private UserEntity findUser(UUID userId) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy người dùng"));

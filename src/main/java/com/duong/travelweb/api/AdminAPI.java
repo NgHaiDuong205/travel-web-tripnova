@@ -3,6 +3,7 @@ package com.duong.travelweb.api;
 import com.duong.travelweb.model.dto.AdminDashboardDTO;
 import com.duong.travelweb.model.dto.ContactMessageDTO;
 import com.duong.travelweb.model.dto.ContactReplyRequestDTO;
+import com.duong.travelweb.model.dto.ProfileUpdateRequestDTO;
 import com.duong.travelweb.model.dto.RefundRequestDTO;
 import com.duong.travelweb.model.dto.HotelBookingDTO;
 import com.duong.travelweb.model.dto.PaymentDTO;
@@ -110,6 +111,18 @@ public class AdminAPI {
     @GetMapping("/api/admin/users/{userId}/")
     public ResponseEntity<UserDTO> getUser(@PathVariable("userId") UUID userId) {
         return ResponseEntity.ok(userService.getUserForAdmin(userId));
+    }
+
+    @PutMapping("/api/admin/users/{userId}/")
+    public ResponseEntity<UserDTO> updateUser(@PathVariable("userId") UUID userId,
+                                              @Valid @RequestBody ProfileUpdateRequestDTO request) {
+        return ResponseEntity.ok(userService.updateProfile(userId, request));
+    }
+
+    @DeleteMapping("/api/admin/users/{userId}/")
+    public ResponseEntity<Void> deleteUser(@PathVariable("userId") UUID userId) {
+        userService.deleteByAdmin(SecurityUtil.getCurrentUserId(), userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/api/admin/users/{userId}/status/")

@@ -39,7 +39,9 @@ public class RoleInitializer implements ApplicationRunner {
             "user.manage", "Quản lý người dùng và phân quyền",
             "geography.manage", "Quản lý châu lục, quốc gia, điểm đến, địa danh",
             "amenity.manage", "Quản lý tiện nghi",
-            "contact.manage", "Xử lý tin nhắn liên hệ"
+            "contact.manage", "Xử lý tin nhắn liên hệ",
+            "review.manage", "Kiểm duyệt đánh giá và bình luận",
+            "invoice.manage", "Xem và gửi lại hoá đơn"
     );
 
     private final RoleRepository roleRepository;

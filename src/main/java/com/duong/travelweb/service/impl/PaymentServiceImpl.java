@@ -8,6 +8,7 @@ import com.duong.travelweb.model.entity.PaymentEntity;
 import com.duong.travelweb.repository.HotelBookingRepository;
 import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.service.HotelBookingService;
+import com.duong.travelweb.service.InvoiceService;
 import com.duong.travelweb.service.PaymentService;
 import com.duong.travelweb.util.SecurityUtil;
 import com.duong.travelweb.model.dto.PaymentSummaryDTO;
@@ -29,17 +30,20 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final HotelBookingRepository hotelBookingRepository;
     private final HotelBookingService hotelBookingService;
+    private final InvoiceService invoiceService;
     private final boolean mockEnabled;
     private final String currencyCode;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               HotelBookingRepository hotelBookingRepository,
                               HotelBookingService hotelBookingService,
+                              InvoiceService invoiceService,
                               @Value("${app.payment.mock-enabled:false}") boolean mockEnabled,
                               @Value("${app.booking.currency:USD}") String currencyCode) {
         this.paymentRepository = paymentRepository;
         this.hotelBookingRepository = hotelBookingRepository;
         this.hotelBookingService = hotelBookingService;
+        this.invoiceService = invoiceService;
         this.mockEnabled = mockEnabled;
         this.currencyCode = currencyCode;
     }
@@ -142,7 +146,9 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setStatus("success");
             payment.setTransactionId(transactionId);
             payment.setPaidAt(LocalDateTime.now());
-            if (!hotelBookingService.confirmOrder(order)) {
+            if (hotelBookingService.confirmOrder(order)) {
+                invoiceService.issueForOrder(order, payment);
+            } else {
                 payment.setStatus("refunded");
             }
         } else if ("pending".equals(payment.getStatus())) {

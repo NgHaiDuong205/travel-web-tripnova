@@ -29,6 +29,8 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Cart + order nhiều booking | `2a8027f` + bookingCount | `dee65b9` |
 | Posts/Reviews + Comments + admin kiểm duyệt | `db01499` | `38f37a5` |
 | Invoices (hoá đơn + PDF) + admin | (xem git log, 2026-09-29) | `f9ad5d9` |
+| Refactor order đa loại sản phẩm (`OrderBookingHandler`) | `b6977f8` | — |
+| Cars (thuê xe) + admin | `a2fe123`, `45b8493` | `05545e9` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -60,7 +62,11 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - **Đã chạy thử UI thật** (2026-09-29) cho Posts/Reviews + Invoices: BE :8080 + FE `npm start` :3000, điều khiển Edge headless bằng Playwright (`npm i playwright-core` trong scratchpad, `chromium.launch({ channel: "msedge" })` — dùng Edge có sẵn, không tải browser; người dùng KHÔNG dùng extension Claude in Chrome). Luồng đã thử: viết review → My Reviews (pending) → admin duyệt → user khác like/bình luận/trả lời → tổng điểm cập nhật → xoá review; Invoices xem chi tiết + tải PDF; admin lọc/xem/gửi lại hoá đơn. Không lỗi console, không 5xx.
   Người dùng yêu cầu: **xong mỗi module phải chạy thử cả BE lẫn FE** như trên.
   Lỗi có sẵn (chưa sửa): trang khách sạn hiển thị giá phòng bằng "€" trong khi hệ thống dùng USD; thanh "Search Rooms" cố định dưới đáy trang che một phần khối review.
-- Tiếp theo: Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
+- **Kiến trúc order đa sản phẩm** (2026-09-29): mỗi order chỉ chứa 1 loại booking. `OrderBookingHandler` (hotel, car, … — implement bởi `HotelBookingServiceImpl`, `CarBookingServiceImpl`) lo confirm khi thanh toán, huỷ pending, hết hạn giữ chỗ, admin hoàn tiền theo giao dịch, dòng hoá đơn, tổng đã hoàn. `OrderBookingRouter` chọn handler theo order; `OrderFactory` tạo order+payment. PaymentService / InvoiceService / SchedulingConfig chỉ gọi qua router → thêm loại mới (flight, tour) chỉ cần implement handler. `PaymentDTO.bookingType` + `primaryBookingId`; `bookingId` chỉ điền với hotel (trang Payment cũ chuyển tới booking khách sạn).
+- **FE mới theo thiết kế Stitch** (file HTML ở `D:\\travel-web-tripnova\\FE_HTML`, KHÔNG commit — người dùng tạo): CAR, CAR_DETAIL, FLIGHT, FLIGHT_DETAIL, TOUR, TOUR_DETAIL. Người dùng yêu cầu: trang cũ KHÔNG được sửa (chỉ thêm route/menu); các trang mới đồng bộ nhau → dùng chung `src/components/catalog/*` (CatalogHero, SearchPanel, SearchField, FilterSidebar, ListHeader, SpecTile, SpecChip, BookingSummaryCard, DetailBackLink, InfoRow). Trang thanh toán chung cho car/flight/tour: `/trip-payment/:paymentId` (trang `/payment` cũ chỉ điều hướng booking khách sạn). `/my-trips` liệt kê đơn ngoài khách sạn. Project không có `@tailwindcss/forms` → input phải có `border` + padding rõ ràng.
+- Dữ liệu demo: 6 xe `DEMO-01..06` (ảnh Unsplash, gắn điểm đến bất kỳ — ảnh chưa đúng mẫu xe). Xe test `Claude Test Car/Van` (đã tắt).
+- UI test Playwright + Edge headless: `scratchpad/ui/ui_cars.js` (danh sách, lọc, sort, tìm theo ngày, chi tiết, bắt đăng nhập, đặt → thanh toán → My Trips → huỷ, hoá đơn, admin) — pass.
+- Tiếp theo: Flights (ghế) → Tours → các mục còn lại (trừ AI và cổng thanh toán thật — người dùng loại ra) → … (xem "Thứ tự dự kiến" cuối mục 4).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -105,9 +111,10 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **7. Hotel bookings**
 - [x] POST /api/hotel-bookings · GET /{id} · POST /{id}/cancel · GET /check-availability
 
-**8. Cars & Car bookings** (chưa có entity)
-- [ ] GET /api/cars · /{carId} · /{carId}/availability
-- [ ] POST /api/car-bookings · GET /{id} · POST /{id}/cancel
+**8. Cars & Car bookings** — BE + FE xong (`CarAPI`, `CarServiceImpl`, `CarBookingServiceImpl`)
+- [x] GET /api/cars (?q&destinationId&type&brands=a,b&seats&transmission&fuelType&withDriver&priceMin&priceMax&pickupDate&returnDate (ISO, chỉ xe còn trống)&sort&page&limit) · /filters · /{carId} · /{carId}/availability?from&to
+- [x] POST /api/car-bookings {carId, pickupDate, returnDate, pickupLocation?, returnLocation?, driverLicenseNo (bắt buộc nếu xe tự lái), specialRequests, paymentMethod} → CarBookingDTO (có paymentId) · GET /{id} · POST /{id}/cancel · GET /api/me/car-bookings?status=all|upcoming|pending|completed|cancelled
+  Quy tắc: 1 xe = 1 chiếc; khoá dòng `cars` (PESSIMISTIC_WRITE) khi đặt/xác nhận; chặn giao nhau với booking confirmed/checked_in hoặc pending còn hạn giữ. Giá = price_per_day × số ngày làm tròn lên theo 24h (tối thiểu 1, tối đa 30). Nhận xe phải sau hiện tại ≥ 1h. Huỷ miễn phí tới 48h trước giờ nhận (theo thiết kế) → hoàn 100%. `car_bookings` KHÔNG có cột refund → chỉ hoàn toàn bộ, status `refunded`, lý do lưu `orders.cancel_reason`.
 
 **9. Flights & Flight bookings** (chưa có entity)
 - [ ] GET /api/flights · /{flightId} · /{flightId}/seats
@@ -171,7 +178,8 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/admin/hotel-bookings · /{id} · PUT /{id}/status
 - [x] DELETE /{id} (chỉ booking `cancelled` chưa từng thanh toán; xoá kèm order/payment nếu order không còn booking và chưa có hoá đơn) · POST /{id}/refund (hoàn một phần/cộng dồn; hoàn đủ → `refunded` + trả phòng)
 
-**A4. Cars** — [ ] toàn bộ · **A5. Flights & Seats** — [ ] toàn bộ · **A6. Tours** — [ ] toàn bộ
+**A4. Cars** — [x] GET|POST /api/admin/cars (?q&type&active&destinationId) · GET|PUT|DELETE /{id} (xoá mềm, biển số unique) · GET /api/admin/car-bookings (?status&q) · GET /{id} · PUT /{id}/status (pending→cancelled, confirmed→cancelled(hoàn 100%)|checked_in|no_show, checked_in→checked_out→completed). FE `/admin/cars` (tab Fleet / Rentals).
+**A5. Flights & Seats** — [ ] toàn bộ · **A6. Tours** — [ ] toàn bộ
 
 **A7. Geography** — BE + FE xong (`AdminGeographyAPI`)
 - [x] GET|POST /api/admin/continents · PUT|DELETE /{id} (409 nếu còn quốc gia)

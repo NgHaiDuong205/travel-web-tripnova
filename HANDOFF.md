@@ -27,6 +27,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Chuẩn hoá API public cũ (404, tên param, destinations/landmarks q + phân trang) | `cfa792e` | — |
 | Itineraries | `fb937e0` | (xem git log FE) |
 | Cart + order nhiều booking | `2a8027f` + bookingCount | `dee65b9` |
+| Posts/Reviews + Comments + admin kiểm duyệt | `db01499` | `38f37a5` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -53,7 +54,8 @@ Người dùng (2026-09-24): **làm lần lượt các API còn thiếu trong ch
 - A12 xong (BE `api/AdminAmenityAPI.java`, FE `pages/admin/Amenities`).
 - A7 xong (BE `api/AdminGeographyAPI.java`; FE `pages/admin/Geography/*`). POST/DELETE `/api/countries/` cũ đã bỏ, dùng `/api/admin/countries/`.
 - 2026-09-29: xong A1, A3, A8, A10 và A9 (trừ invoices) cả BE + FE (FE mới: `pages/admin/Roles`; Dashboard có chọn kỳ 7d/30d/90d/12m). Build FE sạch, **chưa bấm thử trên trình duyệt**.
-- Tiếp theo (2026-09-29): Posts/Comments → Invoices (+ `/api/admin/invoices`) → Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
+- 2026-09-29 (phiên sau): xong Posts/Comments/Reviews BE + FE (E2E curl/Python OK, FE build sạch, chưa bấm thử trình duyệt). Đã `git push` BE lên GitHub (trước đó 28 commit chỉ nằm local). **FE `D:e-tripnova` chưa có remote GitHub** — chờ người dùng cho URL repo.
+- Tiếp theo: Invoices (+ `/api/admin/invoices`) → Cars/Flights/Tours → … (xem "Thứ tự dự kiến" cuối mục 4).
 - **Dữ liệu test chưa dọn** (lệnh xoá SQL bị auto mode chặn): user `claude.test+a2@tripnova.local` (ADMIN, mật khẩu `secret123`; + order/payment/booking — 3 booking đã hoàn tiền trên `Claude Test Hotel B`), user `claude.test+a8@tripnova.local` (đã xoá mềm), khách sạn `Claude Test Hotel%` (đều `is_active=false`), điểm đến `Claude Test City%`, quốc gia `ZZY`, châu lục `ZZ`.
 
 FE Admin (`D:\fe-tripnova`): `routes/AdminRoutes.js` (lồng trong `components/layouts/AdminLayout.js`, đã bọc `PrivateRoute role="ADMIN"` ở `AppRouter`), pages `src/pages/admin/{Dashboard,Bookings,Users,Payments,Messages}`, `components/admin/RevenueChart.js` (cột doanh thu 30 ngày, 1 màu, tooltip hover + bảng số liệu), `services/adminService.js` (`BOOKING_NEXT_STATUSES` phải khớp `HotelBookingServiceImpl.updateStatusByAdmin`). **Chưa bấm thử giao diện admin trên trình duyệt** (dev server bị tắt vì thiếu RAM).
@@ -93,7 +95,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/hotels · /{hotelId} · /{hotelId}/rooms · /{hotelId}/rooms/{roomId} · /{hotelId}/room-types
 - [~] GET /api/hotels/{hotelId}/availability?from&to → dùng /api/hotel-bookings/check-availability + /api/hotels/{id}/rooms?checkIn&checkOut
 - [~] GET /api/hotels/suggest?q → dùng /api/hotels?name=&limit=
-- [ ] GET|POST /api/hotels/{hotelId}/reviews (no table `reviews`)
+- [~] GET|POST /api/hotels/{hotelId}/reviews → dùng /api/posts/?entityType=hotel&entityId= và POST /api/posts/ (bảng `posts` chính là review, xem mục 16)
 
 **7. Hotel bookings**
 - [x] POST /api/hotel-bookings · GET /{id} · POST /{id}/cancel · GET /check-availability
@@ -129,10 +131,13 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/me/bookings · /{id} · POST /{id}/cancel · GET /api/me/payments · /{id} (+ /summary) — hiện chỉ booking khách sạn
 - [ ] GET /api/me/invoices · /{invoiceId} · /{invoiceId}/download (bảng `invoices`)
 
-**15. Reviews** — [ ] toàn bộ (no table `reviews`)
+**15. Reviews** — [~] phủ bởi Posts (mục 16): GET /api/reviews → /api/posts/?entityType&entityId; POST/PUT/DELETE → /api/posts/…; helpful → POST /api/posts/{id}/reactions/ {type:like}. Không có bảng `reviews`/`review_ai_analysis` chưa dùng.
 
 **16. Posts / Comments** (bảng `posts`, `post_reactions`, `comments`)
-- [ ] GET|POST /api/posts · GET|PUT|DELETE /{id} · POST|DELETE /{id}/reactions · GET|POST /{id}/comments · PUT|DELETE /api/comments/{id}
+- [x] GET|POST /api/posts (?entityType&entityId&userId&q&rating&sort=newest|oldest|top|rating_high|rating_low&page&limit — public chỉ `approved`) · GET|PUT|DELETE /{id} · POST|DELETE /{id}/reactions {type: like|dislike} (trả PostDTO) · GET|POST /{id}/comments (danh sách phẳng, FE dựng cây theo parentId) · PUT|DELETE /api/comments/{id} — BE `api/PostAPI.java`, `PostServiceImpl`, `CommentServiceImpl`.
+  Thêm: `GET /api/posts/rating-summary/?entityType&entityId` (điểm TB + phân bố), `GET /api/me/posts/?status` (bài của mình mọi trạng thái).
+  Quy tắc: `posts` là review gắn hotel|landmark|destination (DB bắt buộc entity_type/entity_id). Bài mới/vừa sửa → `pending` (admin viết → `approved`); không đổi đối tượng khi sửa. `isVerifiedBooking` = có booking khách sạn đó đã checked_out/completed (hoặc confirmed/checked_in đã qua ngày trả phòng). Không tự vote bài mình; reaction upsert (ON CONFLICT) rồi **đếm lại** upvotes/downvotes. Bình luận chỉ ở bài approved; user xoá = `deleted` (xoá mềm), admin ẩn = `flagged`; bình luận không active bị che nội dung và bị lược bỏ nếu không còn trả lời hiển thị bên dưới.
+  FE: `components/client/{ReviewSection,PostCard,PostForm,CommentThread}.js`, `common/StarRating.js`; HotelDetail thay "Guest Chronicles" giả bằng review thật; trang `/my-reviews` (menu "My Reviews"); admin `/admin/posts` (menu "Reviews"). **DestinationDetail FE vẫn là dữ liệu tĩnh** (id không phải UUID) nên chưa gắn review.
 
 **17. Contact / About**
 - [x] POST /api/contact · GET /api/contact/info
@@ -181,13 +186,16 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET /api/admin/contact-messages · PUT /{id}/status
 - [x] GET /{id} · DELETE /{id} (xoá hẳn) · POST /{id}/reply (lưu reply_content/replied_by/at, status → resolved, mail log ra console; không trả lời tin spam)
 
-**A11. Reviews / Posts moderation** — [ ] toàn bộ (reviews: no table)
+**A11. Reviews / Posts moderation** — BE + FE xong (`AdminPostAPI`)
+- [x] GET /api/admin/posts (?status&entityType&entityId&userId&q&sort&page&limit) · GET /{id} · PUT /{id}/status {pending|approved|rejected} · DELETE /{id} (xoá hẳn, cascade) · GET /{id}/comments (kể cả đã ẩn/xoá)
+- [x] GET /api/admin/comments (?status&postId&q) · PUT /{id}/status {active|flagged|deleted} · DELETE /{id} (xoá hẳn kèm trả lời)
+- [~] /api/admin/reviews → chính là /api/admin/posts
 **A12. Amenities** — [x] GET?category (kèm hotelCount/roomTypeCount) · POST · PUT · DELETE (409 nếu đang dùng, `?force=true` để xoá)
 **A13. AI / Knowledge base** — [ ] toàn bộ
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 
 ### Thứ tự dự kiến
-~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ (xong) → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ → ~~Posts/Comments~~ (xong) → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
 
 Quy tắc (người dùng 2026-09-29): endpoint mà endpoint cũ đã đáp ứng thì **không làm lại** (đánh `[~]`); code cũ lệch quy chuẩn thì **được sửa**. Việc khó Claude tự làm, việc lặt vặt giao Codex.
 Đã chuẩn hoá API public cũ: service ném `ApiException.notFound` thay vì trả null (Destination/Landmark/Hotel/Room/Country), controller ghi rõ tên `@PathVariable/@RequestParam`.
@@ -235,6 +243,9 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - Jackson 3: `JsonNode.asString(default)` của NullNode trả `""` chứ không trả default → dùng `hasNonNull` (xem `CartServiceImpl.textOrNull`).
 - Python `subprocess` gọi `bash` trên Windows ra **WSL bash**; Git Bash nằm ở `E:\Programs\Git\Git\usr\bin\bash.exe`.
 - Admin không chặn được ngày phòng đang có booking giữ chỗ (409) → muốn giả lập "phòng bị lấy mất" trong test thì insert `room_availability` trực tiếp.
+- Bảng `posts` có trigger `set_updated_at` → mọi UPDATE (kể cả đồng bộ upvotes) đều đổi `updated_at`, nên không dùng `updated_at` để suy ra "đã sửa" cho post.
+- `EntityReferenceService` (tên + kiểm tra tồn tại hotel/landmark/destination) dùng chung cho itinerary và posts.
+- User test posts: `claude.test+p1@tripnova.local`, `claude.test+p2@tripnova.local` (mật khẩu `secret123`, không còn post nào).
 - `role_permissions` không có entity → thao tác bằng native query trong `PermissionRepository` (như `room_type_amenities`).
 - `date_trunc` với tham số: phải `CAST(:unit AS text)` (stringtype=unspecified). Tuần của Postgres bắt đầu thứ Hai → FE/BE điền kỳ trống phải khớp (`AdminDashboardServiceImpl.buckets`).
 - Để test đặt phòng: bật tạm `Claude Test Hotel B` (`update hotels set is_active=true where name='Claude Test Hotel B'`), room type `a40ba716-…`, xong tắt lại. Script test Python (urllib) tiện hơn curl trên Git Bash.

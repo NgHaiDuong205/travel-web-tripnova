@@ -26,6 +26,7 @@ Tham chiếu: `proposed_apis.txt` (PDF đã chuẩn hoá, dùng thay PDF), `db_s
 | Admin A1: dashboard statistics/revenue/recent/top | `609a94e` | `9a4ed08` |
 | Chuẩn hoá API public cũ (404, tên param, destinations/landmarks q + phân trang) | `cfa792e` | — |
 | Itineraries | `fb937e0` | (xem git log FE) |
+| Cart + order nhiều booking | `2a8027f` + bookingCount | `dee65b9` |
 
 ### BE endpoints hiện có (tất cả có trailing slash)
 - Public GET: `/api/countries/`, `/api/destinations/…`, `/api/landmarks/`, `/api/hotels/…`, `/api/hotel-bookings/check-availability/?hotelId&roomTypeId&roomId?&checkIn&checkOut`
@@ -115,7 +116,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 - [x] GET|POST /api/me/itineraries · GET|PUT|DELETE /{id} · POST /{id}/items · DELETE /{id}/items/{itemId} — BE `api/ItineraryAPI.java` + FE `pages/client/{Itineraries,ItineraryDetail}` (menu "My Itineraries"). Tối đa 60 ngày, dayNumber phải trong khoảng ngày; item hotel/landmark/destination kiểm tra entityId tồn tại và tự lấy tên; rút ngắn chuyến mà còn hoạt động ở ngày bị cắt → 400. Chưa có sửa item (xoá + thêm lại).
 
 **12. Cart & Favorites**
-- [ ] GET /api/cart · POST|PUT|DELETE /api/cart/items[/{itemId}] · DELETE /api/cart/clear · POST /api/cart/checkout
+- [x] GET /api/cart · POST|PUT|DELETE /api/cart/items[/{itemId}] · DELETE /api/cart/clear · POST /api/cart/checkout {paymentMethod, itemIds?} — BE `api/CartAPI.java`, `CartServiceImpl`; FE `pages/client/Cart` + nút "Add to cart" ở Checkout + icon giỏ ở Header. Chỉ hotel; mỗi dòng = 1 loại phòng + ngày, `quantity` = số phòng (≤5), adults/children là TỔNG chia đều mỗi phòng; thêm trùng thì cộng dồn; GET tính lại giá/tình trạng (`priceChanged`, `issue`); checkout nguyên tử → 1 order + N booking + 1 payment (`HotelBookingService.createOrder`). Chưa hỗ trợ guest cart (session_token).
 - [x] GET|POST /api/favorites · DELETE /{id} · GET /check (hiện chỉ `hotel`; mở tour/car/flight khi có entity)
 
 **13. Payments**
@@ -186,7 +187,7 @@ Ký hiệu: `[x]` xong (BE, đã test curl) · `[~]` làm một phần / thay b�
 **A14. Audit / Logs** — [ ] /api/admin/audit-logs (no table) · [ ] /api/admin/search-queries
 
 ### Thứ tự dự kiến
-~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ (xong) → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
+~~A2 → A12 → A7 → A1/A3/A8/A9/A10~~ (xong) → ~~shortcuts/About/Currencies~~ (bỏ qua, xem `[~]`) → ~~Itineraries~~ → ~~Cart~~ (xong) → Cart → Posts/Comments → Invoices → Cars/Flights/Tours (+ admin) → Payment gateway → OAuth2 → Uploads/Avatar → Search/AI. Mục `(no table)` để cuối và hỏi người dùng.
 
 Quy tắc (người dùng 2026-09-29): endpoint mà endpoint cũ đã đáp ứng thì **không làm lại** (đánh `[~]`); code cũ lệch quy chuẩn thì **được sửa**. Việc khó Claude tự làm, việc lặt vặt giao Codex.
 Đã chuẩn hoá API public cũ: service ném `ApiException.notFound` thay vì trả null (Destination/Landmark/Hotel/Room/Country), controller ghi rõ tên `@PathVariable/@RequestParam`.
@@ -204,6 +205,7 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - Huỷ miễn phí nếu trước `checkIn + hotels.check_in_time − hotels.cancellation_hours` (mặc định 14:00 và 24h) → hoàn 100%, xoá dòng `booked`.
 - Không tính thuế (tax=0); FE đã bỏ "8% tax" giả. Đơn vị tiền `app.booking.currency=USD` (giá trong DB 60–2000 nên không phải VND).
 - **Hoàn tiền admin**: cộng dồn vào `hotel_bookings.refund_amount` (không vượt `total_price`); booking chỉ chuyển `refunded` khi hoàn đủ (hoàn một phần = bồi thường, giữ trạng thái). Order: hoàn đủ tất cả booking → `refunded` (+ payment `refunded`), ngược lại `partially_refunded` (payment giữ `success`). Chỉ áp dụng cho booking `confirmed|no_show|checked_out|completed` của order `paid|partially_refunded`; `checked_in` phải check-out trước.
+- **Order nhiều booking** (từ giỏ hàng): thanh toán xong mà có phòng bị lấy mất → chỉ hoàn booking đó, order `partially_refunded`, payment giữ `success` (`confirmOrder` trả false chỉ khi không giữ được phòng nào). Khách huỷ 1 booking đã thanh toán → `syncOrderRefundStatus` (hoàn đủ mọi booking mới `refunded`). Huỷ 1 booking **pending** = huỷ cả order (chung 1 payment). `PaymentDTO.bookingCount` > 1 → FE chuyển về Booking History.
 - **Doanh thu dashboard** = tổng payment `success` theo `paid_at` (payment hoàn đủ bị loại, hoàn một phần KHÔNG bị trừ — xem `refundedAmount` riêng). Top hotels/destinations dùng doanh thu ròng `total_price - refund_amount` của booking tạo trong kỳ.
 - **Permissions** chỉ là danh mục (seed 8 mã trong `RoleInitializer`, quyền mới tự gán cho ADMIN); phân quyền API vẫn theo role. Role hệ thống USER/ADMIN/HOTEL_MANAGER không đổi tên/xoá được.
 - Mock payment: `app.payment.mock-enabled=true` → trang FE `/payment/:id` có nút Pay / Simulate failed.
@@ -230,6 +232,9 @@ Cải tiến nhỏ tồn đọng: `FavoriteButton` gọi `/check/` cho từng ca
 - `HotelDTO` (public) ẩn nhiều trường bằng `@JsonIgnore` (phone, isActive, destinationId…) → admin dùng `AdminHotelDTO` + `AdminHotelDTOConverter` (map tay, không ModelMapper vì Hotel/Destination trùng tên trường như `latitude`).
 - `HotelAmenityEntity` (map sai: bảng `hotel_amenities` không có cột `id`) đã **xoá**; `HotelEntity.hotelAmenities` là `@ManyToMany` trực tiếp. `room_type_amenities` (entity `@IdClass`) ghi bằng native insert `RoomTypeAmenityRepository.insertLink` — `saveAll/merge` sinh SQL lỗi.
 - Một số file `.java` dùng CRLF (vd `AmenityEntity.java`) → sửa bằng perl/sed với `\n` sẽ **không khớp**; dùng công cụ Edit.
+- Jackson 3: `JsonNode.asString(default)` của NullNode trả `""` chứ không trả default → dùng `hasNonNull` (xem `CartServiceImpl.textOrNull`).
+- Python `subprocess` gọi `bash` trên Windows ra **WSL bash**; Git Bash nằm ở `E:\Programs\Git\Git\usr\bin\bash.exe`.
+- Admin không chặn được ngày phòng đang có booking giữ chỗ (409) → muốn giả lập "phòng bị lấy mất" trong test thì insert `room_availability` trực tiếp.
 - `role_permissions` không có entity → thao tác bằng native query trong `PermissionRepository` (như `room_type_amenities`).
 - `date_trunc` với tham số: phải `CAST(:unit AS text)` (stringtype=unspecified). Tuần của Postgres bắt đầu thứ Hai → FE/BE điền kỳ trống phải khớp (`AdminDashboardServiceImpl.buckets`).
 - Để test đặt phòng: bật tạm `Claude Test Hotel B` (`update hotels set is_active=true where name='Claude Test Hotel B'`), room type `a40ba716-…`, xong tắt lại. Script test Python (urllib) tiện hơn curl trên Git Bash.

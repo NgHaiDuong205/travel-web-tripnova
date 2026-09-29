@@ -126,7 +126,7 @@ public class InvoicePdfRenderer {
         PdfPTable table = new PdfPTable(new float[]{4.2f, 2.6f, 1f, 1.2f, 2f});
         table.setWidthPercentage(100);
         table.setHeaderRows(1);
-        for (String title : new String[]{"Hotel / room", "Stay", "Nights", "Guests", "Amount"}) {
+        for (String title : new String[]{"Item", "Period", "Nights / days", "Guests", "Amount"}) {
             PdfPCell header = cell(new Phrase(title, font(bold, 9, PRIMARY)),
                     "Amount".equals(title) ? Element.ALIGN_RIGHT : Element.ALIGN_LEFT);
             header.setBackgroundColor(HEADER_BG);
@@ -136,14 +136,14 @@ public class InvoicePdfRenderer {
         String currency = invoice.getCurrencyCode();
         for (InvoiceItemDTO item : invoice.getItems()) {
             Paragraph name = new Paragraph();
-            name.add(new Phrase(item.getHotelName() + "\n", font(bold, 9, Color.BLACK)));
-            name.add(new Phrase(item.getRoomTypeName() + " · " + item.getStatus(), font(regular, 8, MUTED)));
+            name.add(new Phrase(nvl(item.getTitle(), item.getHotelName()) + "\n", font(bold, 9, Color.BLACK)));
+            name.add(new Phrase(nvl(item.getSubtitle(), item.getRoomTypeName()) + " · " + item.getStatus(), font(regular, 8, MUTED)));
             PdfPCell nameCell = new PdfPCell();
             nameCell.addElement(name);
             table.addCell(row(nameCell));
             table.addCell(row(cell(new Phrase(formatDate(item), font(regular, 9, Color.BLACK)), Element.ALIGN_LEFT)));
             table.addCell(row(cell(new Phrase(String.valueOf(nvl(item.getNights(), 0)), font(regular, 9, Color.BLACK)), Element.ALIGN_LEFT)));
-            table.addCell(row(cell(new Phrase(String.valueOf(nvl(item.getGuests(), 0)), font(regular, 9, Color.BLACK)), Element.ALIGN_LEFT)));
+            table.addCell(row(cell(new Phrase(item.getGuests() == null ? "—" : String.valueOf(item.getGuests()), font(regular, 9, Color.BLACK)), Element.ALIGN_LEFT)));
             Paragraph amount = new Paragraph(new Phrase(money(item.getAmount(), currency), font(regular, 9, Color.BLACK)));
             if (item.getRefundAmount() != null && item.getRefundAmount().signum() > 0) {
                 amount.add(new Phrase("\nRefunded " + money(item.getRefundAmount(), currency), font(regular, 8, new Color(180, 30, 30))));

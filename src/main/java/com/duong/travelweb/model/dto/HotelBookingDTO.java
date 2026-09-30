@@ -35,6 +35,8 @@ public class HotelBookingDTO {
     private String paymentMethod;
     private String paymentStatus;
     private LocalDateTime paidAt;
+    // Chỉ có khi booking đang pending: hết thời điểm này booking bị huỷ tự động (app.booking.hold-minutes)
+    private LocalDateTime holdExpiresAt;
     private Boolean cancellable;
     private LocalDateTime createdAt;
     private UUID userId;
@@ -287,6 +289,14 @@ public class HotelBookingDTO {
 
     public void setPaymentStatus(String paymentStatus) {
         this.paymentStatus = paymentStatus;
+    }
+
+    public LocalDateTime getHoldExpiresAt() {
+        return holdExpiresAt;
+    }
+
+    public void setHoldExpiresAt(LocalDateTime holdExpiresAt) {
+        this.holdExpiresAt = holdExpiresAt;
     }
 
     public LocalDateTime getPaidAt() {

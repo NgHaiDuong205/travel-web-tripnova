@@ -1,6 +1,8 @@
 package com.duong.travelweb.api;
 
+import com.duong.travelweb.model.dto.InvoiceBillingRequestDTO;
 import com.duong.travelweb.model.dto.InvoiceDTO;
+import jakarta.validation.Valid;
 import com.duong.travelweb.service.InvoiceService;
 import com.duong.travelweb.util.SecurityUtil;
 import org.springframework.data.domain.Page;
@@ -35,6 +37,12 @@ public class InvoiceAPI {
     @GetMapping("/api/me/invoices/{invoiceId}/")
     public ResponseEntity<InvoiceDTO> getMyInvoice(@PathVariable("invoiceId") UUID invoiceId) {
         return ResponseEntity.ok(invoiceService.getMine(SecurityUtil.getCurrentUserId(), invoiceId));
+    }
+
+    @PutMapping("/api/me/invoices/{invoiceId}/billing/")
+    public ResponseEntity<InvoiceDTO> updateMyBilling(@PathVariable("invoiceId") UUID invoiceId,
+                                                      @Valid @RequestBody InvoiceBillingRequestDTO request) {
+        return ResponseEntity.ok(invoiceService.updateMyBilling(SecurityUtil.getCurrentUserId(), invoiceId, request));
     }
 
     @GetMapping("/api/me/invoices/{invoiceId}/download/")

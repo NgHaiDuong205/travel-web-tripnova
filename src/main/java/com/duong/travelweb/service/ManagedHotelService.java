@@ -22,7 +22,10 @@ import java.util.UUID;
  * Manager không tạo khách sạn, không đổi người quản lý và không tự bật lại khách sạn đã bị tắt.
  */
 public interface ManagedHotelService {
-    List<AdminHotelDTO> findHotels(UUID managerId);
+    /** Khách sạn do manager quản lý, phân trang (q = tên / địa chỉ). */
+    List<AdminHotelDTO> findHotels(UUID managerId, String keyword, int page, int limit);
+
+    long countHotels(UUID managerId, String keyword);
 
     AdminHotelDTO getHotel(UUID managerId, UUID hotelId);
 

@@ -106,6 +106,7 @@ public class CommentServiceImpl implements CommentService {
                 case "tour" -> "/tours/" + post.getEntityId();
                 case "car" -> "/cars/" + post.getEntityId();
                 case "flight" -> "/flights/" + post.getEntityId();
+                case "destination" -> "/destinations/" + post.getEntityId();
                 default -> "/my-reviews";
             };
             String preview = saved.getContent().length() > 200 ? saved.getContent().substring(0, 200) + "…" : saved.getContent();

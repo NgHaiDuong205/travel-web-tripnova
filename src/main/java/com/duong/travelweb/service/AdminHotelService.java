@@ -15,8 +15,9 @@ import java.util.UUID;
 
 /** Quản trị khách sạn, hạng phòng, phòng và lịch khoá phòng. */
 public interface AdminHotelService {
-    List<AdminHotelDTO> findHotels(String keyword, UUID destinationId, Boolean active, int page, int limit);
-    long countHotels(String keyword, UUID destinationId, Boolean active);
+    /** managedById != null -> chỉ khách sạn do user đó quản lý. */
+    List<AdminHotelDTO> findHotels(String keyword, UUID destinationId, Boolean active, UUID managedById, int page, int limit);
+    long countHotels(String keyword, UUID destinationId, Boolean active, UUID managedById);
     AdminHotelDTO getHotel(UUID hotelId);
     AdminHotelDTO createHotel(HotelRequestDTO request);
     AdminHotelDTO updateHotel(UUID hotelId, HotelRequestDTO request);

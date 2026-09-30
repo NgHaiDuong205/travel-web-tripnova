@@ -1,5 +1,7 @@
 package com.duong.travelweb.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +15,28 @@ public class CartDTO {
     private BigDecimal totalAmount;
     private String currencyCode;
     private boolean hasIssues;
+    // Chỉ có ở response tạo giỏ khách lần đầu: client lưu lại và gửi qua header X-Cart-Token
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String guestToken;
+    // Số dòng của giỏ khách không gộp được (chỉ có ở response /api/cart/merge/)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Integer mergeSkipped;
+
+    public String getGuestToken() {
+        return guestToken;
+    }
+
+    public void setGuestToken(String guestToken) {
+        this.guestToken = guestToken;
+    }
+
+    public Integer getMergeSkipped() {
+        return mergeSkipped;
+    }
+
+    public void setMergeSkipped(Integer mergeSkipped) {
+        this.mergeSkipped = mergeSkipped;
+    }
 
     public UUID getId() {
         return id;

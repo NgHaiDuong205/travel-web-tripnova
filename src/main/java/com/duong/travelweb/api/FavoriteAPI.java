@@ -26,6 +26,11 @@ public class FavoriteAPI {
         return ResponseEntity.ok(favoriteService.findMyFavorites(SecurityUtil.getCurrentUserId(), type));
     }
 
+    @GetMapping("/api/favorites/ids/")
+    public ResponseEntity<List<FavoriteDTO>> getFavoriteRefs() {
+        return ResponseEntity.ok(favoriteService.findMyFavoriteRefs(SecurityUtil.getCurrentUserId()));
+    }
+
     @PostMapping("/api/favorites/")
     public ResponseEntity<FavoriteDTO> addFavorite(@Valid @RequestBody FavoriteRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED)

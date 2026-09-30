@@ -1,6 +1,7 @@
 package com.duong.travelweb.service.impl;
 
 import com.duong.travelweb.exception.ApiException;
+import com.duong.travelweb.model.dto.InvoiceBillingRequestDTO;
 import com.duong.travelweb.model.dto.InvoiceDTO;
 import com.duong.travelweb.model.dto.InvoiceItemDTO;
 import com.duong.travelweb.model.entity.InvoiceEntity;
@@ -123,6 +124,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(readOnly = true)
     public InvoiceFile downloadMine(UUID userId, UUID invoiceId) {
         return toFile(toDetailDTO(findOwned(userId, invoiceId)));
+    }
+
+    @Override
+    @Transactional
+    public InvoiceDTO updateMyBilling(UUID userId, UUID invoiceId, InvoiceBillingRequestDTO request) {
+        InvoiceEntity invoice = findOwned(userId, invoiceId);
+        invoice.setBillingName(request.getBillingName().trim());
+        invoice.setBillingAddress(blankToNull(request.getBillingAddress()));
+        String taxCode = blankToNull(request.getBillingTaxCode());
+        invoice.setBillingTaxCode(taxCode == null ? null : taxCode.toUpperCase());
+        return toDetailDTO(invoice);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @Override

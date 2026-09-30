@@ -44,8 +44,8 @@ public class AdminHotelAPI {
             case "inactive" -> false;
             default -> null;
         };
-        List<AdminHotelDTO> results = adminHotelService.findHotels(keyword, destinationId, active, page, clamp(limit));
-        long total = adminHotelService.countHotels(keyword, destinationId, active);
+        List<AdminHotelDTO> results = adminHotelService.findHotels(keyword, destinationId, active, null, page, clamp(limit));
+        long total = adminHotelService.countHotels(keyword, destinationId, active, null);
         return ResponseEntity.ok().header("X-Total-Count", String.valueOf(total)).body(results);
     }
 

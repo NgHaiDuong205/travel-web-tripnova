@@ -115,6 +115,32 @@ public class ItineraryServiceImpl implements ItineraryService {
     @Transactional
     public ItineraryDTO addItem(UUID userId, UUID itineraryId, ItineraryItemRequestDTO request) {
         ItineraryEntity itinerary = findOwned(userId, itineraryId);
+        LocalDateTime now = LocalDateTime.now();
+        ItineraryItemEntity item = new ItineraryItemEntity();
+        item.setItinerary(itinerary);
+        item.setCreatedAt(now);
+        applyItem(item, itinerary, request);
+        itineraryItemRepository.save(item);
+        itinerary.setUpdatedAt(now);
+        return toDetailDTO(itinerary);
+    }
+
+    @Override
+    @Transactional
+    public ItineraryDTO updateItem(UUID userId, UUID itineraryId, UUID itemId, ItineraryItemRequestDTO request) {
+        ItineraryEntity itinerary = findOwned(userId, itineraryId);
+        ItineraryItemEntity item = itineraryItemRepository.findInItinerary(itemId, itineraryId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy hoạt động trong lịch trình"));
+        applyItem(item, itinerary, request);
+        itinerary.setUpdatedAt(LocalDateTime.now());
+        return toDetailDTO(itinerary);
+    }
+
+    /**
+     * Kiểm tra + gán dữ liệu hoạt động (dùng cho thêm và sửa — sửa là ghi đè toàn bộ).
+     * Không truyền sortOrder: hoạt động mới / chuyển sang ngày khác thì xếp cuối ngày, giữ nguyên nếu vẫn ở ngày cũ.
+     */
+    private void applyItem(ItineraryItemEntity item, ItineraryEntity itinerary, ItineraryItemRequestDTO request) {
         Integer days = days(itinerary);
         int maxDay = days != null ? days : MAX_DAYS;
         if (request.getDayNumber() > maxDay) {
@@ -136,12 +162,15 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         short dayNumber = request.getDayNumber().shortValue();
-        int sortOrder = request.getSortOrder() != null
-                ? request.getSortOrder()
-                : itineraryItemRepository.findMaxSortOrder(itineraryId, dayNumber) + 1;
-        LocalDateTime now = LocalDateTime.now();
-        ItineraryItemEntity item = new ItineraryItemEntity();
-        item.setItinerary(itinerary);
+        boolean sameDay = item.getDayNumber() != null && item.getDayNumber() == dayNumber;
+        int sortOrder;
+        if (request.getSortOrder() != null) {
+            sortOrder = request.getSortOrder();
+        } else if (sameDay && item.getSortOrder() != null) {
+            sortOrder = item.getSortOrder();
+        } else {
+            sortOrder = itineraryItemRepository.findMaxSortOrder(itinerary.getId(), dayNumber) + 1;
+        }
         item.setDayNumber(dayNumber);
         item.setStartTime(request.getStartTime());
         item.setEndTime(request.getEndTime());
@@ -151,10 +180,6 @@ public class ItineraryServiceImpl implements ItineraryService {
         item.setNotes(blankToNull(request.getNotes()));
         item.setEstimatedCost(request.getEstimatedCost());
         item.setSortOrder((short) Math.min(sortOrder, Short.MAX_VALUE));
-        item.setCreatedAt(now);
-        itineraryItemRepository.save(item);
-        itinerary.setUpdatedAt(now);
-        return toDetailDTO(itinerary);
     }
 
     @Override

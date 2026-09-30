@@ -1,5 +1,6 @@
 package com.duong.travelweb.service;
 
+import com.duong.travelweb.model.dto.InvoiceBillingRequestDTO;
 import com.duong.travelweb.model.dto.InvoiceDTO;
 import com.duong.travelweb.model.entity.OrderEntity;
 import com.duong.travelweb.model.entity.PaymentEntity;
@@ -25,6 +26,9 @@ public interface InvoiceService {
     InvoiceDTO getMine(UUID userId, UUID invoiceId);
 
     InvoiceFile downloadMine(UUID userId, UUID invoiceId);
+
+    /** Khách cập nhật thông tin xuất hoá đơn (tên / địa chỉ / MST); PDF tải sau đó dùng thông tin mới. */
+    InvoiceDTO updateMyBilling(UUID userId, UUID invoiceId, InvoiceBillingRequestDTO request);
 
     Page<InvoiceDTO> findForAdmin(String keyword, LocalDate from, LocalDate to, int page, int limit);
 

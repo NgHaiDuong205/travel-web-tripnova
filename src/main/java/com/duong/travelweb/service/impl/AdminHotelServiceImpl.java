@@ -90,8 +90,8 @@ public class AdminHotelServiceImpl implements AdminHotelService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AdminHotelDTO> findHotels(String keyword, UUID destinationId, Boolean active, int page, int limit) {
-        List<HotelEntity> hotels = hotelRepository.findForAdmin(normalizeKeyword(keyword), destinationId, active, page, limit);
+    public List<AdminHotelDTO> findHotels(String keyword, UUID destinationId, Boolean active, UUID managedById, int page, int limit) {
+        List<HotelEntity> hotels = hotelRepository.findForAdmin(normalizeKeyword(keyword), destinationId, active, managedById, page, limit);
         if (hotels.isEmpty()) {
             return List.of();
         }
@@ -113,8 +113,8 @@ public class AdminHotelServiceImpl implements AdminHotelService {
 
     @Override
     @Transactional(readOnly = true)
-    public long countHotels(String keyword, UUID destinationId, Boolean active) {
-        return hotelRepository.countForAdmin(normalizeKeyword(keyword), destinationId, active);
+    public long countHotels(String keyword, UUID destinationId, Boolean active, UUID managedById) {
+        return hotelRepository.countForAdmin(normalizeKeyword(keyword), destinationId, active, managedById);
     }
 
     @Override

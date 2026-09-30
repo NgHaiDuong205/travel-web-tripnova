@@ -10,6 +10,9 @@ import java.util.UUID;
 public interface FavoriteService {
     List<FavoriteDTO> findMyFavorites(UUID userId, String itemType);
 
+    /** Chỉ id / itemType / itemId (không kèm chi tiết) — FE dùng để tô trạng thái nút tim cả trang bằng 1 request. */
+    List<FavoriteDTO> findMyFavoriteRefs(UUID userId);
+
     /** Thêm vào yêu thích; đã có thì trả về bản ghi cũ (idempotent). */
     FavoriteDTO addFavorite(UUID userId, FavoriteRequestDTO request);
 

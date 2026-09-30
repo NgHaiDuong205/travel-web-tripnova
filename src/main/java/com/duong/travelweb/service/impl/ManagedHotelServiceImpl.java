@@ -52,10 +52,15 @@ public class ManagedHotelServiceImpl implements ManagedHotelService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AdminHotelDTO> findHotels(UUID managerId) {
-        return hotelRepository.findByManagerId(managerId).stream()
-                .map(hotel -> adminHotelService.getHotel(hotel.getId()))
-                .toList();
+    public List<AdminHotelDTO> findHotels(UUID managerId, String keyword, int page, int limit) {
+        // Dựng DTO theo lô (không gọi getHotel từng khách sạn — manager có thể quản lý hàng nghìn khách sạn)
+        return adminHotelService.findHotels(keyword, null, null, managerId, page, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countHotels(UUID managerId, String keyword) {
+        return adminHotelService.countHotels(keyword, null, null, managerId);
     }
 
     @Override

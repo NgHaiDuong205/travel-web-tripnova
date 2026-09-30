@@ -85,6 +85,13 @@ public class SecurityConfig {
             "/api/uploads/images/",
     };
 
+    /** Giỏ khách sạn dùng được khi chưa đăng nhập (giỏ khách theo X-Cart-Token); checkout / merge vẫn cần đăng nhập. */
+    private static final String[] GUEST_CART = {
+            "/api/cart/",
+            "/api/cart/items/**",
+            "/api/cart/clear/",
+    };
+
     private final JsonAuthErrorHandler jsonAuthErrorHandler;
     private final String jwtSecret;
 
@@ -107,9 +114,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers(GUEST_CART).access(notHotelAccount(true))
                         .requestMatchers(HOTEL_ACCOUNT_ALLOWED).authenticated()
                         // Tài khoản khách sạn không dùng chức năng của khách (đặt chỗ, giỏ hàng, review...).
-                        .anyRequest().access(notHotelAccount()))
+                        .anyRequest().access(notHotelAccount(false)))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(jsonAuthErrorHandler)
@@ -121,14 +129,14 @@ public class SecurityConfig {
     }
 
     /**
-     * Đã đăng nhập và KHÔNG phải tài khoản khách sạn (có HOTEL_MANAGER mà không có ADMIN).
-     * Chưa đăng nhập → từ chối → 401 qua authenticationEntryPoint.
+     * KHÔNG phải tài khoản khách sạn (có HOTEL_MANAGER mà không có ADMIN).
+     * Chưa đăng nhập → cho qua nếu {@code allowAnonymous}, không thì từ chối → 401 qua authenticationEntryPoint.
      */
-    private static AuthorizationManager<RequestAuthorizationContext> notHotelAccount() {
+    private static AuthorizationManager<RequestAuthorizationContext> notHotelAccount(boolean allowAnonymous) {
         return (authentication, context) -> {
             Authentication auth = authentication.get();
             if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-                return new AuthorizationDecision(false);
+                return new AuthorizationDecision(allowAnonymous);
             }
             boolean hotelAccount = false;
             boolean admin = false;

@@ -24,5 +24,8 @@ public interface ItineraryService {
     /** Thêm hoạt động, trả về lịch trình đầy đủ. */
     ItineraryDTO addItem(UUID userId, UUID itineraryId, ItineraryItemRequestDTO request);
 
+    /** Sửa hoạt động (ghi đè toàn bộ, cùng quy tắc kiểm tra như khi thêm). */
+    ItineraryDTO updateItem(UUID userId, UUID itineraryId, UUID itemId, ItineraryItemRequestDTO request);
+
     void deleteItem(UUID userId, UUID itineraryId, UUID itemId);
 }

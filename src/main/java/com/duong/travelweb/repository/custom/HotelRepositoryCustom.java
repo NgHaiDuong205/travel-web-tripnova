@@ -11,6 +11,7 @@ public interface HotelRepositoryCustom {
     long countHotel(HotelSearchBuilder hotelSearchBuilder);
 
     /** Danh sách cho admin (kể cả khách sạn đã ẩn). active = null → tất cả. */
-    List<HotelEntity> findForAdmin(String keyword, UUID destinationId, Boolean active, int page, int limit);
-    long countForAdmin(String keyword, UUID destinationId, Boolean active);
+    /** managedById != null -> chỉ khách sạn do user đó quản lý (trang quản lý khách sạn). */
+    List<HotelEntity> findForAdmin(String keyword, UUID destinationId, Boolean active, UUID managedById, int page, int limit);
+    long countForAdmin(String keyword, UUID destinationId, Boolean active, UUID managedById);
 }

@@ -65,6 +65,13 @@ public class ItineraryAPI {
                 .body(itineraryService.addItem(SecurityUtil.getCurrentUserId(), itineraryId, request));
     }
 
+    @PutMapping("/api/me/itineraries/{itineraryId}/items/{itemId}/")
+    public ResponseEntity<ItineraryDTO> updateItem(@PathVariable("itineraryId") UUID itineraryId,
+                                                     @PathVariable("itemId") UUID itemId,
+                                                     @Valid @RequestBody ItineraryItemRequestDTO request) {
+        return ResponseEntity.ok(itineraryService.updateItem(SecurityUtil.getCurrentUserId(), itineraryId, itemId, request));
+    }
+
     @DeleteMapping("/api/me/itineraries/{itineraryId}/items/{itemId}/")
     public ResponseEntity<Void> deleteItem(@PathVariable("itineraryId") UUID itineraryId,
                                             @PathVariable("itemId") UUID itemId) {

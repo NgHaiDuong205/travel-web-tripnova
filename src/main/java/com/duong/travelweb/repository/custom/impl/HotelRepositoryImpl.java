@@ -54,25 +54,25 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
     }
 
     @Override
-    public List<HotelEntity> findForAdmin(String keyword, UUID destinationId, Boolean active, int page, int limit) {
+    public List<HotelEntity> findForAdmin(String keyword, UUID destinationId, Boolean active, UUID managedById, int page, int limit) {
         String jpql = "SELECT h FROM HotelEntity h LEFT JOIN FETCH h.destination d LEFT JOIN FETCH d.country WHERE 1=1"
-                + buildAdminCondition(keyword, destinationId, active) + " ORDER BY h.createdAt DESC, h.name";
+                + buildAdminCondition(keyword, destinationId, active, managedById) + " ORDER BY h.createdAt DESC, h.name";
         TypedQuery<HotelEntity> query = entityManager.createQuery(jpql, HotelEntity.class);
-        bindAdminParams(query, keyword, destinationId, active);
+        bindAdminParams(query, keyword, destinationId, active, managedById);
         query.setFirstResult((Math.max(page, 1) - 1) * limit);
         query.setMaxResults(limit);
         return query.getResultList();
     }
 
     @Override
-    public long countForAdmin(String keyword, UUID destinationId, Boolean active) {
-        String jpql = "SELECT COUNT(h) FROM HotelEntity h WHERE 1=1" + buildAdminCondition(keyword, destinationId, active);
+    public long countForAdmin(String keyword, UUID destinationId, Boolean active, UUID managedById) {
+        String jpql = "SELECT COUNT(h) FROM HotelEntity h WHERE 1=1" + buildAdminCondition(keyword, destinationId, active, managedById);
         TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
-        bindAdminParams(query, keyword, destinationId, active);
+        bindAdminParams(query, keyword, destinationId, active, managedById);
         return query.getSingleResult();
     }
 
-    private String buildAdminCondition(String keyword, UUID destinationId, Boolean active) {
+    private String buildAdminCondition(String keyword, UUID destinationId, Boolean active, UUID managedById) {
         StringBuilder where = new StringBuilder();
         if (keyword != null) {
             where.append(" AND (LOWER(h.name) LIKE :keyword OR LOWER(h.address) LIKE :keyword)");
@@ -83,10 +83,13 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
         if (active != null) {
             where.append(" AND h.isActive = :active");
         }
+        if (managedById != null) {
+            where.append(" AND h.managedBy.id = :managedById");
+        }
         return where.toString();
     }
 
-    private void bindAdminParams(TypedQuery<?> query, String keyword, UUID destinationId, Boolean active) {
+    private void bindAdminParams(TypedQuery<?> query, String keyword, UUID destinationId, Boolean active, UUID managedById) {
         if (keyword != null) {
             query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
         }
@@ -95,6 +98,9 @@ public class HotelRepositoryImpl implements HotelRepositoryCustom {
         }
         if (active != null) {
             query.setParameter("active", active);
+        }
+        if (managedById != null) {
+            query.setParameter("managedById", managedById);
         }
     }
 

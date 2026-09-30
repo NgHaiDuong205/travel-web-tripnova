@@ -33,9 +33,16 @@ public class ManagerHotelAPI {
         this.managedHotelService = managedHotelService;
     }
 
+    /** ?q (tên / địa chỉ) &page (từ 1) &limit (mặc định 20, tối đa 100); tổng qua X-Total-Count. */
     @GetMapping("/api/manager/hotels/")
-    public ResponseEntity<List<AdminHotelDTO>> getHotels() {
-        return ResponseEntity.ok(managedHotelService.findHotels(SecurityUtil.getCurrentUserId()));
+    public ResponseEntity<List<AdminHotelDTO>> getHotels(@RequestParam(value = "q", required = false) String q,
+                                                         @RequestParam(value = "page", defaultValue = "1") int page,
+                                                         @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        UUID managerId = SecurityUtil.getCurrentUserId();
+        int size = limit < 1 ? 20 : Math.min(limit, 100);
+        List<AdminHotelDTO> hotels = managedHotelService.findHotels(managerId, q, Math.max(page, 1), size);
+        long total = managedHotelService.countHotels(managerId, q);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(total)).body(hotels);
     }
 
     @GetMapping("/api/manager/hotels/{hotelId}/")

@@ -64,6 +64,19 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<FavoriteDTO> findMyFavoriteRefs(UUID userId) {
+        return favoriteRepository.findByUserId(userId).stream().map(f -> {
+            FavoriteDTO dto = new FavoriteDTO();
+            dto.setId(f.getId());
+            dto.setItemType(f.getItemType());
+            dto.setItemId(f.getItemId());
+            dto.setCreatedAt(f.getCreatedAt());
+            return dto;
+        }).toList();
+    }
+
+    @Override
     @Transactional
     public FavoriteDTO addFavorite(UUID userId, FavoriteRequestDTO request) {
         if (!SUPPORTED_TYPES.contains(request.getItemType())) {

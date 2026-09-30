@@ -14,6 +14,7 @@ import com.duong.travelweb.repository.CartItemRepository;
 import com.duong.travelweb.repository.CartRepository;
 import com.duong.travelweb.repository.RoomTypeRepository;
 import com.duong.travelweb.service.CartService;
+import com.duong.travelweb.util.TokenUtil;
 import com.duong.travelweb.service.HotelBookingService;
 import com.duong.travelweb.service.HotelBookingService.HotelBookingLine;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +31,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -62,13 +64,13 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional(readOnly = true)
-    public CartDTO getCart(UUID userId) {
-        return cartRepository.findByUserId(userId).map(this::toDTO).orElseGet(this::emptyCart);
+    public CartDTO getCart(CartOwner owner) {
+        return findCartOf(owner).map(this::toDTO).orElseGet(this::emptyCart);
     }
 
     @Override
     @Transactional
-    public CartDTO addItem(UUID userId, CartItemRequestDTO request) {
+    public CartDTO addItem(CartOwner owner, CartItemRequestDTO request) {
         String itemType = request.getItemType() == null || request.getItemType().isBlank() ? "hotel" : request.getItemType();
         if (!"hotel".equals(itemType)) {
             throw ApiException.badRequest("Hiện giỏ hàng chỉ hỗ trợ đặt phòng khách sạn");
@@ -78,7 +80,15 @@ public class CartServiceImpl implements CartService {
         }
         RoomTypeEntity roomType = roomTypeRepository.findByIdAndHotelId(request.getRoomTypeId(), request.getHotelId())
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy loại phòng của khách sạn"));
-        CartEntity cart = cartRepository.findByUserId(userId).orElseGet(() -> createCart(userId));
+        // Giỏ khách mới: token thô chỉ trả về đúng 1 lần trong response này
+        String[] newGuestToken = new String[1];
+        CartEntity cart = findCartOf(owner).orElseGet(() -> {
+            if (!owner.isGuest()) {
+                return createCart(owner.userId());
+            }
+            newGuestToken[0] = TokenUtil.randomToken();
+            return createGuestCart(newGuestToken[0]);
+        });
         List<CartItemEntity> items = cart.getId() == null ? List.of() : cartItemRepository.findByCartId(cart.getId());
 
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
@@ -116,13 +126,15 @@ public class CartServiceImpl implements CartService {
         applyHotelItem(item, roomType, request.getCheckIn(), request.getCheckOut(), quantity, adults, children, specialRequests);
         cartItemRepository.save(item);
         touch(cart);
-        return toDTO(cart);
+        CartDTO dto = toDTO(cart);
+        dto.setGuestToken(newGuestToken[0]);
+        return dto;
     }
 
     @Override
     @Transactional
-    public CartDTO updateItem(UUID userId, UUID itemId, CartItemRequestDTO request) {
-        CartEntity cart = findCart(userId);
+    public CartDTO updateItem(CartOwner owner, UUID itemId, CartItemRequestDTO request) {
+        CartEntity cart = findCart(owner);
         CartItemEntity item = findItem(cart, itemId);
         RoomTypeEntity roomType = item.getRoomType();
         if (roomType == null) {
@@ -138,8 +150,8 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional
-    public CartDTO removeItem(UUID userId, UUID itemId) {
-        CartEntity cart = findCart(userId);
+    public CartDTO removeItem(CartOwner owner, UUID itemId) {
+        CartEntity cart = findCart(owner);
         cartItemRepository.delete(findItem(cart, itemId));
         cartItemRepository.flush();
         touch(cart);
@@ -148,8 +160,8 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional
-    public void clear(UUID userId) {
-        cartRepository.findByUserId(userId).ifPresent(cart -> {
+    public void clear(CartOwner owner) {
+        findCartOf(owner).ifPresent(cart -> {
             cartItemRepository.deleteByCartId(cart.getId());
             touch(cart);
         });
@@ -158,7 +170,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartCheckoutDTO checkout(UUID userId, CartCheckoutRequestDTO request) {
-        CartEntity cart = findCart(userId);
+        CartEntity cart = findCart(new CartOwner(userId, null));
         List<CartItemEntity> all = cartItemRepository.findByCartId(cart.getId());
         List<CartItemEntity> selected;
         if (request.getItemIds() == null || request.getItemIds().isEmpty()) {
@@ -193,6 +205,80 @@ public class CartServiceImpl implements CartService {
         cartItemRepository.deleteAll(selected);
         touch(cart);
         return result;
+    }
+
+    @Override
+    @Transactional
+    public CartDTO merge(UUID userId, String guestToken) {
+        Optional<CartEntity> guestCart = findCartOf(new CartOwner(null, guestToken));
+        if (guestCart.isEmpty()) {
+            return getCart(new CartOwner(userId, null));
+        }
+        CartEntity guest = guestCart.get();
+        List<CartItemEntity> guestItems = cartItemRepository.findByCartId(guest.getId());
+        CartEntity cart = cartRepository.findByUserId(userId).orElseGet(() -> createCart(userId));
+        List<CartItemEntity> own = new ArrayList<>(cartItemRepository.findByCartId(cart.getId()));
+        List<CartItemEntity> leftovers = new ArrayList<>(); // dòng khách không chuyển sang giỏ user (đã cộng dồn / bỏ qua)
+        int skipped = 0;
+        for (CartItemEntity guestItem : guestItems) {
+            RoomTypeEntity roomType = guestItem.getRoomType();
+            if (roomType == null) {
+                skipped++; // loại phòng đã bị xoá
+                leftovers.add(guestItem);
+                continue;
+            }
+            CartItemEntity same = own.stream()
+                    .filter(i -> i.getRoomType() != null && i.getRoomType().getId().equals(roomType.getId())
+                            && guestItem.getCheckInDate().equals(i.getCheckInDate())
+                            && guestItem.getCheckOutDate().equals(i.getCheckOutDate()))
+                    .findFirst()
+                    .orElse(null);
+            if (same == null) {
+                if (own.size() >= MAX_ITEMS) {
+                    skipped++;
+                    leftovers.add(guestItem);
+                    continue;
+                }
+                // Chuyển nguyên dòng sang giỏ user (giá chốt giữ nguyên; tình trạng được tính lại khi đọc)
+                guestItem.setCart(cart);
+                own.add(guestItem);
+                continue;
+            }
+            leftovers.add(guestItem);
+            JsonNode mine = readSnapshot(same);
+            JsonNode theirs = readSnapshot(guestItem);
+            int quantity = same.getQuantity() + guestItem.getQuantity();
+            String specialRequests = textOrNull(mine, "specialRequests");
+            if (specialRequests == null) {
+                specialRequests = textOrNull(theirs, "specialRequests");
+            }
+            if (quantity > MAX_ROOMS_PER_ITEM) {
+                skipped++;
+                continue;
+            }
+            try {
+                // applyHotelItem kiểm tra hết rồi mới ghi -> lỗi thì dòng của user giữ nguyên
+                applyHotelItem(same, roomType, same.getCheckInDate(), same.getCheckOutDate(), quantity,
+                        mine.path("adults").asInt(1) + theirs.path("adults").asInt(1),
+                        mine.path("children").asInt(0) + theirs.path("children").asInt(0), specialRequests);
+            } catch (ApiException e) {
+                skipped++;
+            }
+        }
+        // Xoá tường minh dòng khách còn lại: entity đang được quản lý mà trỏ tới giỏ đã xoá sẽ làm flush lỗi
+        cartItemRepository.deleteAll(leftovers);
+        cartItemRepository.flush();
+        cartRepository.delete(guest);
+        touch(cart);
+        CartDTO dto = toDTO(cart);
+        dto.setMergeSkipped(skipped);
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public int purgeStaleGuestCarts(int days) {
+        return cartRepository.deleteGuestCartsUpdatedBefore(LocalDateTime.now().minusDays(days));
     }
 
     /** Kiểm tra + ghi các trường của dòng hotel (giá chốt tại thời điểm thêm/sửa để so sánh sau). */
@@ -337,8 +423,29 @@ public class CartServiceImpl implements CartService {
         return cartRepository.save(cart);
     }
 
-    private CartEntity findCart(UUID userId) {
-        return cartRepository.findByUserId(userId).orElseThrow(() -> ApiException.notFound("Giỏ hàng trống"));
+    private CartEntity createGuestCart(String rawToken) {
+        LocalDateTime now = LocalDateTime.now();
+        CartEntity cart = new CartEntity();
+        cart.setSessionToken(TokenUtil.sha256(rawToken));
+        cart.setCreatedAt(now);
+        cart.setUpdatedAt(now);
+        return cartRepository.save(cart);
+    }
+
+    /** Giỏ của user, hoặc giỏ khách theo token (token rỗng / sai -> không có giỏ). */
+    private Optional<CartEntity> findCartOf(CartOwner owner) {
+        if (!owner.isGuest()) {
+            return cartRepository.findByUserId(owner.userId());
+        }
+        String token = owner.guestToken();
+        if (token == null || token.isBlank() || token.length() > 128) {
+            return Optional.empty();
+        }
+        return cartRepository.findGuestCart(TokenUtil.sha256(token.trim()));
+    }
+
+    private CartEntity findCart(CartOwner owner) {
+        return findCartOf(owner).orElseThrow(() -> ApiException.notFound("Giỏ hàng trống"));
     }
 
     private CartItemEntity findItem(CartEntity cart, UUID itemId) {

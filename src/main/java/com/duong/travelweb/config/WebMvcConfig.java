@@ -24,7 +24,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(auditLogInterceptor).addPathPatterns("/api/admin/**", "/api/account/**");
+        registry.addInterceptor(auditLogInterceptor).addPathPatterns("/api/admin/**", "/api/account/**", "/api/manager/**");
     }
 
     /** File người dùng upload (UploadServiceImpl) phục vụ công khai tại /uploads/**. */

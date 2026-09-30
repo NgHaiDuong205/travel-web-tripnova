@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Ghi audit log cho mọi request GHI (POST/PUT/PATCH/DELETE) vào /api/admin/** và /api/account/** — kể cả request lỗi.
+ * Ghi audit log cho mọi request GHI (POST/PUT/PATCH/DELETE) vào /api/admin/**, /api/account/** và /api/manager/** — kể cả request lỗi.
  * Không ghi body (có thể chứa mật khẩu); chỉ ghi path variable + query string.
  * action = các đoạn path cố định sau /api/admin/ (hoặc /api/) nối bằng dấu chấm + create|update|delete,
  * VD PUT /api/admin/hotels/{hotelId}/ -> "hotels.update", POST /api/admin/hotel-bookings/{id}/refund/ -> "hotel-bookings.refund.create".
@@ -26,6 +26,7 @@ import java.util.UUID;
 public class AuditLogInterceptor implements HandlerInterceptor {
     private static final String ADMIN_PREFIX = "/api/admin/";
     private static final String ACCOUNT_PREFIX = "/api/account/";
+    private static final String MANAGER_PREFIX = "/api/manager/";
 
     private final AuditLogService auditLogService;
 
@@ -46,7 +47,8 @@ public class AuditLogInterceptor implements HandlerInterceptor {
         String relative;
         if (pattern.startsWith(ADMIN_PREFIX)) {
             relative = pattern.substring(ADMIN_PREFIX.length());
-        } else if (pattern.startsWith(ACCOUNT_PREFIX)) {
+        } else if (pattern.startsWith(ACCOUNT_PREFIX) || pattern.startsWith(MANAGER_PREFIX)) {
+            // "account.email.update", "manager.hotels.rooms.update"...
             relative = pattern.substring("/api/".length());
         } else {
             return;

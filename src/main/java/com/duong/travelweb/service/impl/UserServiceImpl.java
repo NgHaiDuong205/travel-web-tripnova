@@ -157,6 +157,13 @@ public class UserServiceImpl implements UserService {
         if (adminId.equals(userId) && !distinctRoles.contains("ADMIN")) {
             throw ApiException.badRequest("Không thể tự gỡ quyền ADMIN của chính mình");
         }
+        // Tài khoản khách sạn chỉ do admin tạo ở trang Hotel Managers: không cấp HOTEL_MANAGER cho tài khoản khách
+        // và không trộn / gỡ role của tài khoản khách sạn ở đây (khoá hoặc xoá tài khoản thì vẫn làm được).
+        String managerRole = HotelManagerAccountServiceImpl.MANAGER_ROLE;
+        if (distinctRoles.contains(managerRole) || userRoleRepository.hasRole(userId, managerRole)) {
+            throw ApiException.badRequest("Quyền quản lý khách sạn chỉ được cấp khi tạo tài khoản ở trang Hotel Managers;"
+                    + " không đổi role của tài khoản khách sạn tại đây");
+        }
         List<RoleEntity> roleEntities = distinctRoles.stream()
                 .map(name -> roleRepository.findByName(name)
                         .orElseThrow(() -> ApiException.badRequest("Role không tồn tại: " + name)))

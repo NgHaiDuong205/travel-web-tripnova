@@ -108,4 +108,8 @@ public interface RoomRepository extends JpaRepository<RoomEntity, UUID>, RoomRep
     boolean existsRoomNumberInHotel(@Param("hotelId") UUID hotelId,
                                     @Param("roomNumber") String roomNumber,
                                     @Param("excludeRoomId") UUID excludeRoomId);
+
+    /** Khách sạn chứa phòng (kiểm tra quyền của manager với lịch khoá phòng). */
+    @Query("SELECT r.roomType.hotel.id FROM RoomEntity r WHERE r.id = :roomId")
+    Optional<UUID> findHotelIdByRoomId(@Param("roomId") UUID roomId);
 }

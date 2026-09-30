@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -20,7 +23,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -68,6 +74,17 @@ public class SecurityConfig {
             "/api/payments/webhook/**",
     };
 
+    /**
+     * API (ngoài GET công khai) mà tài khoản khách sạn được gọi ngoài /api/manager/**:
+     * phiên đăng nhập, hồ sơ, đổi mật khẩu, tải ảnh (thư viện ảnh khách sạn).
+     */
+    private static final String[] HOTEL_ACCOUNT_ALLOWED = {
+            "/api/auth/**",
+            "/api/me/profile/",
+            "/api/me/change-password/",
+            "/api/uploads/images/",
+    };
+
     private final JsonAuthErrorHandler jsonAuthErrorHandler;
     private final String jwtSecret;
 
@@ -86,10 +103,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/manager/**").hasRole("HOTEL_MANAGER")
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                         .requestMatchers("/error").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers(HOTEL_ACCOUNT_ALLOWED).authenticated()
+                        // Tài khoản khách sạn không dùng chức năng của khách (đặt chỗ, giỏ hàng, review...).
+                        .anyRequest().access(notHotelAccount()))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(jsonAuthErrorHandler)
@@ -98,6 +118,26 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jsonAuthErrorHandler)
                         .accessDeniedHandler(jsonAuthErrorHandler));
         return http.build();
+    }
+
+    /**
+     * Đã đăng nhập và KHÔNG phải tài khoản khách sạn (có HOTEL_MANAGER mà không có ADMIN).
+     * Chưa đăng nhập → từ chối → 401 qua authenticationEntryPoint.
+     */
+    private static AuthorizationManager<RequestAuthorizationContext> notHotelAccount() {
+        return (authentication, context) -> {
+            Authentication auth = authentication.get();
+            if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+                return new AuthorizationDecision(false);
+            }
+            boolean hotelAccount = false;
+            boolean admin = false;
+            for (GrantedAuthority authority : auth.getAuthorities()) {
+                hotelAccount |= "ROLE_HOTEL_MANAGER".equals(authority.getAuthority());
+                admin |= "ROLE_ADMIN".equals(authority.getAuthority());
+            }
+            return new AuthorizationDecision(!hotelAccount || admin);
+        };
     }
 
     @Bean

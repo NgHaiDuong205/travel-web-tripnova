@@ -1,5 +1,6 @@
 package com.duong.travelweb.model.dto;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,7 +20,7 @@ public class LandmarkRequestDTO {
 
     private String description;
 
-    @Pattern(regexp = "^(beach|temple|museum|park|mountain|market|restaurant|entertainment|historical|other)$", message = "Loại địa danh không hợp lệ")
+    @Pattern(regexp = "^(beach|temple|museum|park|mountain|market|restaurant|entertainment|historical|wellness|sport|other)$", message = "Loại địa danh không hợp lệ")
     private String category;
 
     private String coverImageUrl;
@@ -29,6 +30,23 @@ public class LandmarkRequestDTO {
 
     @DecimalMin(value = "0", message = "Phí vào cửa không được âm")
     private Double entryFee;
+
+    @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
+    private String address;
+
+    @Size(max = 30, message = "Số điện thoại tối đa 30 ký tự")
+    private String phone;
+
+    @Size(max = 255, message = "Website tối đa 255 ký tự")
+    private String website;
+
+    @DecimalMin(value = "-90", message = "Vĩ độ không hợp lệ")
+    @DecimalMax(value = "90", message = "Vĩ độ không hợp lệ")
+    private Double latitude;
+
+    @DecimalMin(value = "-180", message = "Kinh độ không hợp lệ")
+    @DecimalMax(value = "180", message = "Kinh độ không hợp lệ")
+    private Double longitude;
 
     private Boolean isActive;
 
@@ -86,6 +104,46 @@ public class LandmarkRequestDTO {
 
     public void setEntryFee(Double entryFee) {
         this.entryFee = entryFee;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getWebsite() {
+        return website;
+    }
+
+    public void setWebsite(String website) {
+        this.website = website;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 
     public Boolean getIsActive() {

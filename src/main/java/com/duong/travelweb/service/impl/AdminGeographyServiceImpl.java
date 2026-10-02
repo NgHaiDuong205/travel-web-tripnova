@@ -370,6 +370,11 @@ public class AdminGeographyServiceImpl implements AdminGeographyService {
         landmark.setCoverImageUrl(blankToNull(request.getCoverImageUrl()));
         landmark.setOpeningHours(blankToNull(request.getOpeningHours()));
         landmark.setEntryFee(request.getEntryFee());
+        landmark.setAddress(blankToNull(request.getAddress()));
+        landmark.setPhone(blankToNull(request.getPhone()));
+        landmark.setWebsite(blankToNull(request.getWebsite()));
+        landmark.setLatitude(request.getLatitude());
+        landmark.setLongitude(request.getLongitude());
         if (request.getCategory() != null) {
             landmark.setCategory(request.getCategory());
         }
@@ -396,6 +401,11 @@ public class AdminGeographyServiceImpl implements AdminGeographyService {
         dto.setCoverImageUrl(entity.getCoverImageUrl());
         dto.setOpeningHours(entity.getOpeningHours());
         dto.setEntryFee(entity.getEntryFee());
+        dto.setAddress(entity.getAddress());
+        dto.setPhone(entity.getPhone());
+        dto.setWebsite(entity.getWebsite());
+        dto.setLatitude(entity.getLatitude());
+        dto.setLongitude(entity.getLongitude());
         dto.setIsActive(entity.getIsActive());
         dto.setCreatedAt(entity.getCreatedAt());
         return dto;

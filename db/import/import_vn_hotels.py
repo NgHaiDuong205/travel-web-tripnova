@@ -396,6 +396,11 @@ def clean_text(s):
     return s.strip()
 
 
+def clean_address(s):
+    """Địa chỉ nguồn hay thiếu số nhà → bắt đầu bằng ", " (VD ", Thành phố Huế")."""
+    return re.sub(r"^[\s,.;-]+", "", clean_text(s))
+
+
 def generated_description(name, kind, star, address, rooms, amenities, rng):
     kind_vi = KIND_VI[kind]
     feats = [AMENITY_VI[a] for a in amenities if a in AMENITY_VI]
@@ -458,7 +463,7 @@ def main(src_dir, out_path):
     addr = {}
     prov = {}
     for r in records:
-        a = clean_text(((r.get("fields") or {}).get("Địa chỉ") or [""])[0])
+        a = clean_address(((r.get("fields") or {}).get("Địa chỉ") or [""])[0])
         if a:
             addr[r["id"]] = a
             prov[r["id"]] = province_of(a)

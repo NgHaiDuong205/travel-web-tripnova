@@ -11,6 +11,11 @@ public class LandmarkDTO {
     private String coverImageUrl;
     private String openingHours;
     private Double entryFee;
+    private String address;
+    private String phone;
+    private String website;
+    private Double latitude;
+    private Double longitude;
 
     public UUID getId() {
         return id;
@@ -74,5 +79,45 @@ public class LandmarkDTO {
 
     public void setEntryFee(Double entryFee) {
         this.entryFee = entryFee;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getWebsite() {
+        return website;
+    }
+
+    public void setWebsite(String website) {
+        this.website = website;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

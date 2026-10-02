@@ -377,13 +377,15 @@ def room_type_amenities(key, star, rng):
 
 # ---------------------------------------------------------------- ảnh / mô tả
 def clean_images(rec, common):
+    """Giữ mọi ảnh nguồn (trừ ảnh dùng chung trong common_images.json); file tên chứa "logo"
+    xếp sau để ảnh bìa ưu tiên ảnh chụp, KS chỉ có ảnh đó thì vẫn dùng làm bìa."""
     seen, out = set(), []
     for u in rec.get("images") or []:
-        base = u.rsplit("/", 1)[-1].lower()
-        if u in common or "logo" in base or u in seen or not u.startswith("http"):
+        if u in common or u in seen or not u.startswith("http"):
             continue
         seen.add(u)
         out.append(u)
+    out.sort(key=lambda u: "logo" in u.rsplit("/", 1)[-1].lower())  # sort ổn định: giữ thứ tự nguồn
     return out[:MAX_IMAGES_PER_HOTEL]
 
 

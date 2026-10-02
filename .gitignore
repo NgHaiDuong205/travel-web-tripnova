@@ -35,3 +35,5 @@ src/main/resources/application.properties
 
 ### Uploads (ảnh người dùng tải lên) ###
 /uploads/
+
+__pycache__/

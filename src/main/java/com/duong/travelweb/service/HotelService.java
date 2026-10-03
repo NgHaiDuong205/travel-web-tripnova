@@ -10,4 +10,6 @@ public interface HotelService {
     List<HotelDTO> findHotel(Map<String,Object> params, List<String> amenities);
     long countHotel(Map<String,Object> params, List<String> amenities);
     HotelDTO getHotelById(UUID id, Map<String, Object> params);
+    /** Khách sạn trong bán kính quanh (lat, lng), gần nhất trước, kèm distanceKm. */
+    List<HotelDTO> findNearby(double lat, double lng, double radiusKm, int limit);
 }

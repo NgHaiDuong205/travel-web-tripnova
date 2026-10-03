@@ -49,6 +49,24 @@ public interface HotelRepository extends JpaRepository<HotelEntity, UUID>, JpaSp
     @Query(value = "UPDATE hotels SET managed_by = :userId, updated_at = now() WHERE id IN (:hotelIds)", nativeQuery = true)
     int assignManager(@Param("userId") UUID userId, @Param("hotelIds") List<UUID> hotelIds);
 
+    /**
+     * Khách sạn đang hoạt động gần một toạ độ: [id, km], gần nhất trước. Lọc thô bằng khung lat/lng
+     * (dùng được index nếu có) rồi tính haversine; service tự loại kết quả ngoài bán kính.
+     */
+    @Query(value = """
+            SELECT h.id, 6371 * 2 * ASIN(SQRT(
+                       POWER(SIN(RADIANS(h.latitude - :lat) / 2), 2)
+                     + COS(RADIANS(:lat)) * COS(RADIANS(h.latitude)) * POWER(SIN(RADIANS(h.longitude - :lng) / 2), 2))) AS km
+            FROM hotels h
+            WHERE h.is_active = true
+              AND h.latitude BETWEEN :lat - :dLat AND :lat + :dLat
+              AND h.longitude BETWEEN :lng - :dLng AND :lng + :dLng
+            ORDER BY km
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findNearby(@Param("lat") double lat, @Param("lng") double lng,
+                              @Param("dLat") double dLat, @Param("dLng") double dLng, @Param("limit") int limit);
+
     /** Khoá dòng khách sạn (VD khi thêm ảnh) để các request đồng thời xếp hàng. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM HotelEntity h WHERE h.id = :id")

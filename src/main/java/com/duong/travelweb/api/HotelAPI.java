@@ -34,6 +34,15 @@ public class HotelAPI {
                 .body(results);
     }
 
+    /** Khách sạn gần một toạ độ (trang địa danh): radiusKm mặc định 10, tối đa 50; limit mặc định 6, tối đa 20. */
+    @GetMapping("/api/hotels/nearby/")
+    public ResponseEntity<List<HotelDTO>> getNearbyHotels(@RequestParam("lat") double lat,
+                                                          @RequestParam("lng") double lng,
+                                                          @RequestParam(value = "radiusKm", defaultValue = "10") double radiusKm,
+                                                          @RequestParam(value = "limit", defaultValue = "6") int limit) {
+        return ResponseEntity.ok(hotelService.findNearby(lat, lng, radiusKm, limit));
+    }
+
     @GetMapping("/api/hotels/{id}/")
     public ResponseEntity<HotelDTO> getHotelById(@PathVariable("id") UUID id,
                                                  @RequestParam Map<String, Object> params) {

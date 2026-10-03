@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public class HotelDTO {
     private UUID id;
@@ -43,6 +44,9 @@ public class HotelDTO {
     private Integer remainingRooms;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    /** Khoảng cách (km) tới điểm tra cứu — chỉ có ở /api/hotels/nearby/. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Double distanceKm;
 
     public Integer getRemainingRooms() {
         return remainingRooms;
@@ -266,5 +270,13 @@ public class HotelDTO {
 
     public void setLongitude(BigDecimal longitude) {
         this.longitude = longitude;
+    }
+
+    public Double getDistanceKm() {
+        return distanceKm;
+    }
+
+    public void setDistanceKm(Double distanceKm) {
+        this.distanceKm = distanceKm;
     }
 }

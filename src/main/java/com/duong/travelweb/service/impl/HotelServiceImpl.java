@@ -16,12 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class HotelServiceImpl implements HotelService {
+    private static final double MAX_NEARBY_RADIUS_KM = 50;
+    private static final int MAX_NEARBY_LIMIT = 20;
+
     private final HotelRepository hotelRepository;
     private final RoomRepository roomRepository;
     private final HotelDTOConverter hotelDTOConverter;
@@ -42,7 +46,38 @@ public class HotelServiceImpl implements HotelService {
     public List<HotelDTO> findHotel(Map<String, Object> params, List<String> amenities) {
         HotelSearchBuilder hotelSearchBuilder = hotelSearchBuilderConverter.toHotelSearchBuilder(params, amenities);
         List<HotelEntity> hotelEntities = hotelRepository.findHotel(hotelSearchBuilder);
+        return toListDTOs(hotelEntities, hotelSearchBuilder.getCheckIn(), hotelSearchBuilder.getCheckOut());
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<HotelDTO> findNearby(double lat, double lng, double radiusKm, int limit) {
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) throw ApiException.badRequest("Toạ độ không hợp lệ");
+        double radius = Math.min(Math.max(radiusKm, 0.1), MAX_NEARBY_RADIUS_KM);
+        int size = Math.min(Math.max(limit, 1), MAX_NEARBY_LIMIT);
+        double dLat = radius / 111.0;
+        double dLng = radius / (111.0 * Math.max(Math.cos(Math.toRadians(lat)), 0.01));
+
+        Map<UUID, Double> distances = new LinkedHashMap<>();
+        for (Object[] row : hotelRepository.findNearby(lat, lng, dLat, dLng, size)) {
+            double km = ((Number) row[1]).doubleValue();
+            if (km <= radius) distances.put((UUID) row[0], km);
+        }
+        if (distances.isEmpty()) return new ArrayList<>();
+
+        Map<UUID, HotelEntity> byId = new HashMap<>();
+        for (HotelEntity entity : hotelRepository.findAllById(distances.keySet())) byId.put(entity.getId(), entity);
+        List<HotelEntity> ordered = new ArrayList<>();
+        for (UUID id : distances.keySet()) {
+            if (byId.containsKey(id)) ordered.add(byId.get(id));
+        }
+        List<HotelDTO> result = toListDTOs(ordered, null, null);
+        for (HotelDTO dto : result) dto.setDistanceKm(Math.round(distances.get(dto.getId()) * 100) / 100.0);
+        return result;
+    }
+
+    /** DTO danh sách: tiện nghi + số phòng còn trống (theo ngày nếu có) lấy theo lô. */
+    private List<HotelDTO> toListDTOs(List<HotelEntity> hotelEntities, LocalDate checkIn, LocalDate checkOut) {
         List<UUID> hotelIds = new ArrayList<>();
         for (HotelEntity entity : hotelEntities) {
             hotelIds.add(entity.getId());
@@ -52,10 +87,8 @@ public class HotelServiceImpl implements HotelService {
         Map<UUID, List<String>> amenitiesMap = new HashMap<>();
         if (!hotelIds.isEmpty()) {
             List<Object[]> counts;
-            if (hotelSearchBuilder.getCheckIn() != null && hotelSearchBuilder.getCheckOut() != null) {
-                counts = roomRepository.countAvailableRoomsByHotelIdsAndDates(
-                    hotelIds, hotelSearchBuilder.getCheckIn(), hotelSearchBuilder.getCheckOut()
-                );
+            if (checkIn != null && checkOut != null) {
+                counts = roomRepository.countAvailableRoomsByHotelIdsAndDates(hotelIds, checkIn, checkOut);
             } else {
                 counts = roomRepository.countAvailableRoomsByHotelIds(hotelIds);
             }

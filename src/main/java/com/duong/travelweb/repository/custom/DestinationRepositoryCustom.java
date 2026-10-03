@@ -12,6 +12,7 @@ public interface DestinationRepositoryCustom {
 
     /** Danh sách public (chỉ điểm đến đang hiện). Tham số null = bỏ qua; limit null = không phân trang. */
     List<DestinationEntity> findPublic(String keyword, String countryCode, String continentCode, Boolean popular,
+                                       String category,
                                        Integer page, Integer limit);
-    long countPublic(String keyword, String countryCode, String continentCode, Boolean popular);
+    long countPublic(String keyword, String countryCode, String continentCode, Boolean popular, String category);
 }

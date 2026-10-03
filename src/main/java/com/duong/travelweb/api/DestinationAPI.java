@@ -28,12 +28,13 @@ public class DestinationAPI {
             @RequestParam(value = "countryCode", required = false) String countryCode,
             @RequestParam(value = "continentCode", required = false) String continentCode,
             @RequestParam(value = "isPopular", required = false) Boolean popular,
+            @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "limit", required = false) Integer limit) {
         // Không truyền limit -> trả toàn bộ (dropdown FE); luôn kèm X-Total-Count
         Integer pageSize = limit == null ? null : Math.min(Math.max(limit, 1), MAX_LIMIT);
-        List<DestinationDTO> results = destinationService.findDestinations(keyword, countryCode, continentCode, popular, page, pageSize);
-        long total = destinationService.countDestinations(keyword, countryCode, continentCode, popular);
+        List<DestinationDTO> results = destinationService.findDestinations(keyword, countryCode, continentCode, popular, category, page, pageSize);
+        long total = destinationService.countDestinations(keyword, countryCode, continentCode, popular, category);
         return ResponseEntity.ok().header("X-Total-Count", String.valueOf(total)).body(results);
     }
 

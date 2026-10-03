@@ -1,5 +1,6 @@
 package com.duong.travelweb.service.impl;
 
+import com.duong.travelweb.repository.custom.impl.DestinationRepositoryImpl;
 import com.duong.travelweb.converter.DestinationDTOConverter;
 import com.duong.travelweb.converter.LandmarkDTOConverter;
 import com.duong.travelweb.exception.ApiException;
@@ -38,9 +39,9 @@ public class DestinationServiceImpl implements DestinationService {
     @Override
     @Transactional(readOnly = true)
     public List<DestinationDTO> findDestinations(String keyword, String countryCode, String continentCode, Boolean popular,
-                                                 Integer page, Integer limit) {
+                                                 String category, Integer page, Integer limit) {
         List<DestinationEntity> entities = destinationRepository.findPublic(blankToNull(keyword), blankToNull(countryCode),
-                blankToNull(continentCode), popular, page, limit);
+                blankToNull(continentCode), popular, normalizeCategory(category), page, limit);
         List<DestinationDTO> result = new ArrayList<>();
         for (DestinationEntity item : entities) {
             result.add(destinationDTOConverter.toDestinationDTO(item));
@@ -75,8 +76,17 @@ public class DestinationServiceImpl implements DestinationService {
 
     @Override
     @Transactional(readOnly = true)
-    public long countDestinations(String keyword, String countryCode, String continentCode, Boolean popular) {
-        return destinationRepository.countPublic(blankToNull(keyword), blankToNull(countryCode), blankToNull(continentCode), popular);
+    public long countDestinations(String keyword, String countryCode, String continentCode, Boolean popular, String category) {
+        return destinationRepository.countPublic(blankToNull(keyword), blankToNull(countryCode), blankToNull(continentCode), popular,
+                normalizeCategory(category));
+    }
+
+    private String normalizeCategory(String category) {
+        String value = blankToNull(category);
+        if (value == null || "all".equalsIgnoreCase(value)) return null;
+        value = value.toLowerCase();
+        if (!DestinationRepositoryImpl.isValidCategory(value)) throw ApiException.badRequest("Nhóm điểm đến không hợp lệ");
+        return value;
     }
 
     private String blankToNull(String value) {

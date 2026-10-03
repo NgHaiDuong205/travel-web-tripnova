@@ -7,9 +7,41 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class DestinationRepositoryImpl implements DestinationRepositoryCustom {
+    /**
+     * Nhóm điểm đến cho bộ lọc trang /destinations (điểm đến không có cột loại): suy ra từ loại địa danh đang hoạt động
+     * + từ khoá trong mô tả (EN của dữ liệu seed, VI của dữ liệu nhập). Một điểm đến có thể thuộc nhiều nhóm.
+     * Chỉ chứa hằng số → nối thẳng vào JPQL an toàn.
+     */
+    private static final Map<String, String> CATEGORY_CONDITIONS = Map.of(
+            "coastal", landmarkIn("'beach'") + " OR " + descriptionLike("beach", "coast", "island", " bay", "seaside", "lagoon", "biển", "đảo"),
+            "historical", landmarkIn("'historical', 'museum', 'temple'") + " OR "
+                    + descriptionLike("histor", "ancient", "heritage", "imperial", "old town", "temple", "palace", "lịch sử", "di tích"),
+            "mountain", landmarkIn("'mountain'") + " OR "
+                    + descriptionLike("mountain", "alpine", "valley", "hiking", "peak", "highland", "cave", "volcan", "núi"),
+            "urban", descriptionLike("city", "capital", "metropol", "urban", "nightlife", "skyline", "thành phố", "thủ đô"),
+            "hidden", "d.isPopular = false");
+
+    public static boolean isValidCategory(String category) {
+        return CATEGORY_CONDITIONS.containsKey(category);
+    }
+
+    private static String landmarkIn(String categories) {
+        return "EXISTS (SELECT 1 FROM LandmarkEntity l WHERE l.destination = d AND l.isActive = true AND l.category IN (" + categories + "))";
+    }
+
+    private static String descriptionLike(String... words) {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) sb.append(" OR ");
+            sb.append("LOWER(d.description) LIKE '%").append(words[i]).append("%'");
+        }
+        return sb.append(")").toString();
+    }
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -34,9 +66,9 @@ public class DestinationRepositoryImpl implements DestinationRepositoryCustom {
 
     @Override
     public List<DestinationEntity> findPublic(String keyword, String countryCode, String continentCode, Boolean popular,
-                                              Integer page, Integer limit) {
+                                              String category, Integer page, Integer limit) {
         String jpql = "SELECT d FROM DestinationEntity d JOIN FETCH d.country c WHERE d.isActive = true"
-                + buildPublicCondition(keyword, countryCode, continentCode, popular) + " ORDER BY d.name";
+                + buildPublicCondition(keyword, countryCode, continentCode, popular, category) + " ORDER BY d.name";
         TypedQuery<DestinationEntity> query = entityManager.createQuery(jpql, DestinationEntity.class);
         bindPublicParams(query, keyword, countryCode, continentCode, popular);
         if (limit != null) {
@@ -47,16 +79,20 @@ public class DestinationRepositoryImpl implements DestinationRepositoryCustom {
     }
 
     @Override
-    public long countPublic(String keyword, String countryCode, String continentCode, Boolean popular) {
+    public long countPublic(String keyword, String countryCode, String continentCode, Boolean popular, String category) {
         String jpql = "SELECT COUNT(d) FROM DestinationEntity d JOIN d.country c WHERE d.isActive = true"
-                + buildPublicCondition(keyword, countryCode, continentCode, popular);
+                + buildPublicCondition(keyword, countryCode, continentCode, popular, category);
         TypedQuery<Long> query = entityManager.createQuery(jpql, Long.class);
         bindPublicParams(query, keyword, countryCode, continentCode, popular);
         return query.getSingleResult();
     }
 
-    private String buildPublicCondition(String keyword, String countryCode, String continentCode, Boolean popular) {
+    private String buildPublicCondition(String keyword, String countryCode, String continentCode, Boolean popular,
+                                        String category) {
         StringBuilder where = new StringBuilder();
+        if (category != null) {
+            where.append(" AND (").append(CATEGORY_CONDITIONS.get(category)).append(")");
+        }
         if (keyword != null) {
             where.append(" AND (LOWER(d.name) LIKE :keyword OR LOWER(c.name) LIKE :keyword)");
         }

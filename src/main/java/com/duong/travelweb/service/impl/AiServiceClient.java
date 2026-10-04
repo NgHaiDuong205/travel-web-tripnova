@@ -71,6 +71,15 @@ public class AiServiceClient {
                 .retrieve().body(String.class));
     }
 
+    /** AI Planner: chọn trong ứng viên + viết chữ; body theo planner.ItineraryRequest bên Python. */
+    public JsonNode writeItinerary(Map<String, Object> body) {
+        return call(() -> restClient.post().uri("/internal/itinerary/write")
+                .header("X-Internal-Key", internalKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(String.class));
+    }
+
     public JsonNode uploadDocument(String filename, byte[] content, String title, String sourceType, UUID sourceId,
                                    String language, String url) {
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();

@@ -71,4 +71,27 @@ public interface HotelRepository extends JpaRepository<HotelEntity, UUID>, JpaSp
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM HotelEntity h WHERE h.id = :id")
     Optional<HotelEntity> lockById(@Param("id") UUID id);
+
+    /**
+     * Khách sạn cho AI Planner: id, name, star_rating, cover, address, lat, lng, giá/đêm rẻ nhất của hạng phòng
+     * đủ :occupancy người (bỏ khách sạn không có hạng phòng phù hợp), avg_rating, review_count, same_point.
+     */
+    @Query(value = """
+            SELECT h.id, h.name, h.star_rating, h.cover_image_url, h.address, h.latitude, h.longitude, p.min_price,
+                   r.avg_rating, COALESCE(r.review_count, 0),
+                   CASE WHEN h.latitude IS NULL THEN 0 ELSE count(*) OVER (PARTITION BY h.latitude, h.longitude) END
+            FROM hotels h
+            JOIN LATERAL (
+                SELECT min(rt.price_per_night) AS min_price
+                FROM room_types rt
+                WHERE rt.hotel_id = h.id AND rt.is_active = true AND COALESCE(rt.max_occupancy, 2) >= :occupancy
+            ) p ON p.min_price IS NOT NULL
+            LEFT JOIN LATERAL (
+                SELECT avg(po.rating) AS avg_rating, count(*) AS review_count
+                FROM posts po
+                WHERE po.entity_type = 'hotel' AND po.entity_id = h.id AND po.status = 'approved' AND po.rating IS NOT NULL
+            ) r ON true
+            WHERE h.destination_id = :destinationId AND h.is_active = true
+            """, nativeQuery = true)
+    List<Object[]> findPlannerCandidates(@Param("destinationId") UUID destinationId, @Param("occupancy") int occupancy);
 }

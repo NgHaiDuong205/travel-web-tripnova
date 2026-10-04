@@ -3,6 +3,7 @@ package com.duong.travelweb.service;
 import com.duong.travelweb.model.dto.ItineraryDTO;
 import com.duong.travelweb.model.dto.ItineraryItemRequestDTO;
 import com.duong.travelweb.model.dto.ItineraryRequestDTO;
+import com.duong.travelweb.model.dto.PlannerSaveRequestDTO;
 import org.springframework.data.domain.Page;
 
 import java.util.UUID;
@@ -15,6 +16,9 @@ public interface ItineraryService {
     ItineraryDTO getMine(UUID userId, UUID itineraryId);
 
     ItineraryDTO create(UUID userId, ItineraryRequestDTO request);
+
+    /** Lưu bản nháp AI Planner (generated_by = ai) cùng toàn bộ hoạt động trong 1 transaction; 1 hoạt động sai → 400, không lưu gì. */
+    ItineraryDTO createFromPlanner(UUID userId, PlannerSaveRequestDTO request);
 
     /** Ghi đè toàn bộ; 400 nếu rút ngắn chuyến đi mà còn hoạt động ở ngày bị cắt. */
     ItineraryDTO update(UUID userId, UUID itineraryId, ItineraryRequestDTO request);

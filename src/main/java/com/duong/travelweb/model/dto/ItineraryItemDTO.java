@@ -19,6 +19,9 @@ public class ItineraryItemDTO {
     private String notes;
     private BigDecimal estimatedCost;
     private int sortOrder;
+    /** Toạ độ của khách sạn / địa danh được gắn (để vẽ bản đồ); null nếu không có. */
+    private Double latitude;
+    private Double longitude;
 
     public UUID getId() {
         return id;
@@ -114,5 +117,21 @@ public class ItineraryItemDTO {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

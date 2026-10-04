@@ -5,12 +5,17 @@ import com.duong.travelweb.model.dto.ItineraryDTO;
 import com.duong.travelweb.model.dto.ItineraryItemDTO;
 import com.duong.travelweb.model.dto.ItineraryItemRequestDTO;
 import com.duong.travelweb.model.dto.ItineraryRequestDTO;
+import com.duong.travelweb.model.dto.PlannerSaveRequestDTO;
 import com.duong.travelweb.model.entity.DestinationEntity;
+import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.model.entity.ItineraryEntity;
 import com.duong.travelweb.model.entity.ItineraryItemEntity;
+import com.duong.travelweb.model.entity.LandmarkEntity;
 import com.duong.travelweb.repository.DestinationRepository;
+import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.ItineraryItemRepository;
 import com.duong.travelweb.repository.ItineraryRepository;
+import com.duong.travelweb.repository.LandmarkRepository;
 import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.ItineraryService;
 import org.springframework.data.domain.Page;
@@ -38,15 +43,21 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final ItineraryItemRepository itineraryItemRepository;
     private final DestinationRepository destinationRepository;
     private final EntityReferenceService entityReferenceService;
+    private final HotelRepository hotelRepository;
+    private final LandmarkRepository landmarkRepository;
 
     public ItineraryServiceImpl(ItineraryRepository itineraryRepository,
                                 ItineraryItemRepository itineraryItemRepository,
                                 DestinationRepository destinationRepository,
-                                EntityReferenceService entityReferenceService) {
+                                EntityReferenceService entityReferenceService,
+                                HotelRepository hotelRepository,
+                                LandmarkRepository landmarkRepository) {
         this.itineraryRepository = itineraryRepository;
         this.itineraryItemRepository = itineraryItemRepository;
         this.destinationRepository = destinationRepository;
         this.entityReferenceService = entityReferenceService;
+        this.hotelRepository = hotelRepository;
+        this.landmarkRepository = landmarkRepository;
     }
 
     @Override
@@ -86,6 +97,43 @@ public class ItineraryServiceImpl implements ItineraryService {
         itinerary.setCreatedAt(now);
         applyRequest(itinerary, request, now);
         return toDetailDTO(itineraryRepository.save(itinerary));
+    }
+
+    @Override
+    @Transactional
+    public ItineraryDTO createFromPlanner(UUID userId, PlannerSaveRequestDTO request) {
+        LocalDateTime now = LocalDateTime.now();
+        ItineraryRequestDTO base = new ItineraryRequestDTO();
+        base.setTitle(request.getTitle());
+        base.setDestinationId(request.getDestinationId());
+        base.setStartDate(request.getStartDate());
+        base.setEndDate(request.getEndDate());
+        base.setPartySize(request.getPartySize());
+        base.setTotalBudget(request.getTotalBudget());
+        base.setStatus("draft");
+
+        ItineraryEntity itinerary = new ItineraryEntity();
+        itinerary.setUserId(userId);
+        itinerary.setGeneratedBy("ai");
+        itinerary.setPrompt(blankToNull(request.getPrompt()));
+        itinerary.setModelVersion(blankToNull(request.getModelVersion()));
+        itinerary.setCreatedAt(now);
+        applyRequest(itinerary, base, now);
+        itinerary = itineraryRepository.save(itinerary);
+
+        // Thứ tự gửi lên = thứ tự trong ngày (sortOrder 0, 1, 2… theo từng ngày) nếu client không truyền sortOrder.
+        Map<Integer, Integer> nextOrder = new HashMap<>();
+        for (ItineraryItemRequestDTO itemRequest : request.getItems()) {
+            if (itemRequest.getSortOrder() == null && itemRequest.getDayNumber() != null) {
+                itemRequest.setSortOrder(nextOrder.merge(itemRequest.getDayNumber(), 1, Integer::sum) - 1);
+            }
+            ItineraryItemEntity item = new ItineraryItemEntity();
+            item.setItinerary(itinerary);
+            item.setCreatedAt(now);
+            applyItem(item, itinerary, itemRequest);
+            itineraryItemRepository.save(item);
+        }
+        return toDetailDTO(itinerary);
     }
 
     @Override
@@ -235,10 +283,19 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (entityId == null) {
             return null;
         }
-        if (entityType == null || !LINKED_TYPES.contains(entityType)) {
-            throw ApiException.badRequest("Chỉ hoạt động loại hotel, landmark, destination mới được gắn entityId");
+        String referenceType = referenceType(entityType);
+        if (referenceType == null) {
+            throw ApiException.badRequest("Chỉ hoạt động loại hotel, landmark, restaurant, destination mới được gắn entityId");
         }
-        return entityReferenceService.requireActiveName(entityType, entityId);
+        return entityReferenceService.requireActiveName(referenceType, entityId);
+    }
+
+    /** Bảng mà entityId trỏ tới: quán ăn (restaurant) là địa danh loại restaurant; loại không liên kết → null. */
+    private static String referenceType(String entityType) {
+        if ("restaurant".equals(entityType)) {
+            return "landmark";
+        }
+        return entityType != null && LINKED_TYPES.contains(entityType) ? entityType : null;
     }
 
     private DestinationEntity findActiveDestination(UUID destinationId) {
@@ -282,6 +339,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 ? List.of()
                 : itineraryItemRepository.findByItineraryId(itinerary.getId());
         Map<String, Map<UUID, String>> names = resolveNames(items);
+        Map<UUID, double[]> points = resolvePoints(items);
         List<ItineraryItemDTO> itemDTOs = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         for (ItineraryItemEntity item : items) {
@@ -295,13 +353,19 @@ public class ItineraryServiceImpl implements ItineraryService {
             itemDTO.setEndTime(item.getEndTime());
             itemDTO.setEntityType(item.getEntityType());
             itemDTO.setEntityId(item.getEntityId());
-            if (item.getEntityId() != null && names.containsKey(item.getEntityType())) {
-                itemDTO.setEntityName(names.get(item.getEntityType()).get(item.getEntityId()));
+            String referenceType = referenceType(item.getEntityType());
+            if (item.getEntityId() != null && referenceType != null && names.containsKey(referenceType)) {
+                itemDTO.setEntityName(names.get(referenceType).get(item.getEntityId()));
             }
             itemDTO.setTitle(item.getTitle());
             itemDTO.setNotes(item.getNotes());
             itemDTO.setEstimatedCost(item.getEstimatedCost());
             itemDTO.setSortOrder(item.getSortOrder() == null ? 0 : item.getSortOrder());
+            double[] point = item.getEntityId() == null ? null : points.get(item.getEntityId());
+            if (point != null) {
+                itemDTO.setLatitude(point[0]);
+                itemDTO.setLongitude(point[1]);
+            }
             itemDTOs.add(itemDTO);
             if (item.getEstimatedCost() != null) {
                 total = total.add(item.getEstimatedCost());
@@ -317,11 +381,45 @@ public class ItineraryServiceImpl implements ItineraryService {
     private Map<String, Map<UUID, String>> resolveNames(List<ItineraryItemEntity> items) {
         Map<String, List<UUID>> idsByType = new HashMap<>();
         for (ItineraryItemEntity item : items) {
-            if (item.getEntityId() != null && LINKED_TYPES.contains(item.getEntityType())) {
-                idsByType.computeIfAbsent(item.getEntityType(), k -> new ArrayList<>()).add(item.getEntityId());
+            String referenceType = referenceType(item.getEntityType());
+            if (item.getEntityId() != null && referenceType != null) {
+                idsByType.computeIfAbsent(referenceType, k -> new ArrayList<>()).add(item.getEntityId());
             }
         }
         return entityReferenceService.resolveNames(idsByType);
+    }
+
+    /** Toạ độ khách sạn / địa danh được gắn (2 query theo lô), để client vẽ bản đồ. */
+    private Map<UUID, double[]> resolvePoints(List<ItineraryItemEntity> items) {
+        List<UUID> hotelIds = new ArrayList<>();
+        List<UUID> landmarkIds = new ArrayList<>();
+        for (ItineraryItemEntity item : items) {
+            if (item.getEntityId() == null) {
+                continue;
+            }
+            String referenceType = referenceType(item.getEntityType());
+            if ("hotel".equals(referenceType)) {
+                hotelIds.add(item.getEntityId());
+            } else if ("landmark".equals(referenceType)) {
+                landmarkIds.add(item.getEntityId());
+            }
+        }
+        Map<UUID, double[]> points = new HashMap<>();
+        if (!hotelIds.isEmpty()) {
+            for (HotelEntity hotel : hotelRepository.findAllById(hotelIds)) {
+                if (hotel.getLatitude() != null && hotel.getLongitude() != null) {
+                    points.put(hotel.getId(), new double[]{hotel.getLatitude().doubleValue(), hotel.getLongitude().doubleValue()});
+                }
+            }
+        }
+        if (!landmarkIds.isEmpty()) {
+            for (LandmarkEntity landmark : landmarkRepository.findAllById(landmarkIds)) {
+                if (landmark.getLatitude() != null && landmark.getLongitude() != null) {
+                    points.put(landmark.getId(), new double[]{landmark.getLatitude(), landmark.getLongitude()});
+                }
+            }
+        }
+        return points;
     }
 
     private BigDecimal toBigDecimal(Object value) {

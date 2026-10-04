@@ -32,6 +32,8 @@ public class PlannerResultDTO {
     private List<PlannerDayDTO> dayPlans = new ArrayList<>();
     private BigDecimal estimatedTotal;
     private String prompt;
+    /** Phạm vi di chuyển đã áp dụng (km, tâm = centerLatitude/Longitude); null = không giới hạn. */
+    private Integer radiusKm;
 
     public String getTitle() {
         return title;
@@ -223,5 +225,13 @@ public class PlannerResultDTO {
 
     public void setPrompt(String prompt) {
         this.prompt = prompt;
+    }
+
+    public Integer getRadiusKm() {
+        return radiusKm;
+    }
+
+    public void setRadiusKm(Integer radiusKm) {
+        this.radiusKm = radiusKm;
     }
 }

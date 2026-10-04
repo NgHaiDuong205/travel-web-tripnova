@@ -17,6 +17,10 @@ public interface CarRepository extends JpaRepository<CarEntity, UUID>, CarReposi
     @Query("SELECT c FROM CarEntity c LEFT JOIN FETCH c.destination d LEFT JOIN FETCH d.country WHERE c.id = :id")
     Optional<CarEntity> findDetailById(@Param("id") UUID id);
 
+    /** Xe đang cho thuê tại một điểm đến, rẻ trước (đặt trọn gói từ lịch trình). */
+    @Query("SELECT c FROM CarEntity c WHERE c.destination.id = :destinationId AND c.isActive = true ORDER BY c.pricePerDay, c.name")
+    List<CarEntity> findActiveByDestinationId(@Param("destinationId") UUID destinationId);
+
     /** Khoá dòng xe khi đặt / xác nhận để 2 người không cùng giữ một xe. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM CarEntity c WHERE c.id = :id")

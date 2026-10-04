@@ -48,6 +48,11 @@ public class PlannerRequestDTO {
     @Max(value = 1000, message = "variant không hợp lệ")
     private Integer variant;
 
+    /** Phạm vi di chuyển tối đa (km) tính từ nơi lưu trú; null = không giới hạn. */
+    @Min(value = 1, message = "Phạm vi di chuyển tối thiểu 1 km")
+    @Max(value = 100, message = "Phạm vi di chuyển tối đa 100 km")
+    private Integer radiusKm;
+
     public UUID getDestinationId() {
         return destinationId;
     }
@@ -126,5 +131,13 @@ public class PlannerRequestDTO {
 
     public void setVariant(Integer variant) {
         this.variant = variant;
+    }
+
+    public Integer getRadiusKm() {
+        return radiusKm;
+    }
+
+    public void setRadiusKm(Integer radiusKm) {
+        this.radiusKm = radiusKm;
     }
 }

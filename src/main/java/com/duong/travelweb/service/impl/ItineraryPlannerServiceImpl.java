@@ -131,8 +131,9 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
     private record DayChoice(List<Place> sights, Place lunch, Place dinner, String theme, Map<UUID, String> notes) {
     }
 
+    /** radiusKm: phạm vi di chuyển tối đa tính từ nơi lưu trú, null = không giới hạn. */
     private record Options(String locale, String budget, String pace, List<String> interests, int days, int partySize,
-                           Random random, boolean jitter) {
+                           Random random, boolean jitter, Integer radiusKm) {
         boolean vi() {
             return "vi".equals(locale);
         }
@@ -160,7 +161,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                 new ArrayList<>(new LinkedHashSet<>(request.getInterests() == null ? List.of() : request.getInterests())),
                 request.getDays(), request.getPartySize(),
                 new Random(destination.getId().getLeastSignificantBits() * 31 + variant),
-                variant > 0);
+                variant > 0, request.getRadiusKm());
         List<String> warnings = new ArrayList<>();
 
         // ---- 1. Dữ liệu + loại toạ độ lệch xa (geocode sai)
@@ -182,36 +183,70 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
             mealScore.put(p.id(), scorePlace(p, opt, 0.8));
         }
         sights.sort(Comparator.comparingDouble((Place p) -> -sightScore.get(p.id())));
+        boolean hasRestaurants = !restaurants.isEmpty();
 
-        // ---- 2. Chia điểm tham quan theo ngày
         int perDay = switch (opt.pace()) {
             case "relaxed" -> 2;
             case "packed" -> 4;
             default -> 3;
         };
-        List<DayDraft> drafts = splitIntoDays(sights, opt, perDay, warnings);
-
-        // ---- 3. Khách sạn (chuyến ≥ 2 ngày)
         int nights = opt.days() - 1;
         int rooms = Math.max(1, (opt.partySize() + 1) / 2);
+        int occupancy = Math.min(opt.partySize(), 2);
         List<HotelOption> hotels = new ArrayList<>();
-        List<double[]> poolPoints = new ArrayList<>();
-        for (DayDraft d : drafts) {
-            for (Place p : d.sights) {
-                if (p.point() != null) {
-                    poolPoints.add(p.point());
+        double[] base;
+        List<DayDraft> drafts;
+
+        boolean ranged = opt.radiusKm() != null && sights.stream().anyMatch(p -> p.point() != null);
+        if (ranged) {
+            // ---- 2a. Có phạm vi di chuyển: chọn khu vực đáng ở nhất → khách sạn trong khu đó → chỉ giữ điểm / quán
+            // trong bán kính tính từ khách sạn (thiếu quán thì ăn lại quán cũ, không đi xa hơn).
+            double radius = opt.radiusKm();
+            double[] anchor = chooseAnchor(sights, sightScore, radius, opt.days() * perDay * 2, center);
+            if (nights > 0) {
+                hotels = rankHotels(destination.getId(), occupancy, anchor, opt, radius);
+                if (hotels.isEmpty()) {
+                    hotels = rankHotels(destination.getId(), occupancy, anchor, opt, null);
+                    warnings.add(hotels.isEmpty() ? "no_hotel" : "hotel_outside_radius");
                 }
             }
-        }
-        double[] target = poolPoints.isEmpty() ? center : GeoPlanning.centroid(poolPoints);
-        if (nights > 0) {
-            hotels = rankHotels(destination.getId(), Math.min(opt.partySize(), 2), target, opt);
-            if (hotels.isEmpty()) {
-                warnings.add("no_hotel");
+            HotelOption chosen = hotels.isEmpty() ? null : hotels.get(0);
+            base = chosen != null && chosen.point() != null
+                    && GeoPlanning.haversineKm(anchor, chosen.point()) <= radius ? chosen.point() : anchor;
+            final double[] from = base;
+            int before = sights.size();
+            sights.removeIf(p -> p.point() == null || GeoPlanning.haversineKm(from, p.point()) > radius);
+            restaurants.removeIf(p -> p.point() == null || GeoPlanning.haversineKm(from, p.point()) > radius);
+            for (Place p : sights) {
+                sightScore.put(p.id(), scoreSight(p, opt, from)); // trừ điểm theo khoảng cách tới nơi ở
             }
+            sights.sort(Comparator.comparingDouble((Place p) -> -sightScore.get(p.id())));
+            if (sights.size() < before && sights.size() < opt.days() * perDay) {
+                warnings.add("radius_limited");
+            }
+            drafts = splitIntoDays(sights, opt, perDay, warnings);
+        } else {
+            // ---- 2b. Không giới hạn: chia ngày trước, khách sạn gần trọng tâm các điểm đã chọn.
+            drafts = splitIntoDays(sights, opt, perDay, warnings);
+            List<double[]> poolPoints = new ArrayList<>();
+            for (DayDraft d : drafts) {
+                for (Place p : d.sights) {
+                    if (p.point() != null) {
+                        poolPoints.add(p.point());
+                    }
+                }
+            }
+            double[] target = poolPoints.isEmpty() ? center : GeoPlanning.centroid(poolPoints);
+            if (nights > 0) {
+                hotels = rankHotels(destination.getId(), occupancy, target, opt, null);
+                if (hotels.isEmpty()) {
+                    warnings.add("no_hotel");
+                }
+            }
+            HotelOption chosen = hotels.isEmpty() ? null : hotels.get(0);
+            base = chosen != null && chosen.point() != null ? chosen.point() : target;
         }
         HotelOption hotel = hotels.isEmpty() ? null : hotels.get(0);
-        double[] base = hotel != null && hotel.point() != null ? hotel.point() : target;
 
         // Thứ tự ngày: đi lần lượt các khu vực theo đường ngắn nhất từ khách sạn.
         orderDays(drafts, base);
@@ -220,8 +255,10 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         for (DayDraft d : drafts) {
             d.meals.addAll(nearbyMeals(d, base, restaurants, mealScore));
         }
-        if (restaurants.isEmpty()) {
+        if (!hasRestaurants) {
             warnings.add("no_restaurants");
+        } else if (restaurants.isEmpty()) {
+            warnings.add("no_restaurants_in_radius"); // có quán nhưng đều ngoài phạm vi → ăn tự do, không đi xa
         }
 
         // ---- 5. AI chọn + viết (lỗi thì dùng lựa chọn mặc định)
@@ -241,7 +278,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         Set<UUID> used = new HashSet<>();
         List<DayChoice> choices = new ArrayList<>();
         for (int i = 0; i < drafts.size(); i++) {
-            choices.add(choose(drafts.get(i), aiDays.get(i + 1), byRef, used, sightScore, opt, i + 1));
+            choices.add(choose(drafts.get(i), aiDays.get(i + 1), byRef, used, sightScore, opt, i + 1, warnings));
         }
 
         // ---- 6. Xếp giờ + chi phí
@@ -298,6 +335,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         }
         result.setEstimatedTotal(total.setScale(2, RoundingMode.HALF_UP));
         result.setPrompt(promptText(opt, request.getNote()));
+        result.setRadiusKm(ranged ? opt.radiusKm() : null);
         return result;
     }
 
@@ -511,7 +549,46 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     // ================================================================== khách sạn & quán ăn
 
-    private List<HotelOption> rankHotels(UUID destinationId, int occupancy, double[] target, Options opt) {
+    /**
+     * Tâm khu vực khi khách giới hạn phạm vi: thử tâm điểm đến và vị trí 40 điểm tham quan điểm cao nhất, chọn nơi mà
+     * tổng điểm của `take` điểm hay nhất trong bán kính là lớn nhất (bằng nhau thì gần tâm điểm đến hơn).
+     */
+    private double[] chooseAnchor(List<Place> sights, Map<UUID, Double> score, double radius, int take, double[] center) {
+        List<double[]> candidates = new ArrayList<>();
+        if (center != null) {
+            candidates.add(center);
+        }
+        for (Place p : sights) {
+            if (p.point() != null && candidates.size() < 41) {
+                candidates.add(p.point());
+            }
+        }
+        double[] best = candidates.get(0);
+        double bestValue = -1;
+        for (double[] c : candidates) {
+            List<Double> inside = new ArrayList<>();
+            for (Place p : sights) {
+                if (p.point() != null && GeoPlanning.haversineKm(c, p.point()) <= radius) {
+                    inside.add(Math.max(0.1, score.get(p.id())));
+                }
+            }
+            inside.sort(Comparator.reverseOrder());
+            double value = 0;
+            for (int i = 0; i < Math.min(take, inside.size()); i++) {
+                value += inside.get(i);
+            }
+            if (value > bestValue + 1e-9
+                    || (Math.abs(value - bestValue) <= 1e-9 && center != null
+                    && GeoPlanning.haversineKm(center, c) < GeoPlanning.haversineKm(center, best))) {
+                bestValue = value;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    /** radiusKm khác null: chỉ khách sạn có toạ độ trong bán kính quanh target. */
+    private List<HotelOption> rankHotels(UUID destinationId, int occupancy, double[] target, Options opt, Double radiusKm) {
         double[] priceRange = switch (opt.budget()) {
             case "budget" -> new double[]{0, 45};
             case "luxury" -> new double[]{100, Double.MAX_VALUE};
@@ -530,6 +607,10 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                     (String) r[3], (String) r[4], point, toDecimal(r[7]),
                     r[8] == null ? null : ((Number) r[8]).doubleValue(), ((Number) r[9]).intValue(),
                     ((Number) r[10]).intValue());
+            if (radiusKm != null && (point == null || target == null
+                    || GeoPlanning.haversineKm(target, point) > radiusKm)) {
+                continue;
+            }
             double score = 0;
             double price = h.price().doubleValue();
             if (price >= priceRange[0] && price <= priceRange[1]) {
@@ -667,7 +748,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     /** Lấy lựa chọn của AI cho ngày nếu hợp lệ (ref thuộc đúng ngày, chưa dùng), thiếu thì bù ứng viên điểm cao. */
     private DayChoice choose(DayDraft d, JsonNode aiDay, Map<String, Place> byRef, Set<UUID> used,
-                             Map<UUID, Double> sightScore, Options opt, int dayNumber) {
+                             Map<UUID, Double> sightScore, Options opt, int dayNumber, List<String> warnings) {
         Set<UUID> daySights = new HashSet<>();
         for (Place p : d.sights) {
             daySights.add(p.id());
@@ -697,8 +778,8 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                 used.add(p.id());
             }
         }
-        Place lunch = pickMeal(aiDay, "lunch", d, dayMeals, byRef, used);
-        Place dinner = pickMeal(aiDay, "dinner", d, dayMeals, byRef, used);
+        Place lunch = pickMeal(aiDay, "lunch", d, dayMeals, byRef, used, null, warnings);
+        Place dinner = pickMeal(aiDay, "dinner", d, dayMeals, byRef, used, lunch, warnings);
 
         Map<UUID, String> notes = new HashMap<>();
         String theme = null;
@@ -722,8 +803,12 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         return new DayChoice(chosen, lunch, dinner, truncate(theme, 120), notes);
     }
 
+    /**
+     * Quán của AI (đúng ngày, chưa dùng) → quán gần chưa dùng → hết quán mới trong phạm vi thì ĂN LẠI quán đã dùng
+     * (khác bữa còn lại trong ngày nếu được) thay vì đi xa hơn; không có quán nào → null (ăn tự do).
+     */
     private Place pickMeal(JsonNode aiDay, String field, DayDraft d, Set<UUID> dayMeals, Map<String, Place> byRef,
-                           Set<UUID> used) {
+                           Set<UUID> used, Place sameDayMeal, List<String> warnings) {
         if (aiDay != null && aiDay.hasNonNull(field) && aiDay.get(field).isString()) {
             Place p = byRef.get(aiDay.get(field).asString());
             if (p != null && dayMeals.contains(p.id()) && !used.contains(p.id())) {
@@ -737,7 +822,16 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                 return p;
             }
         }
-        return null;
+        Place repeat = null;
+        for (Place p : d.meals) {
+            if (repeat == null || (sameDayMeal != null && repeat.id().equals(sameDayMeal.id()))) {
+                repeat = p;
+            }
+        }
+        if (repeat != null) {
+            warnings.add("meals_repeated");
+        }
+        return repeat;
     }
 
     // ================================================================== xếp giờ
@@ -1009,6 +1103,9 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                 .append(" | pace=").append(opt.pace())
                 .append(" | budget=").append(opt.budget())
                 .append(" | party=").append(opt.partySize());
+        if (opt.radiusKm() != null) {
+            sb.append(" | radiusKm=").append(opt.radiusKm());
+        }
         if (note != null && !note.isBlank()) {
             sb.append(" | note=").append(note.trim());
         }

@@ -39,7 +39,7 @@ public class AiServiceClient {
 
     public AiServiceClient(@Value("${app.ai.service-url:http://127.0.0.1:8000}") String serviceUrl,
                            @Value("${app.ai.internal-key:${AI_INTERNAL_KEY:}}") String internalKey,
-                           @Value("${app.ai.timeout-seconds:60}") int timeoutSeconds,
+                           @Value("${app.ai.timeout-seconds:90}") int timeoutSeconds,
                            ObjectMapper objectMapper) {
         // HttpClient của JDK (HttpURLConnection không hỗ trợ PATCH).
         HttpClient httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)

@@ -145,8 +145,17 @@ public class AiChatServiceImpl implements AiChatService {
             throw ApiException.badRequest("Câu hỏi tối đa " + MAX_QUESTION_CHARS + " ký tự");
         }
         String locale = "en".equalsIgnoreCase(request.getLocale()) ? "en" : "vi";
+        // Ngữ cảnh trang đang xem (widget nổi trên mọi trang) ghi đè ngữ cảnh lúc tạo phiên; loại lạ thì bỏ qua.
+        String pageType = trimToNull(request.getContextType());
+        Map<String, Object> pageContext = null;
+        if (pageType != null && CONTEXT_TYPES.contains(pageType) && request.getContextId() != null) {
+            pageContext = new LinkedHashMap<>();
+            pageContext.put("type", pageType);
+            pageContext.put("id", request.getContextId().toString());
+        }
+        Map<String, Object> overrideContext = pageContext;
 
-        Prepared prepared = tx.execute(status -> prepare(userId, sessionId, content));
+        Prepared prepared = tx.execute(status -> prepare(userId, sessionId, content, overrideContext));
 
         JsonNode result = null;
         String errorCode = null;
@@ -164,7 +173,7 @@ public class AiChatServiceImpl implements AiChatService {
         return tx.execute(status -> saveAnswer(userId, sessionId, prepared.userMessage, answer, error, locale, latency));
     }
 
-    private Prepared prepare(UUID userId, UUID sessionId, String content) {
+    private Prepared prepare(UUID userId, UUID sessionId, String content, Map<String, Object> overrideContext) {
         ChatSessionEntity session = ownedActiveSession(userId, sessionId);
         LocalDateTime now = LocalDateTime.now();
         long recent = messageRepository.countUserQuestionsSince(userId, now.minusMinutes(rateLimitWindowMinutes));
@@ -195,8 +204,8 @@ public class AiChatServiceImpl implements AiChatService {
         }
         session.setUpdatedAt(now);
 
-        Map<String, Object> context = null;
-        if (session.getContextType() != null && session.getContextId() != null) {
+        Map<String, Object> context = overrideContext;
+        if (context == null && session.getContextType() != null && session.getContextId() != null) {
             context = new LinkedHashMap<>();
             context.put("type", session.getContextType());
             context.put("id", session.getContextId().toString());

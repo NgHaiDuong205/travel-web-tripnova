@@ -10,6 +10,7 @@ import com.duong.travelweb.repository.DestinationRepository;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.LandmarkRepository;
 import com.duong.travelweb.service.ItineraryPlannerService;
+import com.duong.travelweb.service.RoutingService;
 import com.duong.travelweb.util.GeoPlanning;
 import com.duong.travelweb.util.StringUtil;
 import org.slf4j.Logger;
@@ -32,7 +33,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -47,8 +50,9 @@ import java.util.regex.Pattern;
  *       ({@link GeoPlanning#balancedClusters}), chọn khách sạn gần trọng tâm hợp ngân sách và các quán ăn gần từng cụm.</li>
  *   <li>AI (dịch vụ Python) chỉ chọn trong các mã ref của đúng ngày đó và viết tiêu đề / chủ đề / ghi chú.
  *       Mọi ref được kiểm tra lại; thiếu / sai thì lấy ứng viên điểm cao nhất. AI lỗi → vẫn trả lịch trình (không chữ AI).</li>
- *   <li>Thứ tự đi trong ngày: đường ngắn nhất từ khách sạn ({@link GeoPlanning#bestOpenPath}); giờ giấc ước lượng
- *       theo khoảng cách đường chim bay × hệ số đường, thời lượng tham quan theo loại hình, giờ mở cửa nếu đọc được.</li>
+ *   <li>Thứ tự đi trong ngày: nhanh nhất từ khách sạn ({@link GeoPlanning#bestOpenPath}) theo thời gian đi đường thật
+ *       ({@link RoutingService}, OSRM); quãng ngắn thì đi bộ. Không lấy được đường đi → ước lượng đường chim bay × hệ số
+ *       đường. Thời lượng tham quan theo loại hình, giờ mở cửa nếu đọc được.</li>
  * </ol>
  */
 @Service
@@ -86,11 +90,18 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
     private static final double MEAL_RADIUS_KM = 5;
     private static final int MEAL_CANDIDATES = 6;
     private static final int MAX_SIGHT_CANDIDATES_PER_DAY = 12;
+    /** Quãng đường bộ ≤ ngưỡng này thì đi bộ (4,5 km/h). */
+    private static final double WALK_MAX_KM = 1.0;
+    private static final double WALK_KMH = 4.5;
+    /** Thời gian OSRM là đường thông thoáng → nhân hệ số kẹt xe nội đô + phút gọi xe / gửi xe. */
+    private static final double TRAFFIC_FACTOR = 1.3;
+    private static final int DRIVE_OVERHEAD_MINUTES = 6;
 
     private final DestinationRepository destinationRepository;
     private final LandmarkRepository landmarkRepository;
     private final HotelRepository hotelRepository;
     private final AiServiceClient aiServiceClient;
+    private final RoutingService routingService;
     private final int rateLimitMax;
     private final int rateLimitWindowMinutes;
     /** Giới hạn tần suất trong bộ nhớ (một instance BE): mỗi lần tạo tốn 1 lượt gọi LLM. */
@@ -100,12 +111,14 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
                                        LandmarkRepository landmarkRepository,
                                        HotelRepository hotelRepository,
                                        AiServiceClient aiServiceClient,
+                                       RoutingService routingService,
                                        @Value("${app.ai.planner.rate-limit.max:10}") int rateLimitMax,
                                        @Value("${app.ai.planner.rate-limit.window-minutes:10}") int rateLimitWindowMinutes) {
         this.destinationRepository = destinationRepository;
         this.landmarkRepository = landmarkRepository;
         this.hotelRepository = hotelRepository;
         this.aiServiceClient = aiServiceClient;
+        this.routingService = routingService;
         this.rateLimitMax = rateLimitMax;
         this.rateLimitWindowMinutes = rateLimitWindowMinutes;
     }
@@ -129,6 +142,70 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     /** Lựa chọn cuối của một ngày (sau AI / dự phòng). */
     private record DayChoice(List<Place> sights, Place lunch, Place dinner, String theme, Map<UUID, String> notes) {
+    }
+
+    /** Một chặng: km đường bộ (null khi thiếu toạ độ), phút (đã làm tròn 5), mode walk|drive (null khi thiếu toạ độ). */
+    private record Leg(Double km, int minutes, String mode) {
+    }
+
+    /**
+     * Di chuyển giữa các điểm của một ngày: ma trận OSRM (km + giây, theo khoá toạ độ) nếu lấy được, không thì ước lượng
+     * đường chim bay × 1.35 (22 km/h nội đô, 40 km/h nếu > 10 km, + 8 phút) như trước.
+     */
+    private static final class DayTravel {
+        private final Map<String, Integer> index;
+        private final RoutingService.Matrix matrix;
+
+        DayTravel(Map<String, Integer> index, RoutingService.Matrix matrix) {
+            this.index = index;
+            this.matrix = matrix;
+        }
+
+        static DayTravel estimate() {
+            return new DayTravel(Map.of(), null);
+        }
+
+        boolean routed() {
+            return matrix != null;
+        }
+
+        /** Phút chưa làm tròn — chi phí để sắp thứ tự điểm. */
+        double cost(double[] from, double[] to) {
+            if (from == null || to == null) {
+                return 15;
+            }
+            double[] road = road(from, to);
+            return road[0] <= WALK_MAX_KM ? road[0] / WALK_KMH * 60 : road[1];
+        }
+
+        Leg leg(double[] from, double[] to) {
+            if (from == null || to == null) {
+                return new Leg(null, 15, null);
+            }
+            double[] road = road(from, to);
+            boolean walk = road[0] <= WALK_MAX_KM;
+            double minutes = walk ? road[0] / WALK_KMH * 60 + 2 : road[1];
+            return new Leg(round1(road[0]), Math.max(5, (int) Math.ceil(minutes / 5) * 5), walk ? "walk" : "drive");
+        }
+
+        /** {km đường bộ, phút đi xe (đã cộng kẹt xe + gọi xe)}. */
+        private double[] road(double[] from, double[] to) {
+            Integer i = index.get(key(from));
+            Integer j = index.get(key(to));
+            if (matrix != null && i != null && j != null) {
+                double km = matrix.km()[i][j];
+                double seconds = matrix.seconds()[i][j];
+                if (Double.isFinite(km) && Double.isFinite(seconds)) {
+                    return new double[]{km, seconds / 60 * TRAFFIC_FACTOR + DRIVE_OVERHEAD_MINUTES};
+                }
+            }
+            double km = GeoPlanning.haversineKm(from, to) * 1.35;
+            return new double[]{km, km / (km < 10 ? 22 : 40) * 60 + 8};
+        }
+
+        static String key(double[] p) {
+            return String.format(Locale.ROOT, "%.5f,%.5f", p[0], p[1]);
+        }
     }
 
     /** radiusKm: phạm vi di chuyển tối đa tính từ nơi lưu trú, null = không giới hạn. */
@@ -281,7 +358,8 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
             choices.add(choose(drafts.get(i), aiDays.get(i + 1), byRef, used, sightScore, opt, i + 1, warnings));
         }
 
-        // ---- 6. Xếp giờ + chi phí
+        // ---- 6. Đường đi thật (song song từng ngày) → xếp giờ + chi phí
+        List<DayTravel> travels = dayTravels(choices, base, warnings);
         PlannerResultDTO result = new PlannerResultDTO();
         PlannerStopDTO hotelStop = hotel == null ? null : hotelStop(hotel, nights, rooms, opt);
         if (hotelStop != null && aiPlan != null) {
@@ -290,7 +368,8 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         BigDecimal total = hotelStop == null || hotelStop.getEstimatedCost() == null
                 ? BigDecimal.ZERO : hotelStop.getEstimatedCost();
         for (int i = 0; i < choices.size(); i++) {
-            PlannerDayDTO day = schedule(i + 1, request.getStartDate().plusDays(i), choices.get(i), hotelStop, base, opt);
+            PlannerDayDTO day = schedule(i + 1, request.getStartDate().plusDays(i), choices.get(i), hotelStop, base,
+                    travels.get(i), opt);
             for (PlannerStopDTO stop : day.getItems()) {
                 if (stop.getEstimatedCost() != null && !"hotel".equals(stop.getKind())) {
                     total = total.add(stop.getEstimatedCost());
@@ -836,12 +915,56 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     // ================================================================== xếp giờ
 
+    /**
+     * Ma trận đường đi cho từng ngày (khách sạn + điểm tham quan + 2 quán), gọi song song. Ngày nào có ≥ 2 điểm mà không
+     * lấy được (dịch vụ tắt / lỗi) → ước lượng + cảnh báo routing_estimated.
+     */
+    private List<DayTravel> dayTravels(List<DayChoice> choices, double[] base, List<String> warnings) {
+        List<Map<String, Integer>> indexes = new ArrayList<>();
+        List<List<double[]>> batches = new ArrayList<>();
+        for (DayChoice c : choices) {
+            Map<String, Integer> index = new LinkedHashMap<>();
+            List<double[]> points = new ArrayList<>();
+            List<double[]> candidates = new ArrayList<>();
+            candidates.add(base);
+            for (Place p : c.sights()) {
+                candidates.add(p.point());
+            }
+            candidates.add(c.lunch() == null ? null : c.lunch().point());
+            candidates.add(c.dinner() == null ? null : c.dinner().point());
+            for (double[] p : candidates) {
+                if (p != null && !index.containsKey(DayTravel.key(p))) {
+                    index.put(DayTravel.key(p), points.size());
+                    points.add(p);
+                }
+            }
+            indexes.add(index);
+            batches.add(points);
+        }
+        List<Optional<RoutingService.Matrix>> matrices = routingService.isEnabled()
+                ? routingService.matrices(batches) : null;
+        List<DayTravel> travels = new ArrayList<>();
+        for (int i = 0; i < choices.size(); i++) {
+            Optional<RoutingService.Matrix> m = matrices == null ? Optional.empty() : matrices.get(i);
+            if (m.isPresent()) {
+                travels.add(new DayTravel(indexes.get(i), m.get()));
+            } else {
+                if (batches.get(i).size() >= 2) {
+                    warnings.add("routing_estimated");
+                }
+                travels.add(DayTravel.estimate());
+            }
+        }
+        return travels;
+    }
+
     private PlannerDayDTO schedule(int dayNumber, LocalDate date, DayChoice choice, PlannerStopDTO hotelStop,
-                                   double[] base, Options opt) {
+                                   double[] base, DayTravel travel, Options opt) {
         PlannerDayDTO day = new PlannerDayDTO();
         day.setDayNumber(dayNumber);
         day.setDate(date);
         day.setTheme(choice.theme());
+        day.setRouting(travel.routed() ? "osrm" : "estimate");
 
         // Chợ đêm / phố đi bộ để sau bữa tối; còn lại: đường ngắn nhất từ khách sạn, điểm không toạ độ để cuối.
         List<Place> daytime = new ArrayList<>();
@@ -849,7 +972,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         for (Place p : choice.sights()) {
             (NIGHT.matcher(StringUtil.removeAccents(p.name())).find() ? night : daytime).add(p);
         }
-        List<Place> ordered = route(base, daytime);
+        List<Place> ordered = route(base, daytime, travel);
 
         int clock = switch (opt.pace()) {
             case "relaxed" -> 9 * 60;
@@ -869,14 +992,14 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         boolean lunchDone = false;
         for (int i = 0; i < ordered.size(); i++) {
             if (!lunchDone && i > 0 && (i >= morning || clock >= 11 * 60 + 30)) {
-                double[] next = mealStop(day, choice.lunch(), "lunch", prev, clock, choice.notes(), opt);
+                double[] next = mealStop(day, choice.lunch(), "lunch", prev, clock, choice.notes(), travel, opt);
                 clock = lastEnd(day);
                 dayKm += lastKm(day);
                 prev = next != null ? next : prev;
                 lunchDone = true;
             }
             Place p = ordered.get(i);
-            dayKm += addSight(day, p, prev, clock, 0, choice.notes(), opt);
+            dayKm += addSight(day, p, prev, clock, 0, choice.notes(), travel, opt);
             clock = lastEnd(day);
             if (p.point() != null) {
                 prev = p.point();
@@ -886,17 +1009,17 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
             if (ordered.isEmpty()) {
                 clock = Math.max(clock, 12 * 60 - 30);
             }
-            double[] next = mealStop(day, choice.lunch(), "lunch", prev, clock, choice.notes(), opt);
+            double[] next = mealStop(day, choice.lunch(), "lunch", prev, clock, choice.notes(), travel, opt);
             clock = lastEnd(day);
             dayKm += lastKm(day);
             prev = next != null ? next : prev;
         }
-        double[] next = mealStop(day, choice.dinner(), "dinner", prev, clock, choice.notes(), opt);
+        double[] next = mealStop(day, choice.dinner(), "dinner", prev, clock, choice.notes(), travel, opt);
         dayKm += lastKm(day);
         clock = lastEnd(day);
         prev = next != null ? next : prev;
-        for (Place p : route(prev, night)) {
-            dayKm += addSight(day, p, prev, clock, 19 * 60 + 30, choice.notes(), opt);
+        for (Place p : route(prev, night, travel)) {
+            dayKm += addSight(day, p, prev, clock, 19 * 60 + 30, choice.notes(), travel, opt);
             clock = lastEnd(day);
             if (p.point() != null) {
                 prev = p.point();
@@ -906,19 +1029,24 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         return day;
     }
 
-    /** Đường ngắn nhất qua các điểm có toạ độ (xuất phát từ start), điểm không toạ độ nối vào cuối. */
-    private List<Place> route(double[] start, List<Place> places) {
+    /** Đường nhanh nhất qua các điểm có toạ độ (xuất phát từ start), điểm không toạ độ nối vào cuối. */
+    private List<Place> route(double[] start, List<Place> places, DayTravel travel) {
         List<Place> located = new ArrayList<>();
         List<Place> unlocated = new ArrayList<>();
         for (Place p : places) {
             (p.point() != null ? located : unlocated).add(p);
         }
-        List<double[]> points = new ArrayList<>();
-        for (Place p : located) {
-            points.add(p.point());
+        int n = located.size();
+        double[] fromStart = new double[n];
+        double[][] cost = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            fromStart[i] = start == null ? 0 : travel.cost(start, located.get(i).point());
+            for (int j = 0; j < n; j++) {
+                cost[i][j] = i == j ? 0 : travel.cost(located.get(i).point(), located.get(j).point());
+            }
         }
         List<Place> ordered = new ArrayList<>();
-        for (int i : GeoPlanning.bestOpenPath(start, points)) {
+        for (int i : GeoPlanning.bestOpenPath(fromStart, cost)) {
             ordered.add(located.get(i));
         }
         ordered.addAll(unlocated);
@@ -930,14 +1058,13 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
      * Trả số km đã đi từ điểm trước.
      */
     private double addSight(PlannerDayDTO day, Place p, double[] prev, int clock, int earliest,
-                            Map<UUID, String> notes, Options opt) {
+                            Map<UUID, String> notes, DayTravel dayTravel, Options opt) {
         PlannerStopDTO stop = placeStop(p, "sight", p.name(), notes.get(p.id()));
-        int travel = travelMinutes(prev, p.point());
-        double km = 0;
-        if (prev != null && p.point() != null) {
-            km = GeoPlanning.haversineKm(prev, p.point());
-            stop.setDistanceKm(round1(km));
-        }
+        Leg leg = dayTravel.leg(prev, p.point());
+        int travel = leg.minutes();
+        double km = leg.km() == null ? 0 : leg.km();
+        stop.setDistanceKm(leg.km());
+        stop.setTravelMode(leg.mode());
         stop.setTravelMinutes(travel);
         int start = Math.min(Math.max(clock + travel, earliest), LATEST_MINUTE);
         int duration = THEME_PARK.matcher(StringUtil.removeAccents(p.name())).find()
@@ -960,7 +1087,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     /** Thêm bữa ăn; không có quán thì là mục "ăn tự do" không gắn địa điểm. Trả toạ độ quán (nếu có). */
     private double[] mealStop(PlannerDayDTO day, Place place, String kind, double[] prev, int clock,
-                              Map<UUID, String> notes, Options opt) {
+                              Map<UUID, String> notes, DayTravel dayTravel, Options opt) {
         boolean lunch = "lunch".equals(kind);
         PlannerStopDTO stop;
         if (place == null) {
@@ -974,11 +1101,13 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
             stop.setEntityType("restaurant"); // địa danh loại restaurant (ItineraryServiceImpl.referenceType)
         }
         double[] point = place == null ? null : place.point();
-        int travel = place == null ? 0 : travelMinutes(prev, point);
-        if (prev != null && point != null) {
-            stop.setDistanceKm(round1(GeoPlanning.haversineKm(prev, point)));
+        Leg leg = place == null ? null : dayTravel.leg(prev, point);
+        int travel = leg == null ? 0 : leg.minutes();
+        if (leg != null) {
+            stop.setDistanceKm(leg.km());
+            stop.setTravelMode(leg.mode());
         }
-        stop.setTravelMinutes(place == null ? null : travel);
+        stop.setTravelMinutes(leg == null ? null : travel);
         int earliest = lunch ? 11 * 60 : 18 * 60;
         int start = Math.min(Math.max(clock + travel, earliest), LATEST_MINUTE);
         int duration = "relaxed".equals(opt.pace()) ? (lunch ? 75 : 90) : (lunch ? 60 : 75);
@@ -998,16 +1127,6 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
     private double lastKm(PlannerDayDTO day) {
         Double km = day.getItems().get(day.getItems().size() - 1).getDistanceKm();
         return km == null ? 0 : km;
-    }
-
-    /** Phút di chuyển ước lượng: đường chim bay × 1.35; nội đô 22 km/h, xa hơn 10 km thì 40 km/h; + 8 phút, làm tròn 5. */
-    private int travelMinutes(double[] from, double[] to) {
-        if (from == null || to == null) {
-            return 15;
-        }
-        double road = GeoPlanning.haversineKm(from, to) * 1.35;
-        double minutes = road / (road < 10 ? 22 : 40) * 60 + 8;
-        return Math.max(5, (int) Math.ceil(minutes / 5) * 5);
     }
 
     private int visitMinutes(String category, String pace) {

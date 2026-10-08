@@ -101,6 +101,18 @@ public final class GeoPlanning {
                 d[i][j] = haversineKm(points.get(i), points.get(j));
             }
         }
+        return bestOpenPath(fromStart, d);
+    }
+
+    /**
+     * Như trên nhưng với chi phí cho sẵn (VD thời gian đi đường thật, có thể không đối xứng):
+     * fromStart[i] = chi phí từ điểm xuất phát tới i (toàn 0 = tự chọn điểm đầu), d[i][j] = chi phí i → j.
+     */
+    public static int[] bestOpenPath(double[] fromStart, double[][] d) {
+        int n = fromStart.length;
+        if (n == 0) {
+            return new int[0];
+        }
         int[] order = new int[n];
         for (int i = 0; i < n; i++) {
             order[i] = i;

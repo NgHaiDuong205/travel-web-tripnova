@@ -23,6 +23,8 @@ public class PlannerStopDTO {
     private BigDecimal estimatedCost;
     private Integer travelMinutes;
     private Double distanceKm;
+    /** Cách tới điểm này từ điểm trước: walk | drive (null khi thiếu toạ độ). */
+    private String travelMode;
     private Boolean mayBeClosed;
     private Integer starRating;
     private BigDecimal pricePerNight;
@@ -203,5 +205,13 @@ public class PlannerStopDTO {
 
     public void setReviewCount(Integer reviewCount) {
         this.reviewCount = reviewCount;
+    }
+
+    public String getTravelMode() {
+        return travelMode;
+    }
+
+    public void setTravelMode(String travelMode) {
+        this.travelMode = travelMode;
     }
 }

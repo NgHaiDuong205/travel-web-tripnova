@@ -10,6 +10,8 @@ public class PlannerDayDTO {
     private LocalDate date;
     private String theme;
     private Double distanceKm;
+    /** osrm = thời gian theo đường đi thật; estimate = ước lượng đường chim bay. */
+    private String routing;
     private List<PlannerStopDTO> items = new ArrayList<>();
 
     public int getDayNumber() {
@@ -50,5 +52,13 @@ public class PlannerDayDTO {
 
     public void setItems(List<PlannerStopDTO> items) {
         this.items = items;
+    }
+
+    public String getRouting() {
+        return routing;
+    }
+
+    public void setRouting(String routing) {
+        this.routing = routing;
     }
 }

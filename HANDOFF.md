@@ -373,6 +373,7 @@ Cải tiến nhỏ tồn đọng: (đã xử lý hết đợt 2026-09-30 tối).
 - `RestClient` với `SimpleClientHttpRequestFactory` (HttpURLConnection) **không gửi được PATCH** (ném ResourceAccessException) → `AiServiceClient` dùng `JdkClientHttpRequestFactory` + ép HTTP/1.1 (uvicorn không hỗ trợ nâng cấp h2c).
 - Open-Session-In-View đang bật: đọc lại entity sau khi dịch vụ khác (Python) sửa DB trong cùng request vẫn ra bản cũ trong persistence context → trả trạng thái mới trực tiếp (xem `AdminAiServiceImpl.setDocumentActive`).
 - `psql` trên Git Bash: chuỗi tiếng Việt truyền qua `-c` bị đổi mã (lỗi `invalid byte sequence for encoding "UTF8"`) → ghi câu lệnh ra file UTF-8 rồi `-f`, kèm `PGCLIENTENCODING=UTF8`.
+- Hiệu ứng hiện dần (`SiteEffects`, `.tn-reveal`) áp cho mọi `main .grid > *`: trạng thái cuối phải là `translate: none` (không phải `0 0`) — translate khác none tạo stacking context, ô lưới sau vẽ đè dropdown của ô trước (lỗi gợi ý điểm đến AI Planner bị che chữ, sửa 2026-10-08, test `scratchpad/ui/ui_dropdown_overlap.js`). Dropdown mới trong lưới không cần tự nâng z-index.
 - Bash heredoc chứa nhiều dấu `'` (VD SQL `'%'`) đôi khi bị công cụ báo lỗi quote → ghi file bằng công cụ Write rồi chạy.
 
 ## 7. Lệnh chạy / test

@@ -37,3 +37,9 @@ src/main/resources/application.properties
 /uploads/
 
 __pycache__/
+
+### Local docs / AI notes (not in repo) ###
+/proposed_apis.txt
+/db_schema_guide.txt
+/.cursorrules
+/HANDOFF.md

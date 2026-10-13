@@ -1,0 +1,11 @@
+{
+  "name": "tripnova-ui-tests",
+  "private": true,
+  "description": "Test giao diện TripNova bằng Playwright + Microsoft Edge có sẵn trên máy (không tải trình duyệt)",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}

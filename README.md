@@ -52,11 +52,15 @@ src/main/java/com/duong/travelweb/
 src/main/resources/
 ├── application.properties        Shared configuration
 ├── application-uat.properties    Local DB credentials (git-ignored, you create it)
+├── db/migration/                 Flyway migrations (V1 = full schema)
+├── templates/mail/               Email layout (Thymeleaf)
 └── fonts/                        DejaVu Sans, used for PDF invoices
 db/
-├── migrations/     Incremental SQL migrations (run in file-name order)
+├── legacy-migrations/  Old hand-run SQL scripts (already included in V1, history only)
 ├── seed/           Demo data (cars, rolling flight schedule)
 └── import/         Python scripts that import Vietnamese hotels/landmarks + offline geocoding
+docker/             Compose helpers (DB init, OSRM, env example)
+tests/              End-to-end API tests (pytest) and UI tests (Playwright)
 ```
 
 ### Requirements
@@ -72,13 +76,12 @@ db/
    git clone https://github.com/NgHaiDuong205/travel-web-tripnova.git
    cd travel-web-tripnova
    ```
-2. **Create the database** `travel-web-project` and load the base schema (59 tables, see [Database](#database)).
-   > The base schema dump is **not** in this repository yet. Get it from the project owner. The files in `db/migrations/` are only the changes made on top of it.
-3. **Apply the migrations** in file-name order:
-   ```bash
-   for f in db/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -d travel-web-project -f "$f"; done
+2. **Create an empty database** `travel-web-project`. The schema is created by **Flyway** the first time the app starts (`src/main/resources/db/migration`, see [Database](#database)). The DB user needs superuser rights on that first start (extensions and the AI roles `chatbot_ro` / `chatbot_rag`).
+3. **(AI service only)** set the passwords of the two AI roles after the first start:
+   ```sql
+   ALTER ROLE chatbot_ro LOGIN PASSWORD '...';
+   ALTER ROLE chatbot_rag LOGIN PASSWORD '...';
    ```
-   `2026-10-04_chatbot.sql` must be run as a superuser. It creates extensions and the restricted DB roles `chatbot_ro` and `chatbot_rag`, whose passwords you set by hand.
 4. **(Optional) Load demo data**
    ```bash
    psql -1 -v ON_ERROR_STOP=1 -d travel-web-project -f db/seed/demo_cars_vn.sql
@@ -127,6 +130,8 @@ Main settings (in `application.properties`; most can also be set as environment 
 | `app.routing.base-url` | `https://router.project-osrm.org` | OSRM server. The public demo server is for testing only; run your own in production. |
 | `app.ai.service-url` | `http://127.0.0.1:8000` | AI service URL |
 | `app.ai.internal-key` / `AI_INTERNAL_KEY` | empty | Shared key for calls between the backend and the AI service |
+| `spring.mail.host` / `SPRING_MAIL_HOST` (+ `SPRING_MAIL_PORT`, `_USERNAME`, `_PASSWORD`) | empty | SMTP server. Empty = emails are only written to the log |
+| `app.mail.from` / `MAIL_FROM` | `TripNova <no-reply@tripnova.local>` | Sender of system emails |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | empty | Google login |
 | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | empty | Facebook login |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | empty | GitHub login |
@@ -134,7 +139,7 @@ Main settings (in `application.properties`; most can also be set as environment 
 
 Notes:
 - Spring reads `application.properties` as ISO-8859-1. Use ASCII or `\uXXXX` for accented values.
-- There is no mail server yet. Password-reset and verification links are written to the console log.
+- **Email**: verification, password reset, email-changed notice, contact replies and invoices (PDF attached) are sent in Vietnamese + English. They are sent after the transaction commits, in the background, with 3 attempts. Without `spring.mail.host` the full email text (with links) is written to the log. For local testing run [Mailpit](https://mailpit.axllent.org/) and start the app with `--spring.mail.host=127.0.0.1 --spring.mail.port=1025`.
 
 ### Database
 
@@ -180,7 +185,10 @@ users 1─N chat_sessions 1─N chat_messages
 Things to know about the schema:
 - `hotel_bookings.num_nights` is a generated column. `hotels.total_rooms` and `updated_at` are kept up to date by triggers.
 - The app sets `stringtype=unspecified` so that Java `String` values can be written into ENUM, `inet` and `jsonb` columns.
-- `spring.jpa.hibernate.ddl-auto=none`: Hibernate never changes the schema. Every schema change is a SQL file in `db/migrations/`.
+- `spring.jpa.hibernate.ddl-auto=none`: Hibernate never changes the schema. Schema changes are **Flyway** migrations in `src/main/resources/db/migration`:
+  - `V1__baseline_schema.sql` is the full schema (no data). It only runs on an **empty** database.
+  - A database that already has tables but no `flyway_schema_history` is *baselined* at version 1: V1 is skipped and nothing is changed. `clean` is disabled, so Flyway never drops data.
+  - New change = new file `V2__short_name.sql`, `V3__...`. Never edit a migration that has already run. The old hand-run scripts are kept in `db/legacy-migrations/` for history only.
 
 ### API overview
 
@@ -209,12 +217,24 @@ python db/import/geocode_vn_hotels.py <data_dir> osm_index.pkl.gz hotels_geo.sql
 python db/import/import_vn_landmarks.py <data_dir> osm_index.pkl.gz landmarks.sql
 ```
 
+### Docker (whole system)
+
+`docker-compose.yml` runs Postgres, the backend, the AI service, the frontend (nginx) and Mailpit. The frontend and AI repositories are expected next to this one (`../fe-tripnova`, `../travel_chatbot_python`). See [docker/README.md](docker/README.md).
+
+```bash
+cp docker/compose.env.example .env        # fill in the passwords / keys
+docker compose up -d --build              # FE http://localhost:3000, API :8080, emails http://localhost:8025
+docker compose --profile routing up -d    # optional: self-hosted OSRM with the Vietnam map
+```
+
 ### Development
 
 ```bash
 ./mvnw -q compile        # quick build
 ./mvnw test              # unit tests
 ```
+
+End-to-end tests against a running backend / frontend are in `tests/` — see [tests/README.md](tests/README.md). They never delete existing data.
 
 ---
 
@@ -266,11 +286,15 @@ src/main/java/com/duong/travelweb/
 src/main/resources/
 ├── application.properties        Cấu hình chung
 ├── application-uat.properties    Thông tin DB trên máy (bị gitignore, tự tạo)
+├── db/migration/                 Migration Flyway (V1 = toàn bộ schema)
+├── templates/mail/               Layout email (Thymeleaf)
 └── fonts/                        Font DejaVu Sans cho hoá đơn PDF
 db/
-├── migrations/     Các file SQL thay đổi schema (chạy theo thứ tự tên file)
+├── legacy-migrations/  Script SQL chạy tay trước đây (đã gộp vào V1, chỉ để tham khảo)
 ├── seed/           Dữ liệu demo (xe, lịch bay cuốn chiếu)
 └── import/         Script Python nạp khách sạn / địa danh Việt Nam + geocode offline
+docker/             Phụ trợ cho compose (khởi tạo DB, OSRM, file env mẫu)
+tests/              Test end-to-end API (pytest) và giao diện (Playwright)
 ```
 
 ### Yêu cầu
@@ -286,13 +310,12 @@ db/
    git clone https://github.com/NgHaiDuong205/travel-web-tripnova.git
    cd travel-web-tripnova
    ```
-2. **Tạo database** `travel-web-project` và nạp schema gốc (59 bảng, xem [Cấu trúc CSDL](#cấu-trúc-csdl)).
-   > Repo **chưa có** file dump schema gốc, hãy xin chủ dự án. Thư mục `db/migrations/` chỉ chứa các thay đổi làm thêm trên schema đó.
-3. **Chạy migration** theo thứ tự tên file:
-   ```bash
-   for f in db/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -d travel-web-project -f "$f"; done
+2. **Tạo database trống** `travel-web-project`. Schema do **Flyway** tạo ở lần chạy app đầu tiên (`src/main/resources/db/migration`, xem [Cấu trúc CSDL](#cấu-trúc-csdl)). Lần chạy đầu, user DB cần quyền superuser (tạo extension và 2 role AI `chatbot_ro` / `chatbot_rag`).
+3. **(Chỉ khi dùng dịch vụ AI)** đặt mật khẩu 2 role AI sau lần chạy đầu:
+   ```sql
+   ALTER ROLE chatbot_ro LOGIN PASSWORD '...';
+   ALTER ROLE chatbot_rag LOGIN PASSWORD '...';
    ```
-   File `2026-10-04_chatbot.sql` phải chạy bằng superuser. File này tạo extension và hai role DB bị giới hạn quyền là `chatbot_ro` và `chatbot_rag`; mật khẩu của hai role bạn tự đặt.
 4. **(Tuỳ chọn) Nạp dữ liệu demo**
    ```bash
    psql -1 -v ON_ERROR_STOP=1 -d travel-web-project -f db/seed/demo_cars_vn.sql
@@ -341,6 +364,8 @@ Các cấu hình chính (trong `application.properties`; phần lớn đặt đ�
 | `app.routing.base-url` | `https://router.project-osrm.org` | Máy chủ OSRM. Máy chủ demo công khai chỉ để thử; khi chạy thật nên tự dựng. |
 | `app.ai.service-url` | `http://127.0.0.1:8000` | Địa chỉ dịch vụ AI |
 | `app.ai.internal-key` / `AI_INTERNAL_KEY` | trống | Khoá dùng chung khi backend gọi dịch vụ AI và ngược lại |
+| `spring.mail.host` / `SPRING_MAIL_HOST` (+ `SPRING_MAIL_PORT`, `_USERNAME`, `_PASSWORD`) | trống | Máy chủ SMTP. Để trống = email chỉ ghi ra log |
+| `app.mail.from` / `MAIL_FROM` | `TripNova <no-reply@tripnova.local>` | Người gửi email hệ thống |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | trống | Đăng nhập Google |
 | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | trống | Đăng nhập Facebook |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | trống | Đăng nhập GitHub |
@@ -348,7 +373,7 @@ Các cấu hình chính (trong `application.properties`; phần lớn đặt đ�
 
 Lưu ý:
 - Spring đọc `application.properties` theo bảng mã ISO-8859-1. Giá trị có dấu tiếng Việt phải viết ASCII hoặc `\uXXXX`.
-- Chưa có mail server. Link đặt lại mật khẩu và link xác thực email được ghi ra log console.
+- **Email**: xác thực email, đặt lại mật khẩu, báo đổi email, trả lời liên hệ, hoá đơn (đính kèm PDF) — song ngữ Việt + Anh. Gửi sau khi transaction commit, chạy nền, thử tối đa 3 lần. Chưa đặt `spring.mail.host` thì toàn bộ nội dung email (kèm link) được ghi ra log. Thử trên máy: chạy [Mailpit](https://mailpit.axllent.org/) rồi chạy app với `--spring.mail.host=127.0.0.1 --spring.mail.port=1025`.
 
 ### Cấu trúc CSDL
 
@@ -394,7 +419,10 @@ users 1─N chat_sessions 1─N chat_messages
 Cần biết về schema:
 - `hotel_bookings.num_nights` là cột sinh tự động (generated column). `hotels.total_rooms` và `updated_at` do trigger cập nhật.
 - App đặt `stringtype=unspecified` để ghi được giá trị `String` của Java vào cột ENUM, `inet`, `jsonb`.
-- `spring.jpa.hibernate.ddl-auto=none`: Hibernate không bao giờ sửa schema. Mọi thay đổi schema đều là file SQL trong `db/migrations/`.
+- `spring.jpa.hibernate.ddl-auto=none`: Hibernate không bao giờ sửa schema. Thay đổi schema là migration **Flyway** trong `src/main/resources/db/migration`:
+  - `V1__baseline_schema.sql` là toàn bộ schema (không có dữ liệu), chỉ chạy trên DB **trống**.
+  - DB đã có bảng nhưng chưa có `flyway_schema_history` được *baseline* ở version 1: bỏ qua V1, không đổi gì. `clean` bị tắt nên Flyway không bao giờ xoá dữ liệu.
+  - Thay đổi mới = file mới `V2__ten_ngan.sql`, `V3__...`. Không sửa migration đã chạy. Các script chạy tay trước đây giữ ở `db/legacy-migrations/` để tham khảo.
 
 ### Tổng quan API
 
@@ -423,9 +451,21 @@ python db/import/geocode_vn_hotels.py <thư_mục_dữ_liệu> osm_index.pkl.gz 
 python db/import/import_vn_landmarks.py <thư_mục_dữ_liệu> osm_index.pkl.gz landmarks.sql
 ```
 
+### Docker (toàn hệ thống)
+
+`docker-compose.yml` chạy Postgres, backend, dịch vụ AI, frontend (nginx) và Mailpit. Repo FE và AI cần nằm cạnh repo này (`../fe-tripnova`, `../travel_chatbot_python`). Xem [docker/README.md](docker/README.md).
+
+```bash
+cp docker/compose.env.example .env        # điền mật khẩu / khoá
+docker compose up -d --build              # FE http://localhost:3000, API :8080, xem email http://localhost:8025
+docker compose --profile routing up -d    # tuỳ chọn: OSRM tự host với bản đồ Việt Nam
+```
+
 ### Phát triển
 
 ```bash
 ./mvnw -q compile        # build nhanh
 ./mvnw test              # chạy unit test
 ```
+
+Test end-to-end (gọi backend / frontend đang chạy) nằm trong `tests/` — xem [tests/README.md](tests/README.md). Test không bao giờ xoá dữ liệu có sẵn.

@@ -1,0 +1,15 @@
+# Không đưa bí mật / dữ liệu cục bộ vào image
+src/main/resources/application-uat.properties
+.env
+*.env
+target/
+uploads/
+db/
+docker/
+FE_HTML/
+.git/
+.idea/
+.vscode/
+tests/
+*.md
+*.txt

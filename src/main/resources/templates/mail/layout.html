@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${subject}">TripNova</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2933;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5f7;padding:24px 12px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                   style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
+                <tr>
+                    <td style="background:#0f766e;padding:20px 28px;color:#ffffff;font-size:22px;font-weight:bold;">
+                        TripNova
+                    </td>
+                </tr>
+                <tr th:each="section, it : ${sections}">
+                    <td th:lang="${section.lang}"
+                        th:style="${it.first} ? 'padding:28px 28px 8px;' : 'padding:8px 28px 8px;border-top:1px solid #e5e7eb;'">
+                        <p style="font-size:16px;margin:16px 0;" th:text="${section.greeting}">Hi,</p>
+                        <p style="font-size:15px;line-height:1.6;margin:0 0 14px;white-space:pre-line;"
+                           th:each="paragraph : ${section.paragraphs}" th:text="${paragraph}">Text</p>
+                        <p th:if="${section.buttonUrl != null}" style="margin:22px 0;">
+                            <a th:href="${section.buttonUrl}" th:text="${section.buttonLabel}"
+                               style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px;">Open</a>
+                        </p>
+                        <p th:if="${section.buttonUrl != null}" style="font-size:12px;color:#6b7280;word-break:break-all;margin:0 0 14px;"
+                           th:text="${section.buttonUrl}">link</p>
+                        <p style="font-size:13px;color:#6b7280;line-height:1.5;margin:0 0 10px;"
+                           th:each="note : ${section.notes}" th:text="${note}">Note</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:18px 28px;background:#f9fafb;font-size:12px;color:#6b7280;">
+                        TripNova · <a th:href="${frontendUrl}" th:text="${frontendUrl}" style="color:#0f766e;">site</a>
+                        · <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}" style="color:#0f766e;">support</a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

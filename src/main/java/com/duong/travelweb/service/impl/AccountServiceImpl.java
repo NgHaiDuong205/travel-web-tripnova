@@ -11,12 +11,10 @@ import com.duong.travelweb.repository.UserOauthAccountRepository;
 import com.duong.travelweb.repository.UserRepository;
 import com.duong.travelweb.security.SignedTokenService;
 import com.duong.travelweb.service.AccountService;
+import com.duong.travelweb.service.MailService;
 import com.duong.travelweb.service.UploadService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class AccountServiceImpl implements AccountService {
     public static final String VERIFY_EMAIL_PURPOSE = "verify-email";
-    private static final Logger log = LoggerFactory.getLogger(AccountServiceImpl.class);
     private static final long VERIFY_TOKEN_TTL_SECONDS = 24 * 3600;
     private static final long RESEND_COOLDOWN_SECONDS = 60;
     /** Booking còn mở ở bất kỳ loại nào -> chưa cho xoá tài khoản. */
@@ -51,7 +48,8 @@ public class AccountServiceImpl implements AccountService {
     private final SignedTokenService signedTokenService;
     private final UploadService uploadService;
     private final UserDTOConverter userDTOConverter;
-    private final String frontendUrl;
+    private final MailService mailService;
+    private final MailTemplates mailTemplates;
     /** userId -> thời điểm gửi link gần nhất (chỉ chống bấm liên tục, mất khi khởi động lại là chấp nhận được). */
     private final Map<UUID, Instant> lastVerificationSent = new ConcurrentHashMap<>();
 
@@ -65,7 +63,8 @@ public class AccountServiceImpl implements AccountService {
                               SignedTokenService signedTokenService,
                               UploadService uploadService,
                               UserDTOConverter userDTOConverter,
-                              @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
+                              MailService mailService,
+                              MailTemplates mailTemplates) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.userOauthAccountRepository = userOauthAccountRepository;
@@ -73,7 +72,8 @@ public class AccountServiceImpl implements AccountService {
         this.signedTokenService = signedTokenService;
         this.uploadService = uploadService;
         this.userDTOConverter = userDTOConverter;
-        this.frontendUrl = frontendUrl;
+        this.mailService = mailService;
+        this.mailTemplates = mailTemplates;
     }
 
     @Override
@@ -95,8 +95,7 @@ public class AccountServiceImpl implements AccountService {
     @Override
     public void issueVerificationLink(UserEntity user) {
         String token = signedTokenService.sign(VERIFY_EMAIL_PURPOSE, user.getId(), user.getEmail(), VERIFY_TOKEN_TTL_SECONDS);
-        // TODO: gửi email khi có mail server. Hiện chỉ log link để test (giống forgot-password).
-        log.info("Email verification link for {}: {}/verify-email?token={}", user.getEmail(), frontendUrl, token);
+        mailService.send(mailTemplates.verifyEmail(user.getEmail(), user.getFullName(), token));
     }
 
     @Override
@@ -130,7 +129,7 @@ public class AccountServiceImpl implements AccountService {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw ApiException.conflict("Email đã được sử dụng");
         }
-        log.info("[MAIL] To: {} | Email của tài khoản TripNova đã được đổi sang {}", user.getEmail(), email);
+        mailService.send(mailTemplates.emailChanged(user.getEmail(), user.getFullName(), email));
         user.setEmail(email);
         user.setIsVerified(false);
         user.setUpdatedAt(LocalDateTime.now());

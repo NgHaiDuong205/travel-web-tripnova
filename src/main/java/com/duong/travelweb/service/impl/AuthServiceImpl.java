@@ -21,9 +21,8 @@ import com.duong.travelweb.repository.UserRoleRepository;
 import com.duong.travelweb.security.JwtService;
 import com.duong.travelweb.service.AccountService;
 import com.duong.travelweb.service.AuthService;
+import com.duong.travelweb.service.MailService;
 import com.duong.travelweb.util.TokenUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -37,7 +36,6 @@ import java.util.UUID;
 @Service
 public class AuthServiceImpl implements AuthService {
     public static final String DEFAULT_ROLE = "USER";
-    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -50,7 +48,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserDTOConverter userDTOConverter;
     private final long refreshTokenTtlDays;
     private final long resetTokenTtlMinutes;
-    private final String frontendUrl;
+    private final MailService mailService;
+    private final MailTemplates mailTemplates;
 
     public AuthServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
@@ -63,7 +62,8 @@ public class AuthServiceImpl implements AuthService {
                            UserDTOConverter userDTOConverter,
                            @Value("${app.jwt.refresh-token-ttl-days:7}") long refreshTokenTtlDays,
                            @Value("${app.auth.reset-token-ttl-minutes:30}") long resetTokenTtlMinutes,
-                           @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
+                           MailService mailService,
+                           MailTemplates mailTemplates) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
@@ -75,7 +75,8 @@ public class AuthServiceImpl implements AuthService {
         this.userDTOConverter = userDTOConverter;
         this.refreshTokenTtlDays = refreshTokenTtlDays;
         this.resetTokenTtlMinutes = resetTokenTtlMinutes;
-        this.frontendUrl = frontendUrl;
+        this.mailService = mailService;
+        this.mailTemplates = mailTemplates;
     }
 
     @Override
@@ -218,8 +219,8 @@ public class AuthServiceImpl implements AuthService {
         token.setCreatedAt(now);
         passwordResetTokenRepository.save(token);
 
-        // TODO: gửi email khi có mail server. Hiện chỉ log link để test.
-        log.info("Password reset link for {}: {}/reset-password?token={}", email, frontendUrl, rawToken);
+        UserEntity user = userOpt.get();
+        mailService.send(mailTemplates.passwordReset(user.getEmail(), user.getFullName(), rawToken, resetTokenTtlMinutes));
     }
 
     @Override

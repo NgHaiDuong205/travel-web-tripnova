@@ -6,9 +6,11 @@ import com.duong.travelweb.model.dto.PlannerRequestDTO;
 import com.duong.travelweb.model.dto.PlannerResultDTO;
 import com.duong.travelweb.model.dto.PlannerStopDTO;
 import com.duong.travelweb.model.entity.DestinationEntity;
+import com.duong.travelweb.repository.AuditLogRepository;
 import com.duong.travelweb.repository.DestinationRepository;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.repository.LandmarkRepository;
+import com.duong.travelweb.service.AuditLogService;
 import com.duong.travelweb.service.ItineraryPlannerService;
 import com.duong.travelweb.service.RoutingService;
 import com.duong.travelweb.util.GeoPlanning;
@@ -23,11 +25,10 @@ import tools.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -39,7 +40,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -96,6 +96,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
     /** Thời gian OSRM là đường thông thoáng → nhân hệ số kẹt xe nội đô + phút gọi xe / gửi xe. */
     private static final double TRAFFIC_FACTOR = 1.3;
     private static final int DRIVE_OVERHEAD_MINUTES = 6;
+    static final String PLAN_ACTION = "ai.itineraries.plan";
 
     private final DestinationRepository destinationRepository;
     private final LandmarkRepository landmarkRepository;
@@ -104,14 +105,18 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
     private final RoutingService routingService;
     private final int rateLimitMax;
     private final int rateLimitWindowMinutes;
-    /** Giới hạn tần suất trong bộ nhớ (một instance BE): mỗi lần tạo tốn 1 lượt gọi LLM. */
-    private final Map<UUID, Deque<Long>> recentPlans = new ConcurrentHashMap<>();
+    private final AuditLogService auditLogService;
+    private final AuditLogRepository auditLogRepository;
+    /** Khoá theo user (chia sọc) để 2 request cùng lúc không cùng lọt qua bước đếm. */
+    private final Object[] rateLimitLocks = new Object[64];
 
     public ItineraryPlannerServiceImpl(DestinationRepository destinationRepository,
                                        LandmarkRepository landmarkRepository,
                                        HotelRepository hotelRepository,
                                        AiServiceClient aiServiceClient,
                                        RoutingService routingService,
+                                       AuditLogService auditLogService,
+                                       AuditLogRepository auditLogRepository,
                                        @Value("${app.ai.planner.rate-limit.max:10}") int rateLimitMax,
                                        @Value("${app.ai.planner.rate-limit.window-minutes:10}") int rateLimitWindowMinutes) {
         this.destinationRepository = destinationRepository;
@@ -121,6 +126,11 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         this.routingService = routingService;
         this.rateLimitMax = rateLimitMax;
         this.rateLimitWindowMinutes = rateLimitWindowMinutes;
+        this.auditLogService = auditLogService;
+        this.auditLogRepository = auditLogRepository;
+        for (int i = 0; i < rateLimitLocks.length; i++) {
+            rateLimitLocks[i] = new Object();
+        }
     }
 
     /** Địa danh / quán ăn ứng viên. samePoint = số địa danh trùng toạ độ (≥ 3 → toạ độ cấp xã, kém tin cậy). */
@@ -228,7 +238,7 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
         DestinationEntity destination = destinationRepository.findById(request.getDestinationId())
                 .filter(d -> !Boolean.FALSE.equals(d.getIsActive()))
                 .orElseThrow(() -> ApiException.badRequest("Điểm đến không tồn tại"));
-        checkRateLimit(userId);
+        checkRateLimit(userId, destination.getId(), request.getDays());
 
         int variant = request.getVariant() == null ? 0 : request.getVariant();
         Options opt = new Options(
@@ -1233,19 +1243,23 @@ public class ItineraryPlannerServiceImpl implements ItineraryPlannerService {
 
     // ================================================================== tiện ích
 
-    private void checkRateLimit(UUID userId) {
-        long now = System.currentTimeMillis();
-        long windowStart = now - rateLimitWindowMinutes * 60_000L;
-        Deque<Long> times = recentPlans.computeIfAbsent(userId, id -> new ArrayDeque<>());
-        synchronized (times) {
-            while (!times.isEmpty() && times.peekFirst() < windowStart) {
-                times.pollFirst();
-            }
-            if (times.size() >= rateLimitMax) {
+    /**
+     * Mỗi lượt tạo tốn 1 lần gọi LLM. Đếm trong audit_logs (action ai.itineraries.plan) nên không mất khi khởi động lại
+     * và admin xem được ở trang Audit logs; lượt bị từ chối không được ghi.
+     */
+    private void checkRateLimit(UUID userId, UUID destinationId, Integer days) {
+        synchronized (rateLimitLocks[Math.floorMod(userId.hashCode(), rateLimitLocks.length)]) {
+            long recent = auditLogRepository.countByUserIdAndActionAndCreatedAtAfter(userId, PLAN_ACTION,
+                    LocalDateTime.now().minusMinutes(rateLimitWindowMinutes));
+            if (recent >= rateLimitMax) {
                 throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "Bạn đã tạo " + rateLimitMax + " lịch trình trong "
                         + rateLimitWindowMinutes + " phút, vui lòng thử lại sau ít phút");
             }
-            times.addLast(now);
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("destinationId", destinationId.toString());
+            details.put("days", days);
+            auditLogService.record(new AuditLogService.AuditEntry(userId, null, PLAN_ACTION, "POST",
+                    "/api/ai/itineraries/plan/", "destination", destinationId.toString(), null, null, null, details));
         }
     }
 

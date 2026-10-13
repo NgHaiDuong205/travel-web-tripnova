@@ -12,9 +12,9 @@ import com.duong.travelweb.repository.InvoiceRepository;
 import com.duong.travelweb.repository.OrderRepository;
 import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.service.InvoiceService;
+import com.duong.travelweb.service.MailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -39,27 +39,45 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final PaymentRepository paymentRepository;
     private final OrderBookingRouter orderBookingRouter;
     private final InvoicePdfRenderer pdfRenderer;
-    private final String frontendUrl;
+    private final MailService mailService;
+    private final MailTemplates mailTemplates;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               OrderRepository orderRepository,
                               PaymentRepository paymentRepository,
                               OrderBookingRouter orderBookingRouter,
                               InvoicePdfRenderer pdfRenderer,
-                              @Value("${app.frontend-url}") String frontendUrl) {
+                              MailService mailService,
+                              MailTemplates mailTemplates) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.orderBookingRouter = orderBookingRouter;
         this.pdfRenderer = pdfRenderer;
-        this.frontendUrl = frontendUrl;
+        this.mailService = mailService;
+        this.mailTemplates = mailTemplates;
     }
 
     @Override
     @Transactional
     public void issueForOrder(OrderEntity order, PaymentEntity payment) {
-        if (invoiceRepository.existsByOrderId(order.getId())) {
+        InvoiceEntity invoice = createInvoice(order, payment);
+        if (invoice == null) {
             return;
+        }
+        // Gửi sau commit; lỗi dựng email không được làm hỏng giao dịch thanh toán.
+        try {
+            InvoiceDTO dto = toDetailDTO(invoice);
+            mailService.send(mailTemplates.invoice(dto, () -> pdfRenderer.render(dto)));
+        } catch (RuntimeException e) {
+            log.error("Không tạo được email hoá đơn {}", invoice.getInvoiceNumber(), e);
+        }
+    }
+
+    /** null nếu order đã có hoá đơn. */
+    private InvoiceEntity createInvoice(OrderEntity order, PaymentEntity payment) {
+        if (invoiceRepository.existsByOrderId(order.getId())) {
+            return null;
         }
         UserEntity user = order.getUser();
         LocalDateTime issuedAt = payment != null && payment.getPaidAt() != null ? payment.getPaidAt() : LocalDateTime.now();
@@ -81,6 +99,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setCreatedAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
         log.info("Đã phát hành hoá đơn {} cho order {}", invoice.getInvoiceNumber(), order.getOrderCode());
+        return invoice;
     }
 
     @Override
@@ -100,8 +119,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         int created = 0;
         for (OrderEntity order : orderRepository.findAllById(orderIds)) {
-            issueForOrder(order, paidPayments.get(order.getId()));
-            created++;
+            // Order cũ: chỉ bổ sung hoá đơn, không gửi email.
+            if (createInvoice(order, paidPayments.get(order.getId())) != null) {
+                created++;
+            }
         }
         return created;
     }
@@ -172,10 +193,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(readOnly = true)
     public InvoiceDTO resend(UUID invoiceId) {
         InvoiceDTO invoice = toDetailDTO(findInvoice(invoiceId));
-        // Chưa có mail server: ghi log nội dung sẽ gửi (giống forgot-password / trả lời liên hệ).
-        log.info("[MAIL] Gửi hoá đơn {} tới {} — xem tại {}/invoices/{} ({} {})",
-                invoice.getInvoiceNumber(), invoice.getCustomerEmail(), frontendUrl, invoice.getId(),
-                invoice.getTotalAmount(), invoice.getCurrencyCode());
+        mailService.send(mailTemplates.invoice(invoice, () -> pdfRenderer.render(invoice)));
         return invoice;
     }
 

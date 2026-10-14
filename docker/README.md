@@ -55,6 +55,26 @@ docker compose --profile routing up -d      # lần đầu: tải ~300 MB + xử
 
 rồi đặt trong `.env`: `ROUTING_BASE_URL=http://osrm:5000`, `ROUTING_MAX_CONCURRENT=8` và `docker compose up -d backend`. Dữ liệu bản đồ nằm trong volume `osrm-data`, lần sau khởi động ngay. Đổi vùng bằng `OSRM_REGION` (VD `asia/vietnam`, `asia/thailand`).
 
+## Dùng dữ liệu của DB Postgres cài trên máy
+
+Volume `pgdata` mới chỉ có schema (Flyway). Muốn có dữ liệu thật (khách sạn, địa danh, ảnh, tài khoản), chép từ DB trên máy
+**trước khi** bật backend lần đầu (Git Bash: đặt `MSYS_NO_PATHCONV=1` để `/tmp/...` không bị đổi thành đường dẫn Windows):
+
+```bash
+pg_dump -h localhost -U postgres -d travel-web-project -Fc -f travel.dump         # DB trên máy (cổng 5432)
+docker compose up -d db                                                           # chờ healthy
+docker cp travel.dump tripnova-db-1:/tmp/db.dump
+docker exec tripnova-db-1 pg_restore -U postgres -d travel-web-project --exit-on-error -j 4 /tmp/db.dump
+# thiết lập role chatbot (pg_dump không chép thiết lập cấp role) — giống đầu file V1__baseline_schema.sql
+docker exec tripnova-db-1 psql -U postgres -d travel-web-project -c "ALTER ROLE chatbot_ro SET default_transaction_read_only = on" \
+  -c "ALTER ROLE chatbot_ro SET statement_timeout = '3s'" -c "ALTER ROLE chatbot_ro SET search_path = chatbot" \
+  -c "ALTER ROLE chatbot_ro SET timezone = 'Asia/Ho_Chi_Minh'" -c "ALTER ROLE chatbot_rag SET statement_timeout = '30s'"
+docker compose up -d                                                              # Flyway thấy đã ở V2 → không chạy gì
+docker cp uploads/. tripnova-backend-1:/app/uploads/ && docker exec -u root tripnova-backend-1 chown -R tripnova /app/uploads
+```
+
+JWT_SECRET trong `.env` khác cấu hình trên máy → phải đăng nhập lại. Mật khẩu tài khoản giữ nguyên.
+
 ## Lệnh hay dùng
 
 ```bash

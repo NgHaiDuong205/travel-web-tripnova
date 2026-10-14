@@ -104,7 +104,7 @@ services:
       args:
         REACT_APP_API_BASE_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8080}
       dockerfile_inline: |
-        FROM node:20-alpine AS build
+        FROM node:24-alpine AS build
         WORKDIR /app
         COPY package.json package-lock.json ./
         RUN npm ci --no-audit --no-fund

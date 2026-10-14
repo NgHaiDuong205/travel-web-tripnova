@@ -8,19 +8,17 @@ import com.duong.travelweb.model.entity.HotelImageEntity;
 import com.duong.travelweb.repository.HotelImageRepository;
 import com.duong.travelweb.repository.HotelRepository;
 import com.duong.travelweb.service.HotelImageService;
+import com.duong.travelweb.util.ImageUrlUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 @Service
 public class HotelImageServiceImpl implements HotelImageService {
     private static final int MAX_IMAGES_PER_HOTEL = 30;
-    /** URL tuyệt đối http(s) hoặc file đã upload lên server (/uploads/...). */
-    private static final Pattern IMAGE_URL = Pattern.compile("^(https?://\\S+|/uploads/\\S+)$");
 
     private final HotelImageRepository hotelImageRepository;
     private final HotelRepository hotelRepository;
@@ -50,7 +48,7 @@ public class HotelImageServiceImpl implements HotelImageService {
         }
         HotelImageEntity image = new HotelImageEntity();
         image.setHotelId(hotelId);
-        image.setUrl(validUrl(request.getUrl()));
+        image.setUrl(ImageUrlUtil.requireValid(request.getUrl()));
         image.setCaption(blankToNull(request.getCaption()));
         image.setSortOrder(request.getSortOrder() != null
                 ? Math.max(request.getSortOrder(), 0)
@@ -64,7 +62,7 @@ public class HotelImageServiceImpl implements HotelImageService {
     @Transactional
     public HotelImageDTO update(UUID hotelId, UUID imageId, HotelImageRequestDTO request) {
         HotelImageEntity image = findImage(hotelId, imageId);
-        image.setUrl(validUrl(request.getUrl()));
+        image.setUrl(ImageUrlUtil.requireValid(request.getUrl()));
         image.setCaption(blankToNull(request.getCaption()));
         if (request.getSortOrder() != null) {
             image.setSortOrder(Math.max(request.getSortOrder(), 0));
@@ -97,14 +95,6 @@ public class HotelImageServiceImpl implements HotelImageService {
         return hotelImageRepository.findById(imageId)
                 .filter(image -> image.getHotelId().equals(hotelId))
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy ảnh"));
-    }
-
-    private String validUrl(String url) {
-        String value = url == null ? "" : url.trim();
-        if (!IMAGE_URL.matcher(value).matches()) {
-            throw ApiException.badRequest("URL ảnh phải bắt đầu bằng http://, https:// hoặc /uploads/");
-        }
-        return value;
     }
 
     private String blankToNull(String value) {

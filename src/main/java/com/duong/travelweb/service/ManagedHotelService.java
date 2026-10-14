@@ -4,6 +4,8 @@ import com.duong.travelweb.model.dto.AdminHotelDTO;
 import com.duong.travelweb.model.dto.AdminStatsDTO;
 import com.duong.travelweb.model.dto.HotelImageDTO;
 import com.duong.travelweb.model.dto.HotelImageRequestDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageRequestDTO;
 import com.duong.travelweb.model.dto.HotelRequestDTO;
 import com.duong.travelweb.model.dto.RoomAvailabilityDTO;
 import com.duong.travelweb.model.dto.RoomAvailabilityRequestDTO;
@@ -66,6 +68,17 @@ public interface ManagedHotelService {
     HotelImageDTO setCoverImage(UUID managerId, UUID hotelId, UUID imageId);
 
     void deleteImage(UUID managerId, UUID hotelId, UUID imageId);
+
+    List<RoomTypeImageDTO> findRoomTypeImages(UUID managerId, UUID hotelId, UUID roomTypeId);
+
+    RoomTypeImageDTO addRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId, RoomTypeImageRequestDTO request);
+
+    RoomTypeImageDTO updateRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId,
+                                         RoomTypeImageRequestDTO request);
+
+    RoomTypeImageDTO setRoomTypeCoverImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId);
+
+    void deleteRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId);
 
     /** Thống kê khách sạn của manager; hotelId = null → gộp mọi khách sạn đang quản lý. */
     AdminStatsDTO getStats(UUID managerId, UUID hotelId, LocalDate from, LocalDate to, String granularity);

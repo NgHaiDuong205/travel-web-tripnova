@@ -14,6 +14,26 @@ public class RoomDTO {
     private String bedType;
     private Double areaSqM;
     private java.util.List<String> amenities;
+    /** Ảnh đại diện = room_types.cover_image_url. */
+    private String imageUrl;
+    /** Thư viện ảnh hạng phòng {url, caption} — chỉ điền ở API chi tiết phòng. */
+    private java.util.List<RoomTypeImageDTO> images;
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public java.util.List<RoomTypeImageDTO> getImages() {
+        return images;
+    }
+
+    public void setImages(java.util.List<RoomTypeImageDTO> images) {
+        this.images = images;
+    }
 
     public UUID getId() {
         return id;

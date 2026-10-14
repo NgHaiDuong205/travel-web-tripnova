@@ -11,6 +11,8 @@ import com.duong.travelweb.model.dto.RoomAvailabilityRequestDTO;
 import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.model.dto.RoomRequestDTO;
 import com.duong.travelweb.model.dto.RoomTypeDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageRequestDTO;
 import com.duong.travelweb.model.dto.RoomTypeRequestDTO;
 import com.duong.travelweb.model.entity.HotelEntity;
 import com.duong.travelweb.repository.HotelRepository;
@@ -19,6 +21,7 @@ import com.duong.travelweb.service.AdminHotelService;
 import com.duong.travelweb.service.AdminStatsService;
 import com.duong.travelweb.service.HotelImageService;
 import com.duong.travelweb.service.ManagedHotelService;
+import com.duong.travelweb.service.RoomTypeImageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,17 +39,20 @@ public class ManagedHotelServiceImpl implements ManagedHotelService {
     private final RoomRepository roomRepository;
     private final AdminHotelService adminHotelService;
     private final HotelImageService hotelImageService;
+    private final RoomTypeImageService roomTypeImageService;
     private final AdminStatsService adminStatsService;
 
     public ManagedHotelServiceImpl(HotelRepository hotelRepository,
                                    RoomRepository roomRepository,
                                    AdminHotelService adminHotelService,
                                    HotelImageService hotelImageService,
+                                   RoomTypeImageService roomTypeImageService,
                                    AdminStatsService adminStatsService) {
         this.hotelRepository = hotelRepository;
         this.roomRepository = roomRepository;
         this.adminHotelService = adminHotelService;
         this.hotelImageService = hotelImageService;
+        this.roomTypeImageService = roomTypeImageService;
         this.adminStatsService = adminStatsService;
     }
 
@@ -221,6 +227,43 @@ public class ManagedHotelServiceImpl implements ManagedHotelService {
     }
 
     /** 404 (không phải 403) để không lộ khách sạn của người khác có tồn tại hay không. */
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomTypeImageDTO> findRoomTypeImages(UUID managerId, UUID hotelId, UUID roomTypeId) {
+        requireHotel(managerId, hotelId);
+        return roomTypeImageService.findByRoomType(hotelId, roomTypeId, false);
+    }
+
+    @Override
+    @Transactional
+    public RoomTypeImageDTO addRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId,
+                                             RoomTypeImageRequestDTO request) {
+        requireHotel(managerId, hotelId);
+        return roomTypeImageService.add(managerId, hotelId, roomTypeId, request);
+    }
+
+    @Override
+    @Transactional
+    public RoomTypeImageDTO updateRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId,
+                                                RoomTypeImageRequestDTO request) {
+        requireHotel(managerId, hotelId);
+        return roomTypeImageService.update(hotelId, roomTypeId, imageId, request);
+    }
+
+    @Override
+    @Transactional
+    public RoomTypeImageDTO setRoomTypeCoverImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId) {
+        requireHotel(managerId, hotelId);
+        return roomTypeImageService.setCover(hotelId, roomTypeId, imageId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteRoomTypeImage(UUID managerId, UUID hotelId, UUID roomTypeId, UUID imageId) {
+        requireHotel(managerId, hotelId);
+        roomTypeImageService.delete(hotelId, roomTypeId, imageId);
+    }
+
     private void requireHotel(UUID managerId, UUID hotelId) {
         if (hotelId == null || !hotelRepository.isManagedBy(hotelId, managerId)) {
             throw ApiException.notFound("Không tìm thấy khách sạn");

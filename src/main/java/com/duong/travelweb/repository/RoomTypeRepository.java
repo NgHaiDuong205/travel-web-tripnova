@@ -1,7 +1,9 @@
 package com.duong.travelweb.repository;
 
 import com.duong.travelweb.model.entity.RoomTypeEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,6 +15,11 @@ public interface RoomTypeRepository extends JpaRepository<RoomTypeEntity, UUID> 
 
     @Query("SELECT rt FROM RoomTypeEntity rt JOIN FETCH rt.hotel WHERE rt.id = :roomTypeId AND rt.hotel.id = :hotelId")
     Optional<RoomTypeEntity> findByIdAndHotelId(@Param("roomTypeId") UUID roomTypeId, @Param("hotelId") UUID hotelId);
+
+    /** Khoá dòng room_types (thêm ảnh hạng phòng đồng thời). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT rt FROM RoomTypeEntity rt WHERE rt.id = :roomTypeId AND rt.hotel.id = :hotelId")
+    Optional<RoomTypeEntity> lockByIdAndHotelId(@Param("roomTypeId") UUID roomTypeId, @Param("hotelId") UUID hotelId);
 
     @Query("SELECT rt FROM RoomTypeEntity rt WHERE rt.hotel.id = :hotelId AND rt.isActive = true ORDER BY rt.pricePerNight")
     List<RoomTypeEntity> findActiveByHotelId(@Param("hotelId") UUID hotelId);

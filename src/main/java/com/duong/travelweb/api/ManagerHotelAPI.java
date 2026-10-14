@@ -11,6 +11,8 @@ import com.duong.travelweb.model.dto.RoomAvailabilityRequestDTO;
 import com.duong.travelweb.model.dto.RoomDTO;
 import com.duong.travelweb.model.dto.RoomRequestDTO;
 import com.duong.travelweb.model.dto.RoomTypeDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageRequestDTO;
 import com.duong.travelweb.model.dto.RoomTypeRequestDTO;
 import com.duong.travelweb.service.ManagedHotelService;
 import com.duong.travelweb.util.SecurityUtil;
@@ -172,6 +174,45 @@ public class ManagerHotelAPI {
     public ResponseEntity<Void> deleteImage(@PathVariable("hotelId") UUID hotelId,
                                              @PathVariable("imageId") UUID imageId) {
         managedHotelService.deleteImage(SecurityUtil.getCurrentUserId(), hotelId, imageId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/manager/hotels/{hotelId}/room-types/{roomTypeId}/images/")
+    public ResponseEntity<List<RoomTypeImageDTO>> getRoomTypeImages(@PathVariable("hotelId") UUID hotelId,
+                                                                    @PathVariable("roomTypeId") UUID roomTypeId) {
+        return ResponseEntity.ok(managedHotelService.findRoomTypeImages(SecurityUtil.getCurrentUserId(), hotelId, roomTypeId));
+    }
+
+    @PostMapping("/api/manager/hotels/{hotelId}/room-types/{roomTypeId}/images/")
+    public ResponseEntity<RoomTypeImageDTO> addRoomTypeImage(@PathVariable("hotelId") UUID hotelId,
+                                                             @PathVariable("roomTypeId") UUID roomTypeId,
+                                                             @Valid @RequestBody RoomTypeImageRequestDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                managedHotelService.addRoomTypeImage(SecurityUtil.getCurrentUserId(), hotelId, roomTypeId, request));
+    }
+
+    @PutMapping("/api/manager/hotels/{hotelId}/room-types/{roomTypeId}/images/{imageId}/")
+    public ResponseEntity<RoomTypeImageDTO> updateRoomTypeImage(@PathVariable("hotelId") UUID hotelId,
+                                                                @PathVariable("roomTypeId") UUID roomTypeId,
+                                                                @PathVariable("imageId") UUID imageId,
+                                                                @Valid @RequestBody RoomTypeImageRequestDTO request) {
+        return ResponseEntity.ok(managedHotelService.updateRoomTypeImage(
+                SecurityUtil.getCurrentUserId(), hotelId, roomTypeId, imageId, request));
+    }
+
+    @PostMapping("/api/manager/hotels/{hotelId}/room-types/{roomTypeId}/images/{imageId}/cover/")
+    public ResponseEntity<RoomTypeImageDTO> setRoomTypeCover(@PathVariable("hotelId") UUID hotelId,
+                                                             @PathVariable("roomTypeId") UUID roomTypeId,
+                                                             @PathVariable("imageId") UUID imageId) {
+        return ResponseEntity.ok(managedHotelService.setRoomTypeCoverImage(
+                SecurityUtil.getCurrentUserId(), hotelId, roomTypeId, imageId));
+    }
+
+    @DeleteMapping("/api/manager/hotels/{hotelId}/room-types/{roomTypeId}/images/{imageId}/")
+    public ResponseEntity<Void> deleteRoomTypeImage(@PathVariable("hotelId") UUID hotelId,
+                                                    @PathVariable("roomTypeId") UUID roomTypeId,
+                                                    @PathVariable("imageId") UUID imageId) {
+        managedHotelService.deleteRoomTypeImage(SecurityUtil.getCurrentUserId(), hotelId, roomTypeId, imageId);
         return ResponseEntity.noContent().build();
     }
 

@@ -31,6 +31,7 @@ public class RoomDTOConverter {
             dto.setMaxOccupancy(roomType.getMaxOccupancy());
             dto.setBedType(roomType.getBedType());
             dto.setAreaSqM(roomType.getAreaSqM());
+            dto.setImageUrl(roomType.getCoverImageUrl());
 
             if (amenities != null) {
                 dto.setAmenities(amenities);

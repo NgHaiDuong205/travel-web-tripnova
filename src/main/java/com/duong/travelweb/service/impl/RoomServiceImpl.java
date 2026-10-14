@@ -5,7 +5,9 @@ import com.duong.travelweb.converter.RoomSearchBuilderConverter;
 import com.duong.travelweb.exception.ApiException;
 import com.duong.travelweb.builder.RoomSearchBuilder;
 import com.duong.travelweb.model.dto.RoomDTO;
+import com.duong.travelweb.model.dto.RoomTypeImageDTO;
 import com.duong.travelweb.model.entity.RoomEntity;
+import com.duong.travelweb.repository.RoomTypeImageRepository;
 import com.duong.travelweb.repository.RoomRepository;
 import com.duong.travelweb.service.RoomService;
 import org.springframework.stereotype.Service;
@@ -24,11 +26,14 @@ public class RoomServiceImpl implements RoomService {
     private final RoomRepository roomRepository;
     private final RoomDTOConverter roomDTOConverter;
     private final RoomSearchBuilderConverter roomSearchBuilderConverter;
+    private final RoomTypeImageRepository roomTypeImageRepository;
 
-    public RoomServiceImpl(RoomRepository roomRepository, RoomDTOConverter roomDTOConverter, RoomSearchBuilderConverter roomSearchBuilderConverter) {
+    public RoomServiceImpl(RoomRepository roomRepository, RoomDTOConverter roomDTOConverter, RoomSearchBuilderConverter roomSearchBuilderConverter,
+                           RoomTypeImageRepository roomTypeImageRepository) {
         this.roomRepository = roomRepository;
         this.roomDTOConverter = roomDTOConverter;
         this.roomSearchBuilderConverter = roomSearchBuilderConverter;
+        this.roomTypeImageRepository = roomTypeImageRepository;
     }
 
     @Override
@@ -97,7 +102,19 @@ public class RoomServiceImpl implements RoomService {
     public RoomDTO findRoomByIdAndHotelId(UUID hotelId, UUID roomId) {
         RoomEntity roomEntity = roomRepository.findByIdAndHotelId(roomId, hotelId).orElse(null);
         if (roomEntity != null) {
-            return roomDTOConverter.toRoomDTO(roomEntity);
+            RoomDTO dto = roomDTOConverter.toRoomDTO(roomEntity);
+            if (dto.getRoomTypeId() != null) {
+                dto.setImages(roomTypeImageRepository.findByRoomTypeId(dto.getRoomTypeId()).stream()
+                        .map(image -> {
+                            RoomTypeImageDTO item = new RoomTypeImageDTO();
+                            item.setId(image.getId());
+                            item.setUrl(image.getUrl());
+                            item.setCaption(image.getCaption());
+                            item.setSortOrder(image.getSortOrder());
+                            return item;
+                        }).toList());
+            }
+            return dto;
         }
         throw ApiException.notFound("Không tìm thấy phòng");
     }

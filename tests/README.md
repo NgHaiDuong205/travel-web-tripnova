@@ -56,6 +56,7 @@ Biến môi trường: `UI_FE_URL` (`http://localhost:3000`), `UI_BE_URL` (`http
 | `smoke.js` | ~30 trang khách / tài khoản / admin, VI + EN, desktop + điện thoại: có nội dung, không lỗi JS, không 5xx, không cuộn ngang; chặn khách vào trang cần đăng nhập / admin |
 | `dropdown_overlap.js` | Gợi ý điểm đến của AI Planner không bị ô lưới phía sau che (sáng / tối / điện thoại) |
 | `fraud.js` | Trang admin Rủi ro gian lận: số theo mức, mặc định "Chờ xem xét", lý do VI/EN, chip lọc mức Cao, đánh dấu Hợp lệ rồi trả lại Xem lại |
+| `chatbot_availability.js` | Đang xem trang xe, hỏi chatbot "xe này còn trống ..." → trả lời có nhãn LIVE (xanh), giá VND; cần dịch vụ AI, hết hạn mức thì bỏ qua |
 | `recommendations.js` | "Dành cho bạn" trên trang chủ (chưa đăng nhập không hiện; nhiều loại, lý do gợi ý, bấm thẻ), trang chi tiết ghi lượt xem, "Khách sạn tương tự"; EN + tối + điện thoại |
 | `email_verification.js` | Đăng ký → màn "Kiểm tra hộp thư" → email chào mừng (Mailpit) → đăng nhập bị chặn + nút gửi lại → bấm link xác thực → đăng nhập; quên mật khẩu bằng link email; điện thoại EN. Cần Mailpit (`UI_MAILPIT_URL`) |
 | `ai_summaries.js` | Khối "Tóm tắt từ AI" trên trang khách sạn (VI / EN / tối / điện thoại), trang admin Job AI (lọc, tab tóm tắt, Tạo lại). Bật tạm khách sạn test, tạo 3 review rồi xoá, tắt lại; cần dịch vụ AI |

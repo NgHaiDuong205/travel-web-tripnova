@@ -96,6 +96,8 @@ services:
       DATABASE_URL_RO: postgresql://chatbot_ro:${CHATBOT_RO_PASSWORD}@db:5432/travel-web-project
       DATABASE_URL_RAG: postgresql://chatbot_rag:${CHATBOT_RAG_PASSWORD}@db:5432/travel-web-project
       INTERNAL_KEY: ${AI_INTERNAL_KEY}
+      # Chatbot tra còn phòng/chỗ/xe theo ngày qua API công khai của backend.
+      SPRING_API_URL: http://backend:8080
     # Không mở cổng ra ngoài: chỉ backend gọi qua mạng nội bộ.
 
   frontend:

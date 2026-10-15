@@ -37,7 +37,7 @@ cd tests/e2e && python -m pytest -q
 | `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `claude.test+a2@tripnova.local` / `secret123` (tài khoản ADMIN có sẵn) |
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | `e2e.user@tripnova.local` / `secret123` |
 
-Nội dung: API công khai (phân trang, 404, 400), đăng ký → email chào mừng → bắt buộc xác thực trước khi đăng nhập → gửi lại link → xác thực, quên mật khẩu qua link email, đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log, gợi ý cá nhân hoá + ghi lượt xem + khách sạn tương tự, tóm tắt review bằng AI qua hàng đợi `ai_jobs` (dịch vụ AI không chạy → bỏ qua) (cần dịch vụ AI Python; tự tạo 3 review trên khách sạn test rồi xoá đúng 3 review đó).
+Nội dung: API công khai (phân trang, 404, 400), đăng ký → email chào mừng → bắt buộc xác thực trước khi đăng nhập → gửi lại link → xác thực, quên mật khẩu qua link email, đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log, chấm điểm rủi ro gian lận cho đơn mới + admin đánh dấu, gợi ý cá nhân hoá + ghi lượt xem + khách sạn tương tự, tóm tắt review bằng AI qua hàng đợi `ai_jobs` (dịch vụ AI không chạy → bỏ qua) (cần dịch vụ AI Python; tự tạo 3 review trên khách sạn test rồi xoá đúng 3 review đó).
 
 ## Giao diện (`tests/ui`)
 
@@ -55,6 +55,7 @@ Biến môi trường: `UI_FE_URL` (`http://localhost:3000`), `UI_BE_URL` (`http
 |---|---|
 | `smoke.js` | ~30 trang khách / tài khoản / admin, VI + EN, desktop + điện thoại: có nội dung, không lỗi JS, không 5xx, không cuộn ngang; chặn khách vào trang cần đăng nhập / admin |
 | `dropdown_overlap.js` | Gợi ý điểm đến của AI Planner không bị ô lưới phía sau che (sáng / tối / điện thoại) |
+| `fraud.js` | Trang admin Rủi ro gian lận: số theo mức, mặc định "Chờ xem xét", lý do VI/EN, chip lọc mức Cao, đánh dấu Hợp lệ rồi trả lại Xem lại |
 | `recommendations.js` | "Dành cho bạn" trên trang chủ (chưa đăng nhập không hiện; nhiều loại, lý do gợi ý, bấm thẻ), trang chi tiết ghi lượt xem, "Khách sạn tương tự"; EN + tối + điện thoại |
 | `email_verification.js` | Đăng ký → màn "Kiểm tra hộp thư" → email chào mừng (Mailpit) → đăng nhập bị chặn + nút gửi lại → bấm link xác thực → đăng nhập; quên mật khẩu bằng link email; điện thoại EN. Cần Mailpit (`UI_MAILPIT_URL`) |
 | `ai_summaries.js` | Khối "Tóm tắt từ AI" trên trang khách sạn (VI / EN / tối / điện thoại), trang admin Job AI (lọc, tab tóm tắt, Tạo lại). Bật tạm khách sạn test, tạo 3 review rồi xoá, tắt lại; cần dịch vụ AI |

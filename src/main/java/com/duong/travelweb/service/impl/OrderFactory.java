@@ -6,8 +6,16 @@ import com.duong.travelweb.model.entity.UserEntity;
 import com.duong.travelweb.repository.OrderRepository;
 import com.duong.travelweb.repository.PaymentRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.FraudService;
+import com.duong.travelweb.util.RequestUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
@@ -20,6 +28,7 @@ import java.util.UUID;
 @Component
 public class OrderFactory {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Logger log = LoggerFactory.getLogger(OrderFactory.class);
 
     /** Order vừa tạo cùng payment chờ thanh toán. */
     public record PendingOrder(OrderEntity order, PaymentEntity payment) {
@@ -31,19 +40,22 @@ public class OrderFactory {
     private final long holdMinutes;
     private final String currencyCode;
     private final String frontendUrl;
+    private final FraudService fraudService;
 
     public OrderFactory(OrderRepository orderRepository,
                         PaymentRepository paymentRepository,
                         UserRepository userRepository,
                         @Value("${app.booking.hold-minutes:15}") long holdMinutes,
                         @Value("${app.booking.currency:USD}") String currencyCode,
-                        @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
+                        @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl,
+                        FraudService fraudService) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.holdMinutes = holdMinutes;
         this.currencyCode = currencyCode;
         this.frontendUrl = frontendUrl;
+        this.fraudService = fraudService;
     }
 
     public PendingOrder createPendingOrder(UUID userId, BigDecimal total, String paymentMethod) {
@@ -73,7 +85,30 @@ public class OrderFactory {
         payment.setStatus("pending");
         payment.setCreatedAt(now);
         payment = paymentRepository.save(payment);
+        scoreAfterCommit(payment.getId());
         return new PendingOrder(order, payment);
+    }
+
+    /**
+     * Chấm điểm rủi ro sau khi đơn commit (tổng tiền đã chốt, kể cả đơn nhiều dòng). Lỗi chấm điểm chỉ ghi log,
+     * không ảnh hưởng đặt chỗ; IP lấy từ request hiện tại (chỉ để đếm, không lưu).
+     */
+    private void scoreAfterCommit(UUID paymentId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        String clientIp = RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                ? RequestUtil.getClientIp(attributes.getRequest()) : null;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    fraudService.scorePayment(paymentId, clientIp);
+                } catch (RuntimeException ex) {
+                    log.warn("Fraud scoring failed for payment {}: {}", paymentId, ex.toString());
+                }
+            }
+        });
     }
 
     /** Chốt tổng tiền khi order được tạo trước rồi mới thêm từng booking (đơn nhiều dòng từ giỏ hàng). */

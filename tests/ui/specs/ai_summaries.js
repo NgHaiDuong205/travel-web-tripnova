@@ -31,6 +31,7 @@ async function waitJobs(auth, hotelId, timeoutMs = 150000) {
         if (!open.length) return null;
         const quota = open.find((j) => (j.errorMessage || "").startsWith("ai_quota"));
         if (quota) return "ai_quota";
+        if (open.find((j) => /^(ai_unavailable|not_configured)/.test(j.errorMessage || ""))) return "ai_unavailable";
         await sleep(2000);
     }
     return "timeout";

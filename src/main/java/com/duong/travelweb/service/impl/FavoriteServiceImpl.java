@@ -14,6 +14,7 @@ import com.duong.travelweb.service.CarService;
 import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.FavoriteService;
 import com.duong.travelweb.service.FlightService;
+import com.duong.travelweb.service.RecommendationService;
 import com.duong.travelweb.service.TourService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final TourService tourService;
     private final CarService carService;
     private final FlightService flightService;
+    private final RecommendationService recommendationService;
 
     public FavoriteServiceImpl(FavoriteRepository favoriteRepository,
                                HotelRepository hotelRepository,
@@ -44,7 +46,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                                EntityReferenceService entityReferenceService,
                                TourService tourService,
                                CarService carService,
-                               FlightService flightService) {
+                               FlightService flightService,
+                               RecommendationService recommendationService) {
         this.favoriteRepository = favoriteRepository;
         this.hotelRepository = hotelRepository;
         this.hotelDTOConverter = hotelDTOConverter;
@@ -52,6 +55,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         this.tourService = tourService;
         this.carService = carService;
         this.flightService = flightService;
+        this.recommendationService = recommendationService;
     }
 
     @Override
@@ -99,6 +103,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                     entity.setCreatedAt(LocalDateTime.now());
                     return favoriteRepository.save(entity);
                 });
+        recommendationService.invalidate(userId);
         return toDTOs(List.of(favorite)).get(0);
     }
 
@@ -109,6 +114,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .filter(f -> f.getUserId().equals(userId))
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy mục yêu thích"));
         favoriteRepository.delete(favorite);
+        recommendationService.invalidate(userId);
     }
 
     @Override

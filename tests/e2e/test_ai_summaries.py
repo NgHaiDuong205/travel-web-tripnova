@@ -31,8 +31,11 @@ def _wait_jobs_finished(admin, entity_id, timeout=150):
         open_jobs = [j for j in _jobs(admin, entity_id) if j['status'] in ('pending', 'running')]
         if not open_jobs:
             return
-        if any((j.get('errorMessage') or '').startswith('ai_quota') for j in open_jobs):
+        errors = [(j.get('errorMessage') or '') for j in open_jobs]
+        if any(e.startswith('ai_quota') for e in errors):
             pytest.skip('Dịch vụ AI đang hết hạn mức (ai_quota)')
+        if any(e.startswith(('ai_unavailable', 'not_configured')) for e in errors):
+            pytest.skip('Dịch vụ AI (Python, cổng 8000) không chạy — job được giữ lại trong hàng đợi')
         time.sleep(2)
     raise AssertionError(f'Job tóm tắt chưa xong sau {timeout}s: {open_jobs}')
 

@@ -15,11 +15,15 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Gọi dịch vụ AI nội bộ (Python, D:\travel_chatbot_python) qua HTTP + header X-Internal-Key.
@@ -69,6 +73,40 @@ public class AiServiceClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve().body(String.class));
+    }
+
+    /**
+     * Như chat() nhưng đọc dần NDJSON của /internal/chat/stream: mỗi dòng (status | delta | done | error) gọi onEvent.
+     * Lỗi HTTP trước khi stream (khoá sai, chưa cấu hình, dữ liệu sai) → AiException như chat().
+     */
+    public void chatStream(String question, List<Map<String, String>> history, String locale, Map<String, Object> context,
+                           Consumer<JsonNode> onEvent) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("question", question);
+        body.put("history", history);
+        body.put("locale", locale);
+        if (context != null) {
+            body.put("context", context);
+        }
+        call(() -> restClient.post().uri("/internal/chat/stream")
+                .header("X-Internal-Key", internalKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .exchange((request, response) -> {
+                    if (response.getStatusCode().isError()) {
+                        String error = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        throw translate(response.getStatusCode().value(), error);
+                    }
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            if (!line.isBlank()) {
+                                onEvent.accept(objectMapper.readTree(line));
+                            }
+                        }
+                    }
+                    return null;
+                }, true));
     }
 
     /** AI Planner: chọn trong ứng viên + viết chữ; body theo planner.ItineraryRequest bên Python. */
@@ -142,7 +180,7 @@ public class AiServiceClient {
         try {
             raw = request.get();
         } catch (RestClientResponseException ex) {
-            throw translate(ex);
+            throw translate(ex.getStatusCode().value(), ex.getResponseBodyAsString());
         } catch (ResourceAccessException ex) {
             throw new AiException(HttpStatus.SERVICE_UNAVAILABLE, ERR_UNAVAILABLE,
                     "Trợ lý AI tạm thời không phản hồi, vui lòng thử lại sau.");
@@ -153,12 +191,11 @@ public class AiServiceClient {
         return objectMapper.readTree(raw);
     }
 
-    private AiException translate(RestClientResponseException ex) {
-        int status = ex.getStatusCode().value();
+    private AiException translate(int status, String body) {
         String code = ERR_UNAVAILABLE;
         String message = null;
         try {
-            JsonNode node = objectMapper.readTree(ex.getResponseBodyAsString());
+            JsonNode node = objectMapper.readTree(body);
             if (node != null && node.hasNonNull("code")) {
                 code = node.get("code").asString();
             }

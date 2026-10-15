@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -137,6 +138,64 @@ public class AiChatServiceImpl implements AiChatService {
      */
     @Override
     public ChatReplyDTO sendMessage(UUID userId, UUID sessionId, ChatSendRequestDTO request) {
+        Pending pending = submit(userId, sessionId, request);
+        JsonNode result = null;
+        String errorCode = null;
+        long started = System.currentTimeMillis();
+        try {
+            result = aiClient.chat(pending.content, pending.prepared.history, pending.locale, pending.prepared.context);
+        } catch (AiServiceClient.AiException ex) {
+            errorCode = ex.getCode();
+            log.warn("AI chat failed for session {}: {} ({})", sessionId, ex.getCode(), ex.getMessage());
+        }
+        return finish(pending, result, errorCode, started);
+    }
+
+    @Override
+    public PendingQuestion submitQuestion(UUID userId, UUID sessionId, ChatSendRequestDTO request) {
+        return submit(userId, sessionId, request);
+    }
+
+    @Override
+    public ChatReplyDTO answerStreaming(PendingQuestion handle, Consumer<String> onDelta) {
+        Pending pending = (Pending) handle;
+        long started = System.currentTimeMillis();
+        JsonNode[] done = {null};
+        String[] errorCode = {null};
+        try {
+            aiClient.chatStream(pending.content, pending.prepared.history, pending.locale, pending.prepared.context, event -> {
+                switch (event.path("type").asString("")) {
+                    case "delta" -> {
+                        String text = event.path("text").asString("");
+                        if (!text.isEmpty()) {
+                            try {
+                                onDelta.accept(text);
+                            } catch (RuntimeException ex) {
+                                log.debug("Chat stream listener failed: {}", ex.getMessage());
+                            }
+                        }
+                    }
+                    case "done" -> done[0] = event;
+                    case "error" -> errorCode[0] = event.path("code").asString(AiServiceClient.ERR_UNAVAILABLE);
+                    default -> {
+                    }
+                }
+            });
+        } catch (AiServiceClient.AiException ex) {
+            errorCode[0] = ex.getCode();
+        } catch (RuntimeException ex) {
+            log.warn("AI chat stream broke for session {}: {}", pending.sessionId, ex.getMessage());
+            errorCode[0] = AiServiceClient.ERR_UNAVAILABLE;
+        }
+        if (errorCode[0] != null) {
+            log.warn("AI chat stream failed for session {}: {}", pending.sessionId, errorCode[0]);
+        }
+        // Stream đứt trước "done" (không có lỗi rõ ràng) → finish coi là ai_unavailable.
+        return finish(pending, errorCode[0] == null ? done[0] : null, errorCode[0], started);
+    }
+
+    /** B1 (tx): kiểm tra nội dung, phiên, tần suất; lấy lịch sử; lưu câu hỏi. */
+    private Pending submit(UUID userId, UUID sessionId, ChatSendRequestDTO request) {
         String content = request == null ? null : trimToNull(request.getContent());
         if (content == null) {
             throw ApiException.badRequest("Nội dung câu hỏi không được để trống");
@@ -154,23 +213,16 @@ public class AiChatServiceImpl implements AiChatService {
             pageContext.put("id", request.getContextId().toString());
         }
         Map<String, Object> overrideContext = pageContext;
-
         Prepared prepared = tx.execute(status -> prepare(userId, sessionId, content, overrideContext));
+        return new Pending(userId, sessionId, content, locale, prepared);
+    }
 
-        JsonNode result = null;
-        String errorCode = null;
-        long started = System.currentTimeMillis();
-        try {
-            result = aiClient.chat(content, prepared.history, locale, prepared.context);
-        } catch (AiServiceClient.AiException ex) {
-            errorCode = ex.getCode();
-            log.warn("AI chat failed for session {}: {} ({})", sessionId, ex.getCode(), ex.getMessage());
-        }
-        JsonNode answer = result;
+    /** B3 (tx): lưu câu trả lời (hoặc tin lỗi). */
+    private ChatReplyDTO finish(Pending pending, JsonNode answer, String errorCode, long started) {
         String error = errorCode != null ? errorCode : (answer == null ? AiServiceClient.ERR_UNAVAILABLE : null);
         int latency = (int) (System.currentTimeMillis() - started);
-
-        return tx.execute(status -> saveAnswer(userId, sessionId, prepared.userMessage, answer, error, locale, latency));
+        return tx.execute(status -> saveAnswer(pending.userId, pending.sessionId, pending.prepared.userMessage, answer,
+                error, pending.locale, latency));
     }
 
     private Prepared prepare(UUID userId, UUID sessionId, String content, Map<String, Object> overrideContext) {
@@ -233,6 +285,7 @@ public class AiChatServiceImpl implements AiChatService {
             tool.put("sql", text(result, "sql"));
             tool.put("rowCount", result.path("rowCount").asInt(0));
             tool.put("sqlFailed", result.path("sqlFailed").asBoolean(false));
+            tool.put("availabilityChecked", result.path("availabilityChecked").asInt(0));
             answer.setToolCalls(tool.toString());
             String model = text(result, "model");
             answer.setModelName(model == null ? null : model.substring(0, Math.min(model.length(), 50)));
@@ -329,6 +382,10 @@ public class AiChatServiceImpl implements AiChatService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private record Pending(UUID userId, UUID sessionId, String content, String locale, Prepared prepared)
+            implements PendingQuestion {
     }
 
     private record Prepared(ChatMessageEntity userMessage, List<Map<String, String>> history, Map<String, Object> context) {

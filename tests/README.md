@@ -36,7 +36,7 @@ cd tests/e2e && python -m pytest -q
 | `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `claude.test+a2@tripnova.local` / `secret123` (tài khoản ADMIN có sẵn) |
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | `e2e.user@tripnova.local` / `secret123` |
 
-Nội dung: API công khai (phân trang, 404, 400), đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log.
+Nội dung: API công khai (phân trang, 404, 400), đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log, tóm tắt review bằng AI qua hàng đợi `ai_jobs` (cần dịch vụ AI Python; tự tạo 3 review trên khách sạn test rồi xoá đúng 3 review đó).
 
 ## Giao diện (`tests/ui`)
 
@@ -54,6 +54,7 @@ Biến môi trường: `UI_FE_URL` (`http://localhost:3000`), `UI_BE_URL` (`http
 |---|---|
 | `smoke.js` | ~30 trang khách / tài khoản / admin, VI + EN, desktop + điện thoại: có nội dung, không lỗi JS, không 5xx, không cuộn ngang; chặn khách vào trang cần đăng nhập / admin |
 | `dropdown_overlap.js` | Gợi ý điểm đến của AI Planner không bị ô lưới phía sau che (sáng / tối / điện thoại) |
+| `ai_summaries.js` | Khối "Tóm tắt từ AI" trên trang khách sạn (VI / EN / tối / điện thoại), trang admin Job AI (lọc, tab tóm tắt, Tạo lại). Bật tạm khách sạn test, tạo 3 review rồi xoá, tắt lại; cần dịch vụ AI |
 | `routing.js` | Nút "Lên lịch trình bằng AI", đường đi OSRM trên bản đồ, bỏ điểm tải lại đường, lưu lịch trình (cần dịch vụ AI hoặc AI tắt → lịch trình tự động, và OSRM truy cập được) |
 
 Viết spec mới: tạo `specs/<tên>.js`, dùng `require("../lib")` (`check`, `login`, `useAuth`, `watch`, `shot`, `run`).

@@ -80,6 +80,15 @@ public class AiServiceClient {
                 .retrieve().body(String.class));
     }
 
+    /** Tóm tắt review (vi + en); body theo summaries.ReviewSummaryRequest bên Python. */
+    public JsonNode summarizeReviews(Map<String, Object> body) {
+        return call(() -> restClient.post().uri("/internal/summaries/reviews")
+                .header("X-Internal-Key", internalKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(String.class));
+    }
+
     public JsonNode uploadDocument(String filename, byte[] content, String title, String sourceType, UUID sourceId,
                                    String language, String url) {
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();

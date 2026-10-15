@@ -12,6 +12,7 @@ import com.duong.travelweb.repository.HotelBookingRepository;
 import com.duong.travelweb.repository.PostReactionRepository;
 import com.duong.travelweb.repository.PostRepository;
 import com.duong.travelweb.repository.UserRepository;
+import com.duong.travelweb.service.AiSummaryService;
 import com.duong.travelweb.service.NotificationService;
 import com.duong.travelweb.service.EntityReferenceService;
 import com.duong.travelweb.service.PostService;
@@ -56,6 +57,7 @@ public class PostServiceImpl implements PostService {
     private final UserRepository userRepository;
     private final EntityReferenceService entityReferenceService;
     private final ObjectMapper objectMapper;
+    private final AiSummaryService aiSummaryService;
 
     public PostServiceImpl(PostRepository postRepository,
                            PostReactionRepository postReactionRepository,
@@ -64,7 +66,8 @@ public class PostServiceImpl implements PostService {
                            UserRepository userRepository,
                            EntityReferenceService entityReferenceService,
                            ObjectMapper objectMapper,
-                           NotificationService notificationService) {
+                           NotificationService notificationService,
+                           AiSummaryService aiSummaryService) {
         this.postRepository = postRepository;
         this.postReactionRepository = postReactionRepository;
         this.commentRepository = commentRepository;
@@ -73,6 +76,7 @@ public class PostServiceImpl implements PostService {
         this.entityReferenceService = entityReferenceService;
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
+        this.aiSummaryService = aiSummaryService;
     }
 
     @Override
@@ -136,7 +140,11 @@ public class PostServiceImpl implements PostService {
         post.setDownvotes(0);
         post.setCreatedAt(now);
         applyContent(post, request, isAdmin, now);
-        return toDTO(postRepository.save(post), userId);
+        PostEntity saved = postRepository.save(post);
+        if (isAdmin) {
+            aiSummaryService.reviewsChanged(entityType, request.getEntityId());
+        }
+        return toDTO(saved, userId);
     }
 
     @Override
@@ -150,7 +158,11 @@ public class PostServiceImpl implements PostService {
                 || !post.getEntityId().equals(request.getEntityId())) {
             throw ApiException.badRequest("Không thể đổi đối tượng của bài viết, hãy tạo bài mới");
         }
+        boolean wasApproved = "approved".equals(post.getStatus());
         applyContent(post, request, isAdmin, LocalDateTime.now());
+        if (wasApproved || isAdmin) {
+            aiSummaryService.reviewsChanged(post.getEntityType(), post.getEntityId());
+        }
         return toDTO(post, userId);
     }
 
@@ -160,6 +172,9 @@ public class PostServiceImpl implements PostService {
         PostEntity post = findPost(postId);
         if (!isAdmin && !post.getUser().getId().equals(userId)) {
             throw ApiException.forbidden("Bạn chỉ được xoá bài viết của mình");
+        }
+        if ("approved".equals(post.getStatus())) {
+            aiSummaryService.reviewsChanged(post.getEntityType(), post.getEntityId());
         }
         // comments, post_reactions: ON DELETE CASCADE
         postRepository.delete(post);
@@ -204,6 +219,9 @@ public class PostServiceImpl implements PostService {
         }
         PostEntity post = findPost(postId);
         boolean changed = !newStatus.equals(post.getStatus());
+        if (changed && ("approved".equals(newStatus) || "approved".equals(post.getStatus()))) {
+            aiSummaryService.reviewsChanged(post.getEntityType(), post.getEntityId());
+        }
         post.setStatus(newStatus);
         post.setUpdatedAt(LocalDateTime.now());
         if (changed && !"pending".equals(newStatus)) {

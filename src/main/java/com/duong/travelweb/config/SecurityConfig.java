@@ -55,6 +55,7 @@ public class SecurityConfig {
             "/api/payments/return/**",
             "/api/hotel-bookings/check-availability/",
             "/api/search/**",
+            "/api/ai/summaries/",
             "/api/auth/oauth2/providers/",
             "/uploads/**",
     };

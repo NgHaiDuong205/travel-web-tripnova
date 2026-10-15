@@ -93,9 +93,36 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public void resendVerificationByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        userRepository.findActiveByEmail(email.trim())
+                .filter(user -> !Boolean.TRUE.equals(user.getIsVerified()))
+                .ifPresent(user -> {
+                    Instant now = Instant.now();
+                    Instant last = lastVerificationSent.get(user.getId());
+                    if (last == null || !last.plusSeconds(RESEND_COOLDOWN_SECONDS).isAfter(now)) {
+                        lastVerificationSent.put(user.getId(), now);
+                        issueVerificationLink(user);
+                    }
+                });
+    }
+
+    @Override
     public void issueVerificationLink(UserEntity user) {
-        String token = signedTokenService.sign(VERIFY_EMAIL_PURPOSE, user.getId(), user.getEmail(), VERIFY_TOKEN_TTL_SECONDS);
-        mailService.send(mailTemplates.verifyEmail(user.getEmail(), user.getFullName(), token));
+        mailService.send(mailTemplates.verifyEmail(user.getEmail(), user.getFullName(), verificationToken(user)));
+    }
+
+    @Override
+    public void issueWelcomeVerification(UserEntity user) {
+        lastVerificationSent.put(user.getId(), Instant.now());
+        mailService.send(mailTemplates.welcome(user.getEmail(), user.getFullName(), verificationToken(user)));
+    }
+
+    private String verificationToken(UserEntity user) {
+        return signedTokenService.sign(VERIFY_EMAIL_PURPOSE, user.getId(), user.getEmail(), VERIFY_TOKEN_TTL_SECONDS);
     }
 
     @Override

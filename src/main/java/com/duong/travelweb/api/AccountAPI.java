@@ -33,9 +33,18 @@ public class AccountAPI {
         return ResponseEntity.ok(accountService.verifyEmail(request.getToken().trim()));
     }
 
+    /**
+     * Public. Body {email}: gửi lại cho tài khoản chưa xác thực (chưa đăng nhập được) — luôn 204, không lộ email.
+     * Không có body: gửi cho user đang đăng nhập (400 nếu đã xác thực / chưa hết 60 giây).
+     */
     @PostMapping("/api/auth/resend-verification/")
-    public ResponseEntity<Void> resendVerification() {
-        accountService.sendVerification(SecurityUtil.getCurrentUserId());
+    public ResponseEntity<Void> resendVerification(@RequestBody(required = false) java.util.Map<String, String> body) {
+        String email = body == null ? null : body.get("email");
+        if (email != null && !email.isBlank()) {
+            accountService.resendVerificationByEmail(email);
+        } else {
+            accountService.sendVerification(SecurityUtil.getCurrentUserId());
+        }
         return ResponseEntity.noContent().build();
     }
 

@@ -18,6 +18,7 @@ import com.duong.travelweb.repository.RefreshTokenRepository;
 import com.duong.travelweb.repository.RoleRepository;
 import com.duong.travelweb.repository.UserRepository;
 import com.duong.travelweb.repository.UserRoleRepository;
+import com.duong.travelweb.security.EmailVerificationPolicy;
 import com.duong.travelweb.security.JwtService;
 import com.duong.travelweb.service.AccountService;
 import com.duong.travelweb.service.AuthService;
@@ -50,6 +51,7 @@ public class AuthServiceImpl implements AuthService {
     private final long resetTokenTtlMinutes;
     private final MailService mailService;
     private final MailTemplates mailTemplates;
+    private final EmailVerificationPolicy emailVerificationPolicy;
 
     public AuthServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
@@ -63,7 +65,8 @@ public class AuthServiceImpl implements AuthService {
                            @Value("${app.jwt.refresh-token-ttl-days:7}") long refreshTokenTtlDays,
                            @Value("${app.auth.reset-token-ttl-minutes:30}") long resetTokenTtlMinutes,
                            MailService mailService,
-                           MailTemplates mailTemplates) {
+                           MailTemplates mailTemplates,
+                           EmailVerificationPolicy emailVerificationPolicy) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
@@ -77,6 +80,7 @@ public class AuthServiceImpl implements AuthService {
         this.resetTokenTtlMinutes = resetTokenTtlMinutes;
         this.mailService = mailService;
         this.mailTemplates = mailTemplates;
+        this.emailVerificationPolicy = emailVerificationPolicy;
     }
 
     @Override
@@ -89,7 +93,15 @@ public class AuthServiceImpl implements AuthService {
         String phone = request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null;
         UserEntity user = createUser(email, request.getFullName().trim(), passwordEncoder.encode(request.getPassword()), phone,
                 null, false);
-        accountService.issueVerificationLink(user);
+        accountService.issueWelcomeVerification(user);
+        if (emailVerificationPolicy.isRequired(user, List.of(DEFAULT_ROLE))) {
+            // Chưa cấp token: phải bấm link trong email chào mừng rồi mới đăng nhập.
+            AuthResponseDTO pending = new AuthResponseDTO();
+            pending.setVerificationRequired(true);
+            pending.setEmail(user.getEmail());
+            pending.setTokenType(null);
+            return pending;
+        }
         return issueTokens(user, List.of(DEFAULT_ROLE), deviceInfo, ipAddress);
     }
 
@@ -100,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
         UserEntity user = createUser(email.trim().toLowerCase(), fullName, passwordEncoder.encode(TokenUtil.randomToken()), null,
                 avatarUrl, emailVerified);
         if (!emailVerified) {
-            accountService.issueVerificationLink(user);
+            accountService.issueWelcomeVerification(user);
         }
         return user.getId();
     }
@@ -110,8 +122,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponseDTO issueTokensForUser(UUID userId, String deviceInfo, String ipAddress) {
         UserEntity user = findUser(userId);
         ensureActive(user);
+        List<String> roles = userRepository.findRoleNamesByUserId(userId);
+        emailVerificationPolicy.check(user, roles);
         user.setLastLoginAt(LocalDateTime.now());
-        return issueTokens(user, userRepository.findRoleNamesByUserId(userId), deviceInfo, ipAddress);
+        return issueTokens(user, roles, deviceInfo, ipAddress);
     }
 
     private UserEntity createUser(String email, String fullName, String passwordHash, String phone, String avatarUrl,
@@ -150,8 +164,11 @@ public class AuthServiceImpl implements AuthService {
             throw ApiException.unauthorized("Email hoặc mật khẩu không đúng");
         }
         ensureActive(user);
+        // Sau khi đúng mật khẩu mới báo "chưa xác thực" (không lộ trạng thái cho người đoán mật khẩu).
+        List<String> roles = userRepository.findRoleNamesByUserId(user.getId());
+        emailVerificationPolicy.check(user, roles);
         user.setLastLoginAt(LocalDateTime.now());
-        return issueTokens(user, userRepository.findRoleNamesByUserId(user.getId()), deviceInfo, ipAddress);
+        return issueTokens(user, roles, deviceInfo, ipAddress);
     }
 
     @Override
@@ -234,6 +251,8 @@ public class AuthServiceImpl implements AuthService {
         }
         UserEntity user = token.getUser();
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Mở được link gửi tới hộp thư = đã chứng minh sở hữu email.
+        user.setIsVerified(true);
         user.setUpdatedAt(now);
         token.setUsedAt(now);
         refreshTokenRepository.revokeAllByUserId(user.getId(), now);

@@ -45,6 +45,7 @@ public class ControllerAdvisor extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleApiException(ApiException ex, WebRequest request) {
         ErrorResponseDTO errorResponseDTO = new ErrorResponseDTO();
         errorResponseDTO.setError(ex.getMessage());
+        errorResponseDTO.setCode(ex.getErrorCode());
         return new ResponseEntity<>(errorResponseDTO, ex.getStatus());
     }
 

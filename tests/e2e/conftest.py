@@ -76,7 +76,28 @@ def login_or_register(email, password, full_name):
     reg = requests.post(BASE_URL + '/api/auth/register/',
                         json={'email': email, 'password': password, 'fullName': full_name}, timeout=30)
     assert reg.status_code in (200, 201), f'Không đăng ký được {email}: {reg.status_code} {reg.text[:300]}'
+    if reg.json().get('verificationRequired'):
+        _verify_from_mailpit(email)
     return expect(login(email, password), 200)
+
+
+def _verify_from_mailpit(email):
+    """Tài khoản mới phải xác thực email mới đăng nhập được: lấy link trong email chào mừng (Mailpit)."""
+    import re
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        try:
+            found = requests.get(MAILPIT_URL + '/api/v1/search', params={'query': f'to:"{email}"'}, timeout=10).json()
+        except requests.RequestException:
+            break
+        for msg in found.get('messages', []):
+            text = requests.get(MAILPIT_URL + '/api/v1/message/' + msg['ID'], timeout=10).json()['Text']
+            match = re.search(r'/verify-email\?token=([^\s"<>&]+)', text)
+            if match:
+                expect(requests.post(BASE_URL + '/api/auth/verify-email/', json={'token': match.group(1)}, timeout=30), 200)
+                return
+        time.sleep(0.5)
+    pytest.exit(f'{email} cần xác thực email: chạy Mailpit + BE gửi mail vào Mailpit (xem tests/README.md)', returncode=2)
 
 
 def unique(prefix='e2e'):

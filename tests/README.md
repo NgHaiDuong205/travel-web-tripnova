@@ -12,7 +12,8 @@ Ba lớp test (Three layers):
 
 Test chạy trên DB thật của máy dev nên:
 
-- Dùng **tài khoản test cố định** (`e2e.user@tripnova.local`, đổi bằng biến môi trường): chưa có thì đăng ký, có rồi thì đăng nhập. Không xoá tài khoản.
+- Dùng **tài khoản test cố định** (`e2e.user@tripnova.local`, đổi bằng biến môi trường): chưa có thì đăng ký, có rồi thì đăng nhập. Không xoá tài khoản. Tài khoản đăng ký mới phải xác thực email mới đăng nhập được → helper tự lấy link trong Mailpit (DB mới mà không chạy Mailpit thì test dừng kèm hướng dẫn).
+- `test_email_verification.py` / `specs/email_verification.js` mỗi lần chạy tạo thêm tài khoản `e2e.verify...@tripnova.local` mới (không xoá).
 - Đặt phòng / thuê xe chỉ trên **khách sạn / xe test** (`Claude Test Hotel B`, `Claude Test Car`; chưa có thì tạo). Bật lên khi test, **tắt lại** khi xong — không hiện cho khách.
 - Booking tạo ra chỉ được **huỷ** (đổi trạng thái), không xoá. Không dùng `DELETE` lên dữ liệu không phải do test tạo.
 - Test giao diện chỉ đọc, trừ `specs/routing.js` (lưu 2 lịch trình mới cho user test).
@@ -36,7 +37,7 @@ cd tests/e2e && python -m pytest -q
 | `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `claude.test+a2@tripnova.local` / `secret123` (tài khoản ADMIN có sẵn) |
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | `e2e.user@tripnova.local` / `secret123` |
 
-Nội dung: API công khai (phân trang, 404, 400), đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log, tóm tắt review bằng AI qua hàng đợi `ai_jobs` (cần dịch vụ AI Python; tự tạo 3 review trên khách sạn test rồi xoá đúng 3 review đó).
+Nội dung: API công khai (phân trang, 404, 400), đăng ký → email chào mừng → bắt buộc xác thực trước khi đăng nhập → gửi lại link → xác thực, quên mật khẩu qua link email, đăng nhập / refresh token xoay vòng / phân quyền 401-403, email quên mật khẩu + xác thực, đặt phòng → thanh toán giả lập → hoá đơn PDF + email kèm PDF → admin gửi lại → huỷ, thanh toán lỗi giải phóng chỗ, thuê xe (trùng lịch 409), liên hệ → admin trả lời → email, AI Planner ghi lượt vào audit log, tóm tắt review bằng AI qua hàng đợi `ai_jobs` (cần dịch vụ AI Python; tự tạo 3 review trên khách sạn test rồi xoá đúng 3 review đó).
 
 ## Giao diện (`tests/ui`)
 
@@ -54,6 +55,7 @@ Biến môi trường: `UI_FE_URL` (`http://localhost:3000`), `UI_BE_URL` (`http
 |---|---|
 | `smoke.js` | ~30 trang khách / tài khoản / admin, VI + EN, desktop + điện thoại: có nội dung, không lỗi JS, không 5xx, không cuộn ngang; chặn khách vào trang cần đăng nhập / admin |
 | `dropdown_overlap.js` | Gợi ý điểm đến của AI Planner không bị ô lưới phía sau che (sáng / tối / điện thoại) |
+| `email_verification.js` | Đăng ký → màn "Kiểm tra hộp thư" → email chào mừng (Mailpit) → đăng nhập bị chặn + nút gửi lại → bấm link xác thực → đăng nhập; quên mật khẩu bằng link email; điện thoại EN. Cần Mailpit (`UI_MAILPIT_URL`) |
 | `ai_summaries.js` | Khối "Tóm tắt từ AI" trên trang khách sạn (VI / EN / tối / điện thoại), trang admin Job AI (lọc, tab tóm tắt, Tạo lại). Bật tạm khách sạn test, tạo 3 review rồi xoá, tắt lại; cần dịch vụ AI |
 | `routing.js` | Nút "Lên lịch trình bằng AI", đường đi OSRM trên bản đồ, bỏ điểm tải lại đường, lưu lịch trình (cần dịch vụ AI hoặc AI tắt → lịch trình tự động, và OSRM truy cập được) |
 

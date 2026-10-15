@@ -49,6 +49,28 @@ public class MailTemplates {
                         List.of("This link expires in 24 hours. If you did not create an account, you can ignore this email."))));
     }
 
+    /** Đăng ký mới: chào mừng + link xác thực (bắt buộc trước khi đăng nhập). */
+    public Mail welcome(String to, String name, String token) {
+        String link = frontendUrl + "/verify-email?token=" + token;
+        return build(to, "Chào mừng bạn đến với TripNova / Welcome to TripNova", List.of(
+                new Section("vi", "Chào mừng " + nameOr(name, "bạn") + " đến với TripNova!",
+                        List.of("Cảm ơn bạn đã tạo tài khoản. Từ nay bạn có thể đặt khách sạn, tour, thuê xe, đặt vé máy bay "
+                                        + "và lên lịch trình bằng trợ lý AI — tất cả ở một nơi.",
+                                "Bước cuối cùng: hãy xác thực địa chỉ email để kích hoạt tài khoản. Bạn chỉ đăng nhập "
+                                        + "được sau khi xác thực."),
+                        "Xác thực email", link,
+                        List.of("Liên kết có hiệu lực trong 24 giờ. Hết hạn? Hãy thử đăng nhập và chọn \"Gửi lại email xác thực\".",
+                                "Nếu bạn không tạo tài khoản này, hãy bỏ qua email.")),
+                new Section("en", "Welcome to TripNova, " + nameOr(name, "traveller") + "!",
+                        List.of("Thanks for signing up. You can now book hotels, tours, car rentals and flights, and plan "
+                                        + "trips with our AI assistant — all in one place.",
+                                "One last step: verify your email address to activate your account. You can sign in "
+                                        + "once it is verified."),
+                        "Verify email", link,
+                        List.of("This link expires in 24 hours. Expired? Try signing in and choose \"Resend verification email\".",
+                                "If you did not create this account, you can ignore this email."))));
+    }
+
     public Mail passwordReset(String to, String name, String token, long ttlMinutes) {
         String link = frontendUrl + "/reset-password?token=" + token;
         return build(to, "Đặt lại mật khẩu TripNova / Reset your TripNova password", List.of(

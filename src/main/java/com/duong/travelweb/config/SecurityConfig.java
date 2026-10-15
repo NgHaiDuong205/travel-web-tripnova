@@ -69,6 +69,7 @@ public class SecurityConfig {
             "/api/auth/forgot-password/",
             "/api/auth/reset-password/",
             "/api/auth/verify-email/",
+            "/api/auth/resend-verification/",
             "/api/auth/oauth2/exchange/",
             "/api/search/click/",
             "/api/contact/",

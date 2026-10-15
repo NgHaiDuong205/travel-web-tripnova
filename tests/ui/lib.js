@@ -27,11 +27,30 @@ async function api(p, opts = {}) {
 async function login({ email, password }, register = false) {
     let res = await fetch(BE + "/api/auth/login/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
     if (!res.ok && register) {
-        await fetch(BE + "/api/auth/register/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, fullName: "E2E User" }) });
+        const reg = await fetch(BE + "/api/auth/register/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, fullName: "E2E User" }) });
+        if ((await reg.json().catch(() => ({}))).verificationRequired) await verifyFromMailpit(email);
         res = await fetch(BE + "/api/auth/login/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
     }
     if (!res.ok) throw new Error(`Không đăng nhập được ${email}: ${res.status}`);
     return res.json();
+}
+
+/** Tài khoản mới phải xác thực email: lấy link trong email chào mừng ở Mailpit (UI_MAILPIT_URL). */
+async function verifyFromMailpit(email) {
+    const mailpit = (process.env.UI_MAILPIT_URL || "http://127.0.0.1:8025").replace(/\/$/, "");
+    for (let i = 0; i < 40; i++) {
+        const { messages = [] } = await (await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)).json();
+        for (const m of messages) {
+            const { Text } = await (await fetch(`${mailpit}/api/v1/message/${m.ID}`)).json();
+            const match = Text.match(/\/verify-email\?token=([^\s"<>&]+)/);
+            if (match) {
+                await fetch(BE + "/api/auth/verify-email/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: match[1] }) });
+                return;
+            }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error(`${email} cần xác thực email: chạy Mailpit và cho BE gửi mail vào Mailpit`);
 }
 
 /** Ghi token vào localStorage trước khi trang chạy (giống FE sau khi đăng nhập). */
